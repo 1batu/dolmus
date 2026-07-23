@@ -8,8 +8,8 @@ export default function App() {
       <Canvas
         shadows
         orthographic
-        camera={{ position: [60, 62, 60], zoom: 13, near: -200, far: 500 }}
-        onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
+        camera={{ position: [70, 62, 64], zoom: 16, near: -200, far: 500 }}
+        onCreated={({ camera }) => camera.lookAt(10, 0, 4)}
       >
         <World />
       </Canvas>

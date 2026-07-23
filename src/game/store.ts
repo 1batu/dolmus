@@ -1,18 +1,37 @@
 import { create } from 'zustand'
 import { CONFIG } from './config'
-import { STOP_TS, STOP_COUNT, curveLength, nextStopAfter } from './route'
+import {
+  type P2,
+  departPath,
+  pathLength,
+  returnPath,
+  spotPos,
+  toPeronPath,
+} from './paths'
 import { t } from '../i18n'
 
-export type Passenger = { id: number; from: number; dest: number }
+export type VehicleState =
+  | 'parked'
+  | 'toPeron'
+  | 'loading'
+  | 'departing'
+  | 'onTrip'
+  | 'returning'
 
-export type Bus = {
+export type Vehicle = {
   id: number
-  no: number // filo sıra numarası (Minibüs 1, 2, ...)
-  t: number // hat üzerindeki normalize konum [0,1)
-  state: 'driving' | 'dwelling'
-  dwellLeft: number
-  nextStop: number
-  passengers: Passenger[]
+  no: number // filo sıra numarası
+  spotIdx: number // sahip olunan park yeri
+  hasDriver: boolean
+  state: VehicleState
+  path: P2[] | null
+  dist: number // mevcut hat üzerinde alınan mesafe
+  passengers: number
+  wait: number // peronda geçen süre
+  boardAcc: number // biniş hız sayacı
+  tripLeft: number
+  fuel: number // depo, 0..fuelCapacity
+  wear: number // yıpranma %, 100'de sefer yapamaz
 }
 
 export type Toast = { id: number; text: string; expireAt: number }
@@ -20,68 +39,136 @@ export type Toast = { id: number; text: string; expireAt: number }
 let nextId = 1
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
 
-// Ücret: kaç durak gidiyorsa o kadar segment parası (binişte peşin, dolmuş usulü)
-function fareFor(p: Passenger): number {
-  const segs = (p.dest - p.from + STOP_COUNT) % STOP_COUNT
-  return segs * CONFIG.farePerSegment
-}
-
-type GameState = {
-  time: number // toplam oyun süresi (sn)
-  money: number
-  totalCarried: number
-  queues: Passenger[][]
-  buses: Bus[]
-  toasts: Toast[]
-  spawnTimer: number
-  nextBusCost: () => number
-  buyBus: () => void
-  tick: (dt: number) => void
-}
-
-function makeBus(tStart: number, no: number): Bus {
+function makeVehicle(no: number, spotIdx: number, hasDriver: boolean): Vehicle {
   return {
     id: nextId++,
     no,
-    t: tStart,
-    state: 'driving',
-    dwellLeft: 0,
-    nextStop: nextStopAfter(tStart),
-    passengers: [],
+    spotIdx,
+    hasDriver,
+    state: 'parked',
+    path: null,
+    dist: 0,
+    passengers: 0,
+    wait: 0,
+    boardAcc: 0,
+    tripLeft: 0,
+    fuel: CONFIG.fuelCapacity,
+    wear: 0,
   }
+}
+
+// Sefere çıkabilir mi: yakıt yetmeli, bakım sınırına dayanmamış olmalı
+export function canServe(v: Vehicle): boolean {
+  return v.fuel >= CONFIG.fuelPerTrip && v.wear < 100
+}
+
+export function refuelCost(v: Vehicle): number {
+  return Math.ceil((CONFIG.fuelCapacity - v.fuel) * CONFIG.refuelCostPerUnit)
+}
+
+export function repairCost(v: Vehicle): number {
+  return Math.ceil(v.wear * CONFIG.repairCostPerUnit)
+}
+
+type GameState = {
+  time: number
+  day: number
+  money: number
+  totalCarried: number
+  queue: number // peronda bekleyen yolcu sayısı
+  spots: number
+  drivers: number
+  vehicles: Vehicle[]
+  toasts: Toast[]
+  spawnTimer: number
+  vehicleCost: () => number
+  spotCost: () => number
+  buyVehicle: () => void
+  buySpot: () => void
+  hireDriver: () => void
+  refuel: (vehicleId: number) => void
+  repair: (vehicleId: number) => void
+  tick: (dt: number) => void
 }
 
 export const useGame = create<GameState>((set, get) => ({
   time: 0,
-  money: 0,
+  day: 1,
+  money: CONFIG.startMoney,
   totalCarried: 0,
-  queues: STOP_TS.map(() => []),
-  buses: [makeBus(0.1, 1)],
+  queue: 0,
+  spots: CONFIG.startSpots,
+  drivers: 1,
+  vehicles: [makeVehicle(1, 0, true)],
   toasts: [],
   spawnTimer: 1,
 
-  nextBusCost: () => CONFIG.busBaseCost * get().buses.length,
+  vehicleCost: () => CONFIG.vehicleBaseCost * get().vehicles.length,
+  spotCost: () => CONFIG.spotBaseCost * (get().spots - CONFIG.startSpots + 1),
 
-  buyBus: () => {
-    const { money, buses, nextBusCost } = get()
-    const cost = nextBusCost()
-    if (money < cost) return
-    // Yeni araç, sondaki araçla çakışmasın diye hattın karşı yarısından başlar
-    const tStart = (buses[buses.length - 1].t + 0.5) % 1
-    set({ money: money - cost, buses: [...buses, makeBus(tStart, buses.length + 1)] })
+  buyVehicle: () => {
+    const s = get()
+    const cost = s.vehicleCost()
+    if (s.money < cost || s.vehicles.length >= s.spots) return
+    // İlk boş park yerine konur; şoförü yoksa orada bekler
+    const usedSpots = new Set(s.vehicles.map((v) => v.spotIdx))
+    let spotIdx = 0
+    while (usedSpots.has(spotIdx)) spotIdx++
+    set({
+      money: s.money - cost,
+      vehicles: [...s.vehicles, makeVehicle(s.vehicles.length + 1, spotIdx, false)],
+    })
+  },
+
+  buySpot: () => {
+    const s = get()
+    const cost = s.spotCost()
+    if (s.money < cost || s.spots >= CONFIG.maxSpots) return
+    set({ money: s.money - cost, spots: s.spots + 1 })
+  },
+
+  hireDriver: () => {
+    const s = get()
+    const idle = s.vehicles.find((v) => !v.hasDriver)
+    if (s.money < CONFIG.driverHireCost || !idle) return
+    set({
+      money: s.money - CONFIG.driverHireCost,
+      drivers: s.drivers + 1,
+      vehicles: s.vehicles.map((v) => (v.id === idle.id ? { ...v, hasDriver: true } : v)),
+    })
+  },
+
+  refuel: (vehicleId: number) => {
+    const s = get()
+    const v = s.vehicles.find((veh) => veh.id === vehicleId)
+    if (!v) return
+    const cost = refuelCost(v)
+    if (cost <= 0 || s.money < cost) return
+    set({
+      money: s.money - cost,
+      vehicles: s.vehicles.map((veh) =>
+        veh.id === vehicleId ? { ...veh, fuel: CONFIG.fuelCapacity } : veh,
+      ),
+    })
+  },
+
+  repair: (vehicleId: number) => {
+    const s = get()
+    const v = s.vehicles.find((veh) => veh.id === vehicleId)
+    if (!v) return
+    const cost = repairCost(v)
+    if (cost <= 0 || s.money < cost) return
+    set({
+      money: s.money - cost,
+      vehicles: s.vehicles.map((veh) => (veh.id === vehicleId ? { ...veh, wear: 0 } : veh)),
+    })
   },
 
   tick: (dt: number) => {
     const s = get()
     const time = s.time + dt
-    let { money, totalCarried, spawnTimer } = s
+    let { money, totalCarried, queue, spawnTimer, day } = s
 
-    // queues/toasts sadece değişince kopyalanır — HUD boşuna re-render olmasın
-    let queues = s.queues
-    const touchQueue = (i: number, next: Passenger[]) => {
-      if (queues === s.queues) queues = [...queues]
-      queues[i] = next
-    }
     let toasts = s.toasts
     if (toasts.some((tst) => tst.expireAt <= time)) {
       toasts = toasts.filter((tst) => tst.expireAt > time)
@@ -90,71 +177,104 @@ export const useGame = create<GameState>((set, get) => ({
       toasts = [...toasts, { id: nextId++, text, expireAt: time + CONFIG.toastLifetime }].slice(-5)
     }
 
-    // Yolcu doğuşu: rastgele durakta, rastgele hedefe
+    // Gün dönümü: yevmiyeler kasadan düşer
+    const newDay = Math.floor(time / CONFIG.dayLength) + 1
+    if (newDay > day) {
+      day = newDay
+      const wages = s.drivers * CONFIG.driverWage
+      money -= wages
+      pushToast(t.wagesPaid(wages))
+    }
+
+    // Terminale yolcu akışı
     spawnTimer -= dt
     if (spawnTimer <= 0) {
       spawnTimer = rand(CONFIG.spawnIntervalMin, CONFIG.spawnIntervalMax)
-      const from = Math.floor(Math.random() * STOP_COUNT)
-      if (queues[from].length < CONFIG.maxQueue) {
-        const dest = (from + 1 + Math.floor(Math.random() * (STOP_COUNT - 1))) % STOP_COUNT
-        touchQueue(from, [...queues[from], { id: nextId++, from, dest }])
-      }
+      if (queue < CONFIG.maxQueue) queue++
     }
 
-    const buses = s.buses.map((bus) => {
-      const b = { ...bus }
+    // Peron tek araçlık: sırada biri varsa diğerleri parkta bekler
+    let peronBusy = s.vehicles.some((v) => v.state === 'toPeron' || v.state === 'loading')
 
-      if (b.state === 'dwelling') {
-        b.dwellLeft -= dt
-        if (b.dwellLeft <= 0) {
-          b.state = 'driving'
-          b.nextStop = nextStopAfter(b.t)
+    const vehicles = s.vehicles.map((vehicle) => {
+      const v = { ...vehicle }
+      const advance = () => {
+        v.dist += CONFIG.vehicleSpeed * dt
+        return v.path !== null && v.dist >= pathLength(v.path)
+      }
+
+      switch (v.state) {
+        case 'parked': {
+          if (v.hasDriver && canServe(v) && !peronBusy) {
+            peronBusy = true
+            v.state = 'toPeron'
+            v.path = toPeronPath(spotPos(v.spotIdx))
+            v.dist = 0
+          }
+          break
         }
-        return b
+        case 'toPeron': {
+          if (advance()) {
+            v.state = 'loading'
+            v.wait = 0
+            v.boardAcc = 0
+          }
+          break
+        }
+        case 'loading': {
+          v.wait += dt
+          v.boardAcc += dt
+          while (v.boardAcc >= CONFIG.boardInterval && queue > 0 && v.passengers < CONFIG.seatCount) {
+            v.boardAcc -= CONFIG.boardInterval
+            queue--
+            v.passengers++
+          }
+          const full = v.passengers >= CONFIG.seatCount
+          const impatient = v.passengers > 0 && v.wait >= CONFIG.maxWaitAtPeron
+          if (full || impatient) {
+            // Dolmuş usulü: ücret binişte peşin, sefer başlarken kasaya girer.
+            // Gider kasadan değil araçtan: depo azalır, yıpranma birikir.
+            const fare = v.passengers * CONFIG.farePerPassenger
+            money += fare
+            totalCarried += v.passengers
+            v.fuel = Math.max(0, v.fuel - CONFIG.fuelPerTrip)
+            v.wear = Math.min(100, v.wear + CONFIG.wearPerTrip)
+            pushToast(t.departed(v.no, v.passengers, fare))
+            v.state = 'departing'
+            v.path = departPath
+            v.dist = 0
+          }
+          break
+        }
+        case 'departing': {
+          if (advance()) {
+            v.state = 'onTrip'
+            v.path = null
+            v.tripLeft = rand(CONFIG.tripDurationMin, CONFIG.tripDurationMax)
+          }
+          break
+        }
+        case 'onTrip': {
+          v.tripLeft -= dt
+          if (v.tripLeft <= 0) {
+            v.state = 'returning'
+            v.path = returnPath(spotPos(v.spotIdx))
+            v.dist = 0
+            v.passengers = 0
+          }
+          break
+        }
+        case 'returning': {
+          if (advance()) {
+            v.state = 'parked'
+            v.path = null
+          }
+          break
+        }
       }
-
-      // driving: hat boyunca ilerle, sıradaki durağı yakaladıysa yanaş
-      const move = (CONFIG.busSpeed * dt) / curveLength
-      const stopT = STOP_TS[b.nextStop]
-      const distToStop = (stopT - b.t + 1) % 1
-      if (move < distToStop) {
-        b.t = (b.t + move) % 1
-        return b
-      }
-
-      // Durağa varış
-      b.t = stopT
-      const stopIdx = b.nextStop
-      const unloading = b.passengers.filter((p) => p.dest === stopIdx)
-      const staying = b.passengers.filter((p) => p.dest !== stopIdx)
-      totalCarried += unloading.length
-
-      const free = CONFIG.seatCount - staying.length
-      const boarding = queues[stopIdx].slice(0, free)
-      if (boarding.length > 0) {
-        touchQueue(stopIdx, queues[stopIdx].slice(boarding.length))
-      }
-      b.passengers = [...staying, ...boarding]
-
-      if (boarding.length > 0) {
-        const fare = boarding.reduce((sum, p) => sum + fareFor(p), 0)
-        money += fare
-        pushToast(t.boarded(boarding.length, t.stopNames[stopIdx], fare))
-      } else if (unloading.length === 0 && free === 0 && queues[stopIdx].length > 0) {
-        // Dolu araç, inecek de yok — durağı pas geç (dolmuş klasiği)
-        pushToast(t.skippedFull(t.stopNames[stopIdx]))
-      }
-
-      if (unloading.length + boarding.length > 0) {
-        b.state = 'dwelling'
-        b.dwellLeft =
-          CONFIG.dwellBase + (unloading.length + boarding.length) * CONFIG.dwellPerPassenger
-      } else {
-        b.nextStop = nextStopAfter(b.t)
-      }
-      return b
+      return v
     })
 
-    set({ time, money, totalCarried, spawnTimer, queues, buses, toasts })
+    set({ time, day, money, totalCarried, queue, spawnTimer, vehicles, toasts })
   },
 }))

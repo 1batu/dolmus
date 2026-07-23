@@ -2,7 +2,7 @@
 
 Idle/tycoon game about running a Turkish dolmuş (shared minibus) line. Web-first: Three.js scene + DOM UI, one codebase for every platform.
 
-**TR:** Dolmuş hattı işletme oyunu. Duraklarda yolcu birikir, minibüs yanaşır, *dolunca kalkar*, kazandıkça filoyu büyütürsün. Trafik AI'ı yok — araçlar sabit spline hattı izler, simülasyon bu sayede basit kalır.
+**TR:** Kendi dolmuş terminalini işletirsin — kamera hep terminaldedir, hat görünmez. Peronda yolcu birikir, minibüs yanaşır, *dolunca kalkar*, ana yoldan ekran dışına sefere gider, süre sonunda döner ve park eder. Araç alırsın, şoför kiralarsın (günlük yevmiye), park yeri satın alırsın; mazot her seferde kasadan düşer. Trafik AI'ı yok — araçlar önceden tanımlı waypoint hatlarını izler, yoldaki diğer arabalar dekordur.
 
 ## Stack
 
@@ -23,16 +23,16 @@ npm run dev
 | Path | What / Ne |
 | --- | --- |
 | `src/game/config.ts` | All balance numbers / Tüm ekonomi dengesi tek yerde |
-| `src/game/route.ts` | Closed CatmullRom spline, stops, road ribbon geometry / Hat spline'ı |
-| `src/game/store.ts` | Sim tick: spawn → board (fare on boarding) → dwell → depart / Simülasyon |
-| `src/scene/` | World, procedural Minibus, Stop with live queue / 3B sahne |
-| `src/ui/HUD.tsx` | Cash, fleet, toasts, buy button / Arayüz |
+| `src/game/paths.ts` | Terminal layout + waypoint paths (spot→peron→road) / Yerleşim ve güzergahlar |
+| `src/game/store.ts` | Vehicle state machine: parked → load → trip → return; wages, fuel, day cycle / Simülasyon |
+| `src/scene/` | World (road, lot, peron, office, ambient traffic), procedural Minibus / 3B sahne |
+| `src/ui/HUD.tsx` | Day, cash, queue, fleet panel, buy/hire buttons, toasts / Arayüz |
 | `src/i18n.ts` | All UI strings, tr + en parity / Tüm metinler |
 
 ## Roadmap (sonrası)
 
-- "Müsait bir yerde inecek var" — durak dışı iniş + zabıta riski
-- Hat plakası satın alma → yeni mahalle/hat açılımı
-- Araç upgrade'leri (klima, müzik, döşeme) → konfor → itibar
-- Şoför morali, çay molası, korsan dolmuş rakibi
+- Araç bakımı/eskime: sefer başına yıpranma, tamirhane inşası
+- Terminal tesisleri: çay ocağı (şoför morali), yazıhane upgrade, yıkama
+- Hat plakası satın alma → ikinci hat, daha uzun/karlı seferler
+- İtibar sistemi: bekletilen yolcu itibar düşürür, itibar yolcu akışını etkiler
 - Save/load (localStorage), Capacitor ile mobil paket
