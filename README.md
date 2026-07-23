@@ -29,10 +29,13 @@ npm run dev
 | `src/ui/HUD.tsx` | Day, cash, queue, fleet panel, buy/hire buttons, toasts / Arayüz |
 | `src/i18n.ts` | All UI strings, tr + en parity / Tüm metinler |
 
-## Roadmap (sonrası)
+## Roadmap (öncelik sırasıyla)
 
-- Araç bakımı/eskime: sefer başına yıpranma, tamirhane inşası
-- Terminal tesisleri: çay ocağı (şoför morali), yazıhane upgrade, yıkama
-- Hat plakası satın alma → ikinci hat, daha uzun/karlı seferler
-- İtibar sistemi: bekletilen yolcu itibar düşürür, itibar yolcu akışını etkiler
-- Save/load (localStorage), Capacitor ile mobil paket
+1. **Save/load** (localStorage) — ilerleme kaybolmasın; sonrasında offline kazanç
+2. **İtibar + günlük görevler** — bekletilen yolcu itibarı düşürür, itibar yolcu akışını besler; günlük hedefler oyuncuya pusula olur
+3. **Terminal tesisleri (inşaat menüsü)** — büfe (bekleyen yolcudan pasif gelir), tamirhane (bakım indirimi), çay ocağı (şoför morali), yıkama
+4. **Şoför derinliği** — isim, seviye/beceri (hızlı biniş, az yıpratma), moral
+5. **Otomasyon** — oto-doldur/oto-bakım toggle'ları (idle QoL)
+6. **Gün/gece + hava** — görsel derinlik, gece far/pencere ışıkları hazır
+7. **Olaylar** — zabıta cezası, lastik patlaması, korsan dolmuş rakibi
+8. **Hat plakası** → ikinci hat, uzun/karlı seferler; Capacitor ile mobil

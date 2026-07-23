@@ -85,8 +85,14 @@ export function Wheel({ x, z, r = 0.3 }: { x: number; z: number; r?: number }) {
   )
 }
 
-// Sedan / hatchback / pickup — ambiyans trafiği için modern kasa
-export function CarMesh({ color, kind = 'sedan' }: { color: string; kind?: 'sedan' | 'hatch' | 'pickup' }) {
+// Sedan / hatchback / pickup / taksi — ambiyans trafiği için modern kasa
+export function CarMesh({
+  color,
+  kind = 'sedan',
+}: {
+  color: string
+  kind?: 'sedan' | 'hatch' | 'pickup' | 'taxi'
+}) {
   const cabinZ = kind === 'pickup' ? 0.55 : kind === 'hatch' ? -0.25 : 0
   return (
     <group>
@@ -105,6 +111,17 @@ export function CarMesh({ color, kind = 'sedan' }: { color: string; kind?: 'seda
       {kind === 'pickup' && (
         <mesh geometry={rbox(1.32, 0.08, 1.25, 0.03)} material={mat('#3a3f45', 0.8)} position={[0, 0.8, -0.85]} />
       )}
+      {kind === 'taxi' && (
+        <mesh
+          geometry={rbox(0.52, 0.16, 0.3, 0.04)}
+          material={mat('#f4f2ec', 0.4, { emissive: '#fff6d8', emissiveIntensity: 0.3 })}
+          position={[0, 1.32, cabinZ]}
+        />
+      )}
+      {/* Tamponlar */}
+      {[1.52, -1.52].map((z) => (
+        <mesh key={z} geometry={rbox(1.46, 0.16, 0.12, 0.05)} material={mat('#9aa1a8', 0.6)} position={[0, 0.34, z]} />
+      ))}
       {/* Farlar ve stoplar */}
       {[-0.48, 0.48].map((x) => (
         <mesh
@@ -201,15 +218,28 @@ export function Apartment({
       {/* Çatı parapeti + teras */}
       <mesh geometry={rbox(w + 0.3, 0.35, 7.3, 0.06)} material={mat('#8c8579', 0.8)} position={[0, H + 0.12, 0]} />
       <mesh geometry={rbox(1.2, 0.7, 1.2, 0.06)} material={mat('#b3b8bd', 0.7)} position={[w / 4, H + 0.6, -1]} />
-      {/* Zemin kat dükkân: vitrin + tente */}
-      <mesh geometry={rbox(w - 0.8, 1.5, 0.15, 0.04)} material={mat('#2f3b46', 0.3)} position={[0, 1.05, 3.5]} />
+      {/* Zemin kat dükkân: vitrin + tabela + tente + apartman girişi */}
+      <mesh geometry={rbox(w - 2.2, 1.5, 0.15, 0.04)} material={mat('#2f3b46', 0.3)} position={[-0.7, 1.05, 3.5]} />
+      <mesh geometry={rbox(w - 2.0, 0.45, 0.14, 0.04)} material={mat('#f4f2ec', 0.5)} position={[-0.7, 2.62, 3.52]} />
+      <mesh geometry={rbox(1.0, 1.85, 0.14, 0.04)} material={mat('#5a4634', 0.7)} position={[w / 2 - 0.9, 0.98, 3.52]} />
       <mesh
-        geometry={rbox(w - 0.6, 0.08, 1.3, 0.03)}
+        geometry={rbox(w - 1.8, 0.08, 1.25, 0.03)}
         material={mat(awning, 0.6)}
-        position={[0, 2.25, 4.05]}
+        position={[-0.7, 2.28, 4.0]}
         rotation={[0.32, 0, 0]}
         castShadow
       />
+      {/* Çatı: anten + çanak */}
+      <mesh geometry={cyl(0.025, 0.025, 1.7, 6)} material={mat('#6b7178', 0.5, { metal: 0.4 })} position={[-w / 4, H + 1.1, -1.5]} />
+      <mesh geometry={rbox(0.7, 0.03, 0.03, 0.01)} material={mat('#6b7178', 0.5, { metal: 0.4 })} position={[-w / 4, H + 1.75, -1.5]} />
+      {seed % 2 === 0 && (
+        <mesh
+          geometry={cyl(0.3, 0.3, 0.06, 12)}
+          material={mat('#dcd8cc', 0.5)}
+          position={[w / 3, H + 0.5, 2.8]}
+          rotation={[1.15, 0, 0.3]}
+        />
+      )}
       {/* Kat pencereleri + balkonlar */}
       {Array.from({ length: floors }, (_, f) =>
         colXs.map((x, c) => {

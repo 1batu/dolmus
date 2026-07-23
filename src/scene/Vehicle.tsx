@@ -51,6 +51,18 @@ export function MinibusMesh() {
       ))}
       {/* Izgara */}
       <mesh geometry={rbox(0.6, 0.13, 0.06, 0.03)} material={mat('#3a3f45', 0.7)} position={[0, 0.68, 1.9]} />
+      {/* Sinyaller */}
+      {[-0.78, 0.78].map((x) => (
+        <mesh
+          key={`s${x}`}
+          geometry={rbox(0.1, 0.1, 0.06, 0.03)}
+          material={mat('#e8923a', 0.4, { emissive: '#e8923a', emissiveIntensity: 0.3 })}
+          position={[x, 0.68, 1.89]}
+        />
+      ))}
+      {/* Plakalar */}
+      <mesh geometry={rbox(0.36, 0.11, 0.03, 0.01)} material={mat('#f4f2ec', 0.4)} position={[0, 0.48, 1.93]} />
+      <mesh geometry={rbox(0.36, 0.11, 0.03, 0.01)} material={mat('#f4f2ec', 0.4)} position={[0, 0.48, -1.93]} />
       {/* Stoplar */}
       {[-0.6, 0.6].map((x) => (
         <mesh

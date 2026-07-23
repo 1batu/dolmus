@@ -72,7 +72,7 @@ const AMBIENT_CARS: Array<{
   speed: number
   offset: number
   color: string
-  kind: 'sedan' | 'hatch' | 'pickup'
+  kind: 'sedan' | 'hatch' | 'pickup' | 'taxi'
 }> = [
   { lane: LAYOUT.laneNearZ, dir: 1, speed: 12, offset: -70, color: '#4caf6e', kind: 'sedan' },
   { lane: LAYOUT.laneNearZ, dir: 1, speed: 14, offset: -10, color: '#e6b23a', kind: 'hatch' },
@@ -80,6 +80,10 @@ const AMBIENT_CARS: Array<{
   { lane: LAYOUT.laneFarZ, dir: -1, speed: 13, offset: 60, color: '#d95f5f', kind: 'hatch' },
   { lane: LAYOUT.laneFarZ, dir: -1, speed: 10, offset: 0, color: '#7bc47f', kind: 'pickup' },
   { lane: LAYOUT.laneFarZ, dir: -1, speed: 15, offset: -55, color: '#9a7fd6', kind: 'sedan' },
+  { lane: LAYOUT.laneNearZ, dir: 1, speed: 13, offset: 85, color: '#e8c53a', kind: 'taxi' },
+  // Arka sokak: yavaş mahalle trafiği
+  { lane: -11.4, dir: 1, speed: 7, offset: 25, color: '#8a9aa8', kind: 'sedan' },
+  { lane: -13.6, dir: -1, speed: 6, offset: -40, color: '#c98a3a', kind: 'hatch' },
 ]
 
 function AmbientTraffic() {
@@ -153,8 +157,24 @@ function Peron() {
       )}
       {/* Kırmızı alın bandı */}
       <mesh geometry={rbox(8.85, 0.2, 0.12, 0.04)} material={mat('#d94f4f', 0.5)} position={[0, 2.56, 1.28]} />
-      {/* Cam arkalık */}
+      {/* Cam arkalık + yan paneller */}
       <mesh geometry={rbox(8.2, 1.3, 0.07, 0.03)} material={glassMat()} position={[0, 1.1, -1.55]} />
+      {[-4.32, 4.32].map((ox) => (
+        <mesh key={ox} geometry={rbox(0.07, 1.3, 2.4, 0.03)} material={glassMat()} position={[ox, 1.1, -0.3]} />
+      ))}
+      {/* Hat panosu */}
+      <mesh geometry={rbox(1.7, 0.95, 0.06, 0.03)} material={mat('#f4f2ec', 0.5)} position={[0, 1.45, -1.5]} />
+      <mesh geometry={rbox(1.7, 0.24, 0.07, 0.03)} material={mat('#2160c4', 0.45)} position={[0, 1.82, -1.5]} />
+      {/* Oturak sırası */}
+      <group position={[-2.2, 0, -0.95]}>
+        {[0, 0.68, 1.36, 2.04].map((ox) => (
+          <group key={ox} position={[ox, 0, 0]}>
+            <mesh geometry={rbox(0.55, 0.09, 0.5, 0.04)} material={mat('#2160c4', 0.5)} position={[0, 0.58, 0]} castShadow />
+            <mesh geometry={rbox(0.55, 0.45, 0.07, 0.03)} material={mat('#2160c4', 0.5)} position={[0, 0.85, -0.24]} />
+          </group>
+        ))}
+        <mesh geometry={rbox(2.8, 0.08, 0.12, 0.03)} material={mat('#6f757c', 0.6)} position={[1.0, 0.42, 0]} />
+      </group>
       {/* Bank */}
       <group position={[2.6, 0, -0.9]}>
         <mesh geometry={rbox(2.4, 0.1, 0.55, 0.04)} material={mat('#c89a6b', 0.7)} position={[0, 0.62, 0]} castShadow />
@@ -252,18 +272,58 @@ const LAMPS: Array<[number, boolean]> = [
   [-60, false], [-30, true], [12, false], [40, true], [70, false],
 ]
 
-// Mahalle silueti: terminalin arkasında, çitin gerisinde (kamera +z'den bakar,
-// karşı tarafa koyulursa sahneyi kapatır — buraya değil!)
+// Mahalle silueti: terminalin arkasında, kendi sokağına cepheli (kamera +z'den
+// bakar, karşı tarafa koyulursa sahneyi kapatır — buraya değil!)
 const APARTMENTS = [
-  { x: -52, z: -16, w: 10, floors: 4, color: '#d8b48f', awning: '#c94f4f', seed: 1 },
-  { x: -36, z: -14.5, w: 9, floors: 5, color: '#c9cfd4', awning: '#3a6b5a', seed: 2 },
-  { x: -21, z: -16.5, w: 8, floors: 3, color: '#e3c1b0', awning: '#3a5a8a', seed: 3 },
-  { x: -6, z: -14, w: 10, floors: 5, color: '#cfd8b8', awning: '#c94f4f', seed: 4 },
-  { x: 10, z: -16, w: 9, floors: 4, color: '#e8d9b8', awning: '#7a4a8a', seed: 5 },
-  { x: 26, z: -14.5, w: 8, floors: 3, color: '#d4c3d8', awning: '#3a6b5a', seed: 6 },
-  { x: 42, z: -16.5, w: 10, floors: 5, color: '#c9b8a5', awning: '#c98a3a', seed: 7 },
-  { x: 58, z: -14, w: 9, floors: 4, color: '#dfc9c0', awning: '#3a5a8a', seed: 8 },
+  { x: -52, z: -20, w: 10, floors: 4, color: '#d8b48f', awning: '#c94f4f', seed: 1 },
+  { x: -36, z: -19.5, w: 9, floors: 5, color: '#c9cfd4', awning: '#3a6b5a', seed: 2 },
+  { x: -21, z: -20.5, w: 8, floors: 3, color: '#e3c1b0', awning: '#3a5a8a', seed: 3 },
+  { x: -6, z: -19, w: 10, floors: 5, color: '#cfd8b8', awning: '#c94f4f', seed: 4 },
+  { x: 10, z: -20, w: 9, floors: 4, color: '#e8d9b8', awning: '#7a4a8a', seed: 5 },
+  { x: 26, z: -19.5, w: 8, floors: 3, color: '#d4c3d8', awning: '#3a6b5a', seed: 6 },
+  { x: 42, z: -20.5, w: 10, floors: 5, color: '#c9b8a5', awning: '#c98a3a', seed: 7 },
+  { x: 58, z: -19, w: 9, floors: 4, color: '#dfc9c0', awning: '#3a5a8a', seed: 8 },
 ]
+
+// Arka sokakta park etmiş araçlar
+const PARKED_CARS: Array<{ x: number; z: number; rot: number; color: string; kind: 'sedan' | 'hatch' | 'pickup' | 'taxi' }> = [
+  { x: -42, z: -10.9, rot: Math.PI / 2, color: '#b0b6bd', kind: 'sedan' },
+  { x: -12, z: -10.9, rot: Math.PI / 2, color: '#7a4a3a', kind: 'hatch' },
+  { x: 6, z: -14.1, rot: -Math.PI / 2, color: '#4a6b8a', kind: 'sedan' },
+  { x: 34, z: -10.9, rot: Math.PI / 2, color: '#e8c53a', kind: 'taxi' },
+  { x: 52, z: -14.1, rot: -Math.PI / 2, color: '#5a7a52', kind: 'pickup' },
+]
+
+// Mahalle sokağı: asfalt + iki taraflı kaldırım + ara sokak
+function BackStreet() {
+  return (
+    <group>
+      <mesh position={[0, 0.02, -12.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[190, 5]} />
+        <meshStandardMaterial color="#5f646b" />
+      </mesh>
+      {/* Kaldırımlar */}
+      <mesh position={[0, 0.025, -9.4]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[190, 1.6]} />
+        <meshStandardMaterial color="#c6c9c1" />
+      </mesh>
+      <mesh position={[0, 0.025, -16]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[190, 2.4]} />
+        <meshStandardMaterial color="#c6c9c1" />
+      </mesh>
+      {/* Ara sokak: apartman arası -z yönüne uzanır */}
+      <mesh position={[18.2, 0.019, -22]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[4.6, 16]} />
+        <meshStandardMaterial color="#5f646b" />
+      </mesh>
+      {PARKED_CARS.map((c, i) => (
+        <group key={i} position={[c.x, 0, c.z]} rotation={[0, c.rot, 0]}>
+          <CarMesh color={c.color} kind={c.kind} />
+        </group>
+      ))}
+    </group>
+  )
+}
 
 export function World() {
   const spots = useGame((s) => s.spots)
@@ -308,6 +368,7 @@ export function World() {
       </mesh>
 
       <Road />
+      <BackStreet />
       <AmbientTraffic />
       <Peron />
       <Office />
