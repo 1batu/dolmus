@@ -1,7 +1,103 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGame } from '../game/store'
-import { CONFIG } from '../game/config'
+import { CONFIG, clockOf } from '../game/config'
 import { t } from '../i18n'
+
+const fmt = (n: number) => n.toLocaleString('tr-TR')
+
+// Koyu cam panel: gündüz de gece de okunur
+const GLASS = 'rounded-2xl border border-white/10 bg-neutral-900/70 shadow-lg backdrop-blur-md'
+
+function Stat({ icon, label, value, accent = 'text-white' }: { icon: string; label: string; value: string; accent?: string }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5">
+      <span className="text-base leading-none">{icon}</span>
+      <div>
+        <div className="text-[9px] font-bold uppercase tracking-widest text-white/40">{label}</div>
+        <div className={`text-sm font-extrabold tabular-nums leading-tight ${accent}`}>{value}</div>
+      </div>
+    </div>
+  )
+}
+
+function BuyButton({
+  icon,
+  label,
+  cost,
+  enabled,
+  accent,
+  onClick,
+}: {
+  icon: string
+  label: string
+  cost: number
+  enabled: boolean
+  accent: string // örn 'bg-blue-500'
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={!enabled}
+      className={`pointer-events-auto flex w-64 items-center gap-3 px-3 py-2.5 text-left transition active:scale-[0.98] ${GLASS}
+        ${enabled ? 'cursor-pointer hover:border-white/25 hover:bg-neutral-800/80' : 'opacity-45'}`}
+    >
+      <span
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg shadow-inner ${enabled ? accent : 'bg-white/10'}`}
+      >
+        {icon}
+      </span>
+      <span className="flex-1">
+        <span className="block text-[13px] font-extrabold text-white">{label}</span>
+        <span className="block text-[11px] font-bold tabular-nums text-white/50">₺{fmt(cost)}</span>
+      </span>
+    </button>
+  )
+}
+
+// Durum → renk eşlemesi (pill)
+const STATE_STYLE: Record<string, string> = {
+  onTrip: 'bg-sky-400/15 text-sky-300',
+  departing: 'bg-sky-400/15 text-sky-300',
+  returning: 'bg-sky-400/15 text-sky-300',
+  loading: 'bg-amber-400/15 text-amber-300',
+  toPeron: 'bg-amber-400/15 text-amber-300',
+  toPump: 'bg-orange-400/15 text-orange-300',
+  fueling: 'bg-orange-400/15 text-orange-300',
+  fromPump: 'bg-orange-400/15 text-orange-300',
+  parked: 'bg-white/10 text-white/60',
+  noDriver: 'bg-red-400/15 text-red-300',
+  noFuel: 'bg-red-400/15 text-red-300',
+  wornOut: 'bg-red-400/15 text-red-300',
+}
+
+function Bar({ icon, pct, from, to, low }: { icon: string; pct: number; from: string; to: string; low: boolean }) {
+  const width = `${Math.max(0, Math.min(100, pct))}%`
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="w-4 text-[10px]">{icon}</span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+        <div
+          className={`h-full rounded-full bg-gradient-to-r transition-all ${low ? 'from-red-500 to-red-400 animate-pulse' : `${from} ${to}`}`}
+          style={{ width }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function MiniButton({ label, enabled, onClick }: { label: string; enabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={!enabled}
+      className={`pointer-events-auto flex-1 rounded-lg px-1.5 py-1.5 text-[10px] font-bold tabular-nums transition active:scale-95
+        ${enabled ? 'cursor-pointer bg-white/15 text-white hover:bg-white/25' : 'bg-white/5 text-white/25'}`}
+    >
+      {label}
+    </button>
+  )
+}
 
 // Yanlış tıklamayla ilerleme silinmesin: ilk tık onay ister, 3 sn sonra kurulur
 function ResetButton({ onReset }: { onReset: () => void }) {
@@ -19,95 +115,27 @@ function ResetButton({ onReset }: { onReset: () => void }) {
           timer.current = setTimeout(() => setArmed(false), 3000)
         }
       }}
-      className={`pointer-events-auto cursor-pointer rounded-lg px-3 py-1.5 text-[11px] font-bold shadow transition active:scale-95
-        ${armed ? 'bg-red-600 text-white' : 'bg-white/80 text-neutral-500 hover:bg-white'}`}
+      className={`pointer-events-auto cursor-pointer rounded-xl px-3 py-1.5 text-[11px] font-bold transition active:scale-95 ${GLASS}
+        ${armed ? 'border-red-400/40 bg-red-950/80 text-red-300' : 'text-white/40 hover:text-white/80'}`}
     >
       {armed ? `⚠️ ${t.resetConfirm}` : `🗑 ${t.reset}`}
     </button>
   )
 }
 
-function Chip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-white/95 px-4 py-2 shadow-md">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-        {label}
-      </div>
-      <div className="text-lg font-extrabold text-neutral-800">{value}</div>
-    </div>
-  )
-}
-
-function BuyButton({
-  label,
-  cost,
-  enabled,
-  color,
-  onClick,
-}: {
-  label: string
-  cost: number
-  enabled: boolean
-  color: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={!enabled}
-      className={`pointer-events-auto w-56 rounded-xl px-4 py-3 text-left text-sm font-extrabold text-white shadow-md transition active:scale-95
-        ${enabled ? `cursor-pointer ${color}` : 'bg-neutral-300 text-neutral-500'}`}
-    >
-      <span className="flex items-center justify-between">
-        <span>{label}</span>
-        <span>₺{cost.toLocaleString('tr-TR')}</span>
-      </span>
-    </button>
-  )
-}
-
-// İnce durum barı: depo/araç sağlığı
-function Bar({ icon, pct, color }: { icon: string; pct: number; color: string }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="w-4 text-[10px]">{icon}</span>
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-200">
-        <div
-          className="h-full rounded-full transition-all"
-          style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: color }}
-        />
-      </div>
-    </div>
-  )
-}
-
-function MiniButton({
-  label,
-  enabled,
-  onClick,
-}: {
-  label: string
-  enabled: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={!enabled}
-      className={`pointer-events-auto flex-1 rounded-md px-1.5 py-1 text-[10px] font-bold transition active:scale-95
-        ${
-          enabled
-            ? 'cursor-pointer bg-neutral-800 text-white hover:bg-neutral-700'
-            : 'bg-neutral-100 text-neutral-400'
-        }`}
-    >
-      {label}
-    </button>
-  )
-}
-
 export function HUD() {
   const day = useGame((s) => s.day)
+  // 10 oyun-dakikası hassasiyetli saat — string eşitliği sayesinde her frame re-render olmaz
+  const clock = useGame((s) => {
+    const h = clockOf(s.time).hour
+    const hh = Math.floor(h)
+    const mm = Math.floor(((h % 1) * 60) / 10) * 10
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+  })
+  const isNightHour = useGame((s) => {
+    const h = clockOf(s.time).hour
+    return h < 6 || h >= 21
+  })
   const money = useGame((s) => s.money)
   const queue = useGame((s) => s.queue)
   const drivers = useGame((s) => s.drivers)
@@ -117,7 +145,14 @@ export function HUD() {
   const buyVehicle = useGame((s) => s.buyVehicle)
   const buySpot = useGame((s) => s.buySpot)
   const hireDriver = useGame((s) => s.hireDriver)
-  // Değer eşitliği sayesinde bu string seçiciler her frame re-render tetiklemez
+  const refuel = useGame((s) => s.refuel)
+  const repair = useGame((s) => s.repair)
+  const reset = useGame((s) => s.reset)
+  const toggleNightShift = useGame((s) => s.toggleNightShift)
+  const pumpBusy = useGame((s) =>
+    s.vehicles.some((v) => v.state === 'toPump' || v.state === 'fueling'),
+  )
+  // Değer eşitliği sayesinde bu string seçici her frame re-render tetiklemez
   const fleetKey = useGame((s) =>
     s.vehicles
       .map((v) => {
@@ -128,18 +163,12 @@ export function HUD() {
             : v.state === 'parked' && v.wear >= 100
               ? 'wornOut'
               : v.state
-        return `${v.id}|${v.no}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}`
+        return `${v.id}|${v.no}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}`
       })
       .join(','),
   )
-  const refuel = useGame((s) => s.refuel)
-  const repair = useGame((s) => s.repair)
-  const pumpBusy = useGame((s) =>
-    s.vehicles.some((v) => v.state === 'toPump' || v.state === 'fueling'),
-  )
-  const reset = useGame((s) => s.reset)
 
-  const vehicleCost = CONFIG.vehicleBaseCost * vehicleCount
+  const vehicleCost = CONFIG.vehicleBaseCost + CONFIG.vehicleCostStep * (vehicleCount - 1)
   const spotCost = CONFIG.spotBaseCost * (spots - CONFIG.startSpots + 1)
   const hasFreeSpot = vehicleCount < spots
   const hasIdleVehicle = fleetKey.includes('|noDriver|')
@@ -147,35 +176,41 @@ export function HUD() {
   return (
     <div className="pointer-events-none absolute inset-0 select-none font-sans">
       {/* Üst bar */}
-      <div className="absolute left-4 top-4 flex gap-2">
-        <Chip label={t.appTitle} value="🚐" />
-        <Chip label={t.day} value={`${day}`} />
-        <Chip label={t.cash} value={`₺${money.toLocaleString('tr-TR')}`} />
-        <Chip label={t.waiting} value={`${queue}`} />
-        <Chip label={t.drivers} value={`${drivers}`} />
+      <div className={`absolute left-4 top-4 flex items-stretch divide-x divide-white/10 ${GLASS}`}>
+        <div className="flex items-center px-3 text-lg font-black tracking-tight text-white">
+          🚐 <span className="ml-1.5 hidden sm:inline">{t.appTitle}</span>
+        </div>
+        <Stat icon="📅" label={t.day} value={`${day}`} />
+        <Stat icon={isNightHour ? '🌙' : '☀️'} label={t.clock} value={clock} />
+        <Stat icon="💰" label={t.cash} value={`₺${fmt(money)}`} accent={money < 0 ? 'text-red-400' : 'text-emerald-300'} />
+        <Stat icon="🧍" label={t.waiting} value={`${queue}`} accent={queue >= CONFIG.maxQueue ? 'text-amber-300' : 'text-white'} />
+        <Stat icon="🧔" label={t.drivers} value={`${drivers}`} />
       </div>
 
       {/* İşletme paneli */}
       <div className="absolute right-4 top-4 flex flex-col gap-2">
         <BuyButton
-          label={`🚐 ${t.buyVehicle}`}
+          icon="🚐"
+          label={t.buyVehicle}
           cost={vehicleCost}
           enabled={money >= vehicleCost && hasFreeSpot}
-          color="bg-blue-600 hover:bg-blue-500"
+          accent="bg-blue-500"
           onClick={buyVehicle}
         />
         <BuyButton
-          label={`🧔 ${t.hireDriver}`}
+          icon="🧔"
+          label={t.hireDriver}
           cost={CONFIG.driverHireCost}
           enabled={money >= CONFIG.driverHireCost && hasIdleVehicle}
-          color="bg-emerald-600 hover:bg-emerald-500"
+          accent="bg-emerald-500"
           onClick={hireDriver}
         />
         <BuyButton
-          label={`🅿️ ${t.buySpot}`}
+          icon="🅿️"
+          label={t.buySpot}
           cost={spotCost}
           enabled={money >= spotCost && spots < CONFIG.maxSpots}
-          color="bg-amber-600 hover:bg-amber-500"
+          accent="bg-amber-500"
           onClick={buySpot}
         />
       </div>
@@ -185,7 +220,7 @@ export function HUD() {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="rounded-lg bg-emerald-50/95 px-3 py-1.5 text-xs font-bold text-emerald-700 shadow"
+            className={`px-3 py-1.5 text-xs font-bold tabular-nums text-emerald-300 ${GLASS}`}
           >
             {toast.text}
           </div>
@@ -197,13 +232,15 @@ export function HUD() {
         <ResetButton onReset={reset} />
       </div>
 
-      {/* Filo durumu: depo + yıpranma barları, doldur/bakım aksiyonları */}
+      {/* Filo: depo + yıpranma barları, doldur/bakım, nöbetçi */}
       <div className="absolute bottom-4 left-4 flex flex-wrap gap-2">
         {fleetKey.split(',').map((entry) => {
-          const [idStr, no, state, count, fuelStr, wearStr] = entry.split('|')
+          const [idStr, no, state, count, fuelStr, wearStr, nightStr] = entry.split('|')
           const id = Number(idStr)
           const fuel = Number(fuelStr)
           const wear = Number(wearStr)
+          const night = nightStr === '1'
+          const fuelPct = (fuel / CONFIG.fuelCapacity) * 100
           const stateText = t.state[state as keyof typeof t.state]
           const warn = state === 'noDriver' || state === 'noFuel' || state === 'wornOut'
           const refuelPrice = Math.ceil((CONFIG.fuelCapacity - fuel) * CONFIG.refuelCostPerUnit)
@@ -211,28 +248,41 @@ export function HUD() {
           // Fiilen parkta mı? (pseudo-durumlar da parkta bekleyen aracı temsil eder)
           const isParked = state === 'parked' || state === 'noFuel' || state === 'wornOut'
           return (
-            <div key={id} className="w-52 rounded-xl bg-white/95 px-3 py-2 shadow-md">
-              <div className="flex items-baseline justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+            <div key={id} className={`w-60 p-3 ${GLASS}`}>
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
                   {t.busLabel(Number(no))}
                 </span>
-                <span className="text-[11px] font-extrabold text-neutral-700">
-                  {warn ? '⚠️' : '🧍'} {stateText}
-                  {!warn && ` · ${t.seats(Number(count), CONFIG.seatCount)}`}
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold tabular-nums ${STATE_STYLE[state] ?? 'bg-white/10 text-white/60'}`}
+                  >
+                    {warn && '⚠️ '}
+                    {stateText}
+                    {!warn && ` · ${t.seats(Number(count), CONFIG.seatCount)}`}
+                  </span>
+                  <button
+                    onClick={() => toggleNightShift(id)}
+                    title={t.nightShift}
+                    className={`pointer-events-auto cursor-pointer rounded-lg px-1.5 py-0.5 text-[11px] transition active:scale-95
+                      ${night ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]' : 'bg-white/10 opacity-40 hover:opacity-100'}`}
+                  >
+                    🌙
+                  </button>
                 </span>
               </div>
-              <div className="mt-1.5 flex flex-col gap-1">
-                <Bar icon="⛽" pct={fuel} color={fuel < CONFIG.fuelPerTrip ? '#dc2626' : '#f59e0b'} />
-                <Bar icon="🔧" pct={100 - wear} color={wear >= 100 ? '#dc2626' : '#10b981'} />
+              <div className="mt-2 flex flex-col gap-1.5">
+                <Bar icon="⛽" pct={fuelPct} from="from-amber-500" to="to-yellow-400" low={fuel < CONFIG.fuelPerTrip} />
+                <Bar icon="🔧" pct={100 - wear} from="from-emerald-500" to="to-green-400" low={wear >= 100} />
               </div>
-              <div className="mt-1.5 flex gap-1.5">
+              <div className="mt-2 flex gap-1.5">
                 <MiniButton
-                  label={`⛽ ${t.refuel} ₺${refuelPrice}`}
+                  label={`⛽ ${t.refuel} ₺${fmt(refuelPrice)}`}
                   enabled={refuelPrice > 0 && money >= refuelPrice && isParked && !pumpBusy}
                   onClick={() => refuel(id)}
                 />
                 <MiniButton
-                  label={`🔧 ${t.repair} ₺${repairPrice}`}
+                  label={`🔧 ${t.repair} ₺${fmt(repairPrice)}`}
                   enabled={repairPrice > 0 && money >= repairPrice && (isParked || state === 'noDriver')}
                   onClick={() => repair(id)}
                 />

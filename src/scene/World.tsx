@@ -1,7 +1,8 @@
 import { useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { LAYOUT, spotPos } from '../game/paths'
+import { clockOf } from '../game/config'
 import { useGame } from '../game/store'
 import { Vehicle } from './Vehicle'
 import {
@@ -25,6 +26,115 @@ function SimTicker() {
     useGame.getState().tick(Math.min(dt, 0.1))
   })
   return null
+}
+
+// Gece/gündüz döngüsü: oyun saatine göre güneş, ortam ışığı ve gökyüzü
+const DAY_SKY = new THREE.Color('#cfe8c2')
+const NIGHT_SKY = new THREE.Color('#141d33')
+const DAY_SUN = new THREE.Color('#ffffff')
+const NIGHT_SUN = new THREE.Color('#5a6fa8')
+const DUSK_SUN = new THREE.Color('#ffb46b')
+
+// 0 = gece, 1 = gündüz; 05-07 şafak, 18-21 gün batımı
+function dayFactor(hour: number): number {
+  if (hour >= 7 && hour < 18) return 1
+  if (hour >= 5 && hour < 7) return (hour - 5) / 2
+  if (hour >= 18 && hour < 21) return 1 - (hour - 18) / 3
+  return 0
+}
+
+// Gece yanan tesis ışıkları: peron, pompa, yazıhane + saha projektörleri
+const NIGHT_LIGHTS: Array<{ pos: [number, number, number]; intensity: number; distance: number }> = [
+  { pos: [-12, 3.0, 4], intensity: 60, distance: 18 }, // peron saçak altı
+  { pos: [-0.5, 3.2, 4.5], intensity: 50, distance: 15 }, // pompa saçağı
+  { pos: [-22, 3.2, 2.2], intensity: 25, distance: 12 }, // yazıhane önü
+  { pos: [14, 6.2, -1], intensity: 140, distance: 34 }, // saha projektörü 1
+  { pos: [30, 6.2, -1], intensity: 140, distance: 34 }, // saha projektörü 2
+]
+
+function NightLights() {
+  const refs = useRef<Array<THREE.PointLight | null>>([])
+  useFrame(() => {
+    const nf = 1 - dayFactor(clockOf(useGame.getState().time).hour)
+    refs.current.forEach((l, i) => {
+      if (l) l.intensity = NIGHT_LIGHTS[i].intensity * nf
+    })
+  })
+  return (
+    <>
+      {NIGHT_LIGHTS.map((l, i) => (
+        <pointLight
+          key={i}
+          ref={(el) => void (refs.current[i] = el)}
+          position={l.pos}
+          intensity={0}
+          distance={l.distance}
+          color="#ffdfa3"
+        />
+      ))}
+      {/* Projektör direkleri */}
+      {[14, 30].map((x) => (
+        <group key={x} position={[x, 0, -2]}>
+          <mesh geometry={cyl(0.09, 0.13, 6.4, 10)} material={mat('#5d646b', 0.6, { metal: 0.3 })} position={[0, 3.2, 0]} castShadow />
+          <mesh
+            geometry={rbox(0.7, 0.3, 0.45, 0.06)}
+            material={mat('#3a4046', 0.5, { metal: 0.3 })}
+            position={[0, 6.35, 0.3]}
+            rotation={[0.5, 0, 0]}
+          />
+          <mesh
+            geometry={rbox(0.6, 0.08, 0.36, 0.03)}
+            material={mat('#fff3c9', 0.3, { emissive: '#ffe89a', emissiveIntensity: 1 })}
+            position={[0, 6.28, 0.42]}
+            rotation={[0.5, 0, 0]}
+          />
+        </group>
+      ))}
+    </>
+  )
+}
+
+function DayNight() {
+  const dir = useRef<THREE.DirectionalLight>(null)
+  const amb = useRef<THREE.AmbientLight>(null)
+  const hemi = useRef<THREE.HemisphereLight>(null)
+  const scene = useThree((s) => s.scene)
+  const sky = useMemo(() => new THREE.Color(), [])
+
+  useFrame(() => {
+    const { hour } = clockOf(useGame.getState().time)
+    const f = dayFactor(hour)
+
+    if (dir.current) {
+      dir.current.intensity = 0.12 + 1.28 * f
+      // Alacakaranlıkta güneş turunculaşır
+      const dusk = f > 0 && f < 1 ? Math.sin(f * Math.PI) : 0
+      dir.current.color.lerpColors(NIGHT_SUN, DAY_SUN, f).lerp(DUSK_SUN, dusk * 0.6)
+    }
+    if (amb.current) amb.current.intensity = 0.16 + 0.39 * f
+    if (hemi.current) hemi.current.intensity = 0.12 + 0.38 * f
+    sky.lerpColors(NIGHT_SKY, DAY_SKY, f)
+    scene.background = sky
+  })
+
+  return (
+    <>
+      <ambientLight ref={amb} intensity={0.55} />
+      <hemisphereLight ref={hemi} args={['#dff2ff', '#b9d8a2', 0.5]} />
+      <directionalLight
+        ref={dir}
+        position={[45, 70, 25]}
+        intensity={1.4}
+        castShadow
+        shadow-bias={-0.0002}
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-left={-70}
+        shadow-camera-right={70}
+        shadow-camera-top={70}
+        shadow-camera-bottom={-70}
+      />
+    </>
+  )
 }
 
 // Ana yol: asfalt + kenar bantları + orta şerit kesikleri
@@ -336,19 +446,8 @@ export function World() {
   return (
     <>
       <SimTicker />
-      <ambientLight intensity={0.55} />
-      <hemisphereLight args={['#dff2ff', '#b9d8a2', 0.5]} />
-      <directionalLight
-        position={[45, 70, 25]}
-        intensity={1.4}
-        castShadow
-        shadow-bias={-0.0002}
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-70}
-        shadow-camera-right={70}
-        shadow-camera-top={70}
-        shadow-camera-bottom={-70}
-      />
+      <DayNight />
+      <NightLights />
 
       {/* Zemin */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>

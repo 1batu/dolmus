@@ -1,10 +1,13 @@
 // Tüm UI metinleri buradan gelir — hardcoded string yok. / All UI strings live here.
 export type Lang = 'tr' | 'en'
 
+const fmt = (n: number) => n.toLocaleString('tr-TR')
+
 const dicts = {
   tr: {
     appTitle: 'DOLMUŞ!',
     day: 'Gün',
+    clock: 'Saat',
     cash: 'Kasa',
     waiting: 'Bekleyen',
     fleet: 'Filo',
@@ -12,10 +15,13 @@ const dicts = {
     buyVehicle: 'Minibüs Al',
     hireDriver: 'Şoför Kirala',
     buySpot: 'Park Yeri Al',
+    nightShift: 'Nöbetçi',
     departed: (no: number, n: number, fare: number) =>
-      `Minibüs ${no} sefere çıktı: ${n} yolcu +₺${fare}`,
-    wagesPaid: (total: number) => `Yevmiyeler ödendi: -₺${total}`,
-    refueled: (no: number, cost: number) => `⛽ Minibüs ${no} pompaya yanaştı: -₺${cost}`,
+      `Minibüs ${no} sefere çıktı: ${n} yolcu +₺${fmt(fare)}`,
+    returned: (no: number, extra: number) =>
+      `Minibüs ${no} döndü · hat hasılatı +₺${fmt(extra)}`,
+    wagesPaid: (total: number) => `Yevmiyeler ödendi: -₺${fmt(total)}`,
+    refueled: (no: number, cost: number) => `⛽ Minibüs ${no} pompaya yanaştı: -₺${fmt(cost)}`,
     busLabel: (no: number) => `Minibüs ${no}`,
     seats: (used: number, total: number) => `${used}/${total}`,
     fuel: 'Yakıt',
@@ -42,6 +48,7 @@ const dicts = {
   en: {
     appTitle: 'DOLMUŞ!',
     day: 'Day',
+    clock: 'Time',
     cash: 'Cash',
     waiting: 'Waiting',
     fleet: 'Fleet',
@@ -49,10 +56,13 @@ const dicts = {
     buyVehicle: 'Buy Minibus',
     hireDriver: 'Hire Driver',
     buySpot: 'Buy Parking Spot',
+    nightShift: 'Night duty',
     departed: (no: number, n: number, fare: number) =>
-      `Minibus ${no} departed: ${n} passengers +₺${fare}`,
-    wagesPaid: (total: number) => `Wages paid: -₺${total}`,
-    refueled: (no: number, cost: number) => `⛽ Minibus ${no} at the pump: -₺${cost}`,
+      `Minibus ${no} departed: ${n} passengers +₺${fmt(fare)}`,
+    returned: (no: number, extra: number) =>
+      `Minibus ${no} returned · route earnings +₺${fmt(extra)}`,
+    wagesPaid: (total: number) => `Wages paid: -₺${fmt(total)}`,
+    refueled: (no: number, cost: number) => `⛽ Minibus ${no} at the pump: -₺${fmt(cost)}`,
     busLabel: (no: number) => `Minibus ${no}`,
     seats: (used: number, total: number) => `${used}/${total}`,
     fuel: 'Fuel',

@@ -1,28 +1,57 @@
 // Ekonomi ve simülasyon dengesi tek yerden. / Single source of truth for game balance.
+// Fiyatlar Temmuz 2026 İstanbul gerçeklerine dayanır: indi-bindi ₺43 (İBB/UKOME),
+// motorin ₺74/L, eski kasa 2. el minibüs ~₺400-500 bin, şoför yevmiyesi ~₺1.750.
 export const CONFIG = {
   seatCount: 14, // klasik minibüs koltuk sayısı
   vehicleSpeed: 10, // birim/sn
-  boardInterval: 0.35, // biniş hızı: sn/yolcu
-  farePerPassenger: 18, // ₺, sefer başına yolcu ücreti
-  fuelCapacity: 100, // depo (birim)
-  fuelPerTrip: 20, // sefer başına yakıt tüketimi (birim)
-  refuelCostPerUnit: 1.8, // ₺/birim — tam depo ≈ ₺180
-  fuelFillRate: 22, // pompada dolum hızı (birim/sn)
-  wearPerTrip: 8, // sefer başına yıpranma (%); 100'de araç bakım ister
-  repairCostPerUnit: 2.2, // ₺/yıpranma puanı — tam bakım ≈ ₺220
-  tripDurationMin: 12, // sefer süresi (sn), ekran dışı
-  tripDurationMax: 22,
-  maxWaitAtPeron: 12, // dolmadan bekleyeceği azami süre (sn)
-  spawnIntervalMin: 0.8, // terminale yolcu geliş aralığı (sn)
-  spawnIntervalMax: 2.2,
-  maxQueue: 20, // peron kuyruğu limiti
-  dayLength: 45, // 1 oyun günü (sn)
-  driverWage: 100, // ₺/gün, şoför yevmiyesi
-  driverHireCost: 150, // ₺, işe alım
-  vehicleBaseCost: 400, // her araçta katlanır
-  spotBaseCost: 200, // her park yerinde katlanır
-  maxSpots: 8, // tek sıra park kapasitesi
-  startMoney: 150,
+  boardInterval: 0.3, // biniş hızı: sn/yolcu
+
+  // Gelir
+  farePerPassenger: 43, // ₺, indi-bindi (0-4 km tarifesi)
+  nightFareMultiplier: 1.5, // gece tarifesi (00:00-06:00)
+  enRouteFaresMin: 10, // hat boyunca inen-binen ek yolcu (dönüşte kasaya girer)
+  enRouteFaresMax: 20,
+
+  // Yakıt (litre bazlı)
+  fuelCapacity: 80, // depo (L)
+  fuelPerTrip: 6, // sefer başına tüketim (L) — ~35 km tur, 17L/100km
+  refuelCostPerUnit: 74, // ₺/L motorin — tam depo ≈ ₺5.920
+  fuelFillRate: 16, // pompada dolum hızı (L/sn)
+
+  // Bakım
+  wearPerTrip: 6, // sefer başına yıpranma (%); 100'de araç bakım ister
+  repairCostPerUnit: 120, // ₺/puan — tam bakım ≈ ₺12.000
+
+  // Sefer/terminal ritmi
+  tripDurationMin: 10, // sefer süresi (sn), ekran dışı
+  tripDurationMax: 16,
+  maxWaitAtPeron: 10, // dolmadan bekleyeceği azami süre (sn)
+  spawnIntervalMin: 0.7, // yolcu geliş aralığı (sn)
+  spawnIntervalMax: 2.0,
+  nightSpawnFactor: 4, // gece yolcu aralığı çarpanı (00:00-06:00)
+  maxQueue: 20,
+
+  // Zaman: 1 oyun günü = 24 saat = 300 sn gerçek zaman. Saat 06:00'da başlar.
+  dayLength: 300,
+  clockStartHour: 6,
+  nightEndHour: 6, // 00:00-06:00 arası sadece nöbetçi çalışır
+  wageHour: 20, // yevmiyeler akşam bu saatte ödenir
+
+  // Personel & yatırım
+  driverWage: 1750, // ₺/gün
+  driverHireCost: 4000, // ₺, işe alım
+  vehicleBaseCost: 390000, // eski kasa 2. el minibüs
+  vehicleCostStep: 130000, // her ilave araçta artış
+  spotBaseCost: 30000, // park cebi devri, her cepte katlanır
+  maxSpots: 8,
+  startMoney: 150000,
   startSpots: 2,
+
   toastLifetime: 3, // sn
+}
+
+// Oyun saati: time (sn) → gün + saat
+export function clockOf(time: number): { day: number; hour: number } {
+  const totalHours = CONFIG.clockStartHour + (time / CONFIG.dayLength) * 24
+  return { day: Math.floor(totalHours / 24) + 1, hour: totalHours % 24 }
 }
