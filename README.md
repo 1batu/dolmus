@@ -1,32 +1,38 @@
-# React + TypeScript + Vite
+# DOLMUŞ! 🚐
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Idle/tycoon game about running a Turkish dolmuş (shared minibus) line. Web-first: Three.js scene + DOM UI, one codebase for every platform.
 
-Currently, two official plugins are available:
+**TR:** Dolmuş hattı işletme oyunu. Duraklarda yolcu birikir, minibüs yanaşır, *dolunca kalkar*, kazandıkça filoyu büyütürsün. Trafik AI'ı yok — araçlar sabit spline hattı izler, simülasyon bu sayede basit kalır.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Stack
 
-## React Compiler
+- Vite + React 19 + TypeScript
+- three + @react-three/fiber — isometric low-poly scene, all geometry procedural (zero assets)
+- zustand — game state + sim tick (`useFrame` driven)
+- Tailwind v4 — HUD is plain DOM on top of the canvas
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Run
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Structure
+
+| Path | What / Ne |
+| --- | --- |
+| `src/game/config.ts` | All balance numbers / Tüm ekonomi dengesi tek yerde |
+| `src/game/route.ts` | Closed CatmullRom spline, stops, road ribbon geometry / Hat spline'ı |
+| `src/game/store.ts` | Sim tick: spawn → board (fare on boarding) → dwell → depart / Simülasyon |
+| `src/scene/` | World, procedural Minibus, Stop with live queue / 3B sahne |
+| `src/ui/HUD.tsx` | Cash, fleet, toasts, buy button / Arayüz |
+| `src/i18n.ts` | All UI strings, tr + en parity / Tüm metinler |
+
+## Roadmap (sonrası)
+
+- "Müsait bir yerde inecek var" — durak dışı iniş + zabıta riski
+- Hat plakası satın alma → yeni mahalle/hat açılımı
+- Araç upgrade'leri (klima, müzik, döşeme) → konfor → itibar
+- Şoför morali, çay molası, korsan dolmuş rakibi
+- Save/load (localStorage), Capacitor ile mobil paket

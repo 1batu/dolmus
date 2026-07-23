@@ -7,6 +7,7 @@ export type Passenger = { id: number; from: number; dest: number }
 
 export type Bus = {
   id: number
+  no: number // filo sıra numarası (Minibüs 1, 2, ...)
   t: number // hat üzerindeki normalize konum [0,1)
   state: 'driving' | 'dwelling'
   dwellLeft: number
@@ -14,7 +15,7 @@ export type Bus = {
   passengers: Passenger[]
 }
 
-export type Toast = { id: number; text: string; ttl: number }
+export type Toast = { id: number; text: string; expireAt: number }
 
 let nextId = 1
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
@@ -26,6 +27,7 @@ function fareFor(p: Passenger): number {
 }
 
 type GameState = {
+  time: number // toplam oyun süresi (sn)
   money: number
   totalCarried: number
   queues: Passenger[][]
@@ -37,9 +39,10 @@ type GameState = {
   tick: (dt: number) => void
 }
 
-function makeBus(tStart: number): Bus {
+function makeBus(tStart: number, no: number): Bus {
   return {
     id: nextId++,
+    no,
     t: tStart,
     state: 'driving',
     dwellLeft: 0,
@@ -49,10 +52,11 @@ function makeBus(tStart: number): Bus {
 }
 
 export const useGame = create<GameState>((set, get) => ({
+  time: 0,
   money: 0,
   totalCarried: 0,
   queues: STOP_TS.map(() => []),
-  buses: [makeBus(0.1)],
+  buses: [makeBus(0.1, 1)],
   toasts: [],
   spawnTimer: 1,
 
@@ -62,18 +66,29 @@ export const useGame = create<GameState>((set, get) => ({
     const { money, buses, nextBusCost } = get()
     const cost = nextBusCost()
     if (money < cost) return
-    // Yeni araç, öndeki araçla çakışmasın diye hattın karşı yarısından başlar
+    // Yeni araç, sondaki araçla çakışmasın diye hattın karşı yarısından başlar
     const tStart = (buses[buses.length - 1].t + 0.5) % 1
-    set({ money: money - cost, buses: [...buses, makeBus(tStart)] })
+    set({ money: money - cost, buses: [...buses, makeBus(tStart, buses.length + 1)] })
   },
 
   tick: (dt: number) => {
     const s = get()
+    const time = s.time + dt
     let { money, totalCarried, spawnTimer } = s
-    const queues = s.queues.map((q) => [...q])
-    const toasts: Toast[] = s.toasts
-      .map((tst) => ({ ...tst, ttl: tst.ttl - dt }))
-      .filter((tst) => tst.ttl > 0)
+
+    // queues/toasts sadece değişince kopyalanır — HUD boşuna re-render olmasın
+    let queues = s.queues
+    const touchQueue = (i: number, next: Passenger[]) => {
+      if (queues === s.queues) queues = [...queues]
+      queues[i] = next
+    }
+    let toasts = s.toasts
+    if (toasts.some((tst) => tst.expireAt <= time)) {
+      toasts = toasts.filter((tst) => tst.expireAt > time)
+    }
+    const pushToast = (text: string) => {
+      toasts = [...toasts, { id: nextId++, text, expireAt: time + CONFIG.toastLifetime }].slice(-5)
+    }
 
     // Yolcu doğuşu: rastgele durakta, rastgele hedefe
     spawnTimer -= dt
@@ -82,12 +97,12 @@ export const useGame = create<GameState>((set, get) => ({
       const from = Math.floor(Math.random() * STOP_COUNT)
       if (queues[from].length < CONFIG.maxQueue) {
         const dest = (from + 1 + Math.floor(Math.random() * (STOP_COUNT - 1))) % STOP_COUNT
-        queues[from].push({ id: nextId++, from, dest })
+        touchQueue(from, [...queues[from], { id: nextId++, from, dest }])
       }
     }
 
     const buses = s.buses.map((bus) => {
-      const b = { ...bus, passengers: [...bus.passengers] }
+      const b = { ...bus }
 
       if (b.state === 'dwelling') {
         b.dwellLeft -= dt
@@ -99,7 +114,7 @@ export const useGame = create<GameState>((set, get) => ({
       }
 
       // driving: hat boyunca ilerle, sıradaki durağı yakaladıysa yanaş
-      const move = (CONFIG.busSpeed * dt) / curveLen
+      const move = (CONFIG.busSpeed * dt) / curveLength
       const stopT = STOP_TS[b.nextStop]
       const distToStop = (stopT - b.t + 1) % 1
       if (move < distToStop) {
@@ -111,28 +126,23 @@ export const useGame = create<GameState>((set, get) => ({
       b.t = stopT
       const stopIdx = b.nextStop
       const unloading = b.passengers.filter((p) => p.dest === stopIdx)
-      b.passengers = b.passengers.filter((p) => p.dest !== stopIdx)
+      const staying = b.passengers.filter((p) => p.dest !== stopIdx)
       totalCarried += unloading.length
 
-      const free = CONFIG.seatCount - b.passengers.length
-      const boarding = queues[stopIdx].splice(0, free)
-      b.passengers.push(...boarding)
+      const free = CONFIG.seatCount - staying.length
+      const boarding = queues[stopIdx].slice(0, free)
+      if (boarding.length > 0) {
+        touchQueue(stopIdx, queues[stopIdx].slice(boarding.length))
+      }
+      b.passengers = [...staying, ...boarding]
 
       if (boarding.length > 0) {
         const fare = boarding.reduce((sum, p) => sum + fareFor(p), 0)
         money += fare
-        toasts.push({
-          id: nextId++,
-          text: t.boarded(boarding.length, t.stopNames[stopIdx], fare),
-          ttl: CONFIG.toastLifetime,
-        })
+        pushToast(t.boarded(boarding.length, t.stopNames[stopIdx], fare))
       } else if (unloading.length === 0 && free === 0 && queues[stopIdx].length > 0) {
         // Dolu araç, inecek de yok — durağı pas geç (dolmuş klasiği)
-        toasts.push({
-          id: nextId++,
-          text: t.skippedFull(t.stopNames[stopIdx]),
-          ttl: CONFIG.toastLifetime,
-        })
+        pushToast(t.skippedFull(t.stopNames[stopIdx]))
       }
 
       if (unloading.length + boarding.length > 0) {
@@ -145,16 +155,6 @@ export const useGame = create<GameState>((set, get) => ({
       return b
     })
 
-    set({
-      money,
-      totalCarried,
-      spawnTimer,
-      queues,
-      buses,
-      toasts: toasts.slice(-5),
-    })
+    set({ time, money, totalCarried, spawnTimer, queues, buses, toasts })
   },
 }))
-
-// route.ts'e döngüsel bağımlılık kurmamak için uzunluğu burada içe alıyoruz
-import { curveLength as curveLen } from './route'
