@@ -1,6 +1,31 @@
+import { useEffect, useRef, useState } from 'react'
 import { useGame } from '../game/store'
 import { CONFIG } from '../game/config'
 import { t } from '../i18n'
+
+// Yanlış tıklamayla ilerleme silinmesin: ilk tık onay ister, 3 sn sonra kurulur
+function ResetButton({ onReset }: { onReset: () => void }) {
+  const [armed, setArmed] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout>>(null)
+  useEffect(() => () => clearTimeout(timer.current ?? undefined), [])
+  return (
+    <button
+      onClick={() => {
+        if (armed) {
+          onReset()
+          setArmed(false)
+        } else {
+          setArmed(true)
+          timer.current = setTimeout(() => setArmed(false), 3000)
+        }
+      }}
+      className={`pointer-events-auto cursor-pointer rounded-lg px-3 py-1.5 text-[11px] font-bold shadow transition active:scale-95
+        ${armed ? 'bg-red-600 text-white' : 'bg-white/80 text-neutral-500 hover:bg-white'}`}
+    >
+      {armed ? `⚠️ ${t.resetConfirm}` : `🗑 ${t.reset}`}
+    </button>
+  )
+}
 
 function Chip({ label, value }: { label: string; value: string }) {
   return (
@@ -112,6 +137,7 @@ export function HUD() {
   const pumpBusy = useGame((s) =>
     s.vehicles.some((v) => v.state === 'toPump' || v.state === 'fueling'),
   )
+  const reset = useGame((s) => s.reset)
 
   const vehicleCost = CONFIG.vehicleBaseCost * vehicleCount
   const spotCost = CONFIG.spotBaseCost * (spots - CONFIG.startSpots + 1)
@@ -164,6 +190,11 @@ export function HUD() {
             {toast.text}
           </div>
         ))}
+      </div>
+
+      {/* Sıfırlama */}
+      <div className="absolute bottom-4 right-4">
+        <ResetButton onReset={reset} />
       </div>
 
       {/* Filo durumu: depo + yıpranma barları, doldur/bakım aksiyonları */}

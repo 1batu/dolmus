@@ -22,6 +22,8 @@ const dicts = {
     wear: 'Yıpranma',
     refuel: 'Doldur',
     repair: 'Bakım',
+    reset: 'Sıfırla',
+    resetConfirm: 'Emin misin?',
     state: {
       parked: 'Parkta',
       noDriver: 'Şoför yok',
@@ -57,6 +59,8 @@ const dicts = {
     wear: 'Wear',
     refuel: 'Refuel',
     repair: 'Repair',
+    reset: 'Reset',
+    resetConfirm: 'Are you sure?',
     state: {
       parked: 'Parked',
       noDriver: 'No driver',

@@ -44,6 +44,72 @@ export type Toast = { id: number; text: string; expireAt: number }
 let nextId = 1
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
 
+// --- Kalıcılık: localStorage'a periyodik yaz, açılışta geri yükle ---
+const SAVE_KEY = 'dolmus-save'
+const SAVE_VERSION = 1 // araç/ekonomi şeması değişince artır — eski kayıt sessizce atılır
+let saveAcc = 0
+
+type SavedFields = Pick<
+  GameState,
+  | 'time'
+  | 'day'
+  | 'money'
+  | 'totalCarried'
+  | 'queue'
+  | 'spots'
+  | 'drivers'
+  | 'vehicles'
+  | 'spawnTimer'
+>
+
+function persist(s: SavedFields) {
+  try {
+    const { time, day, money, totalCarried, queue, spots, drivers, vehicles, spawnTimer } = s
+    localStorage.setItem(
+      SAVE_KEY,
+      JSON.stringify({
+        v: SAVE_VERSION,
+        nextId,
+        time,
+        day,
+        money,
+        totalCarried,
+        queue,
+        spots,
+        drivers,
+        vehicles,
+        spawnTimer,
+      }),
+    )
+  } catch {
+    // depolama dolu/kapalıysa oyun kayıtsız devam eder
+  }
+}
+
+function loadSave(): Partial<SavedFields> | null {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY)
+    if (!raw) return null
+    const d = JSON.parse(raw)
+    if (d?.v !== SAVE_VERSION || !Array.isArray(d.vehicles) || d.vehicles.length === 0) return null
+    if (![d.time, d.money, d.spots, d.drivers].every(Number.isFinite)) return null
+    nextId = Number.isFinite(d.nextId) ? d.nextId : 100000
+    return {
+      time: d.time,
+      day: d.day,
+      money: d.money,
+      totalCarried: d.totalCarried ?? 0,
+      queue: d.queue ?? 0,
+      spots: d.spots,
+      drivers: d.drivers,
+      vehicles: d.vehicles,
+      spawnTimer: d.spawnTimer ?? 1,
+    }
+  } catch {
+    return null
+  }
+}
+
 function makeVehicle(no: number, spotIdx: number, hasDriver: boolean): Vehicle {
   return {
     id: nextId++,
@@ -93,20 +159,28 @@ type GameState = {
   hireDriver: () => void
   refuel: (vehicleId: number) => void
   repair: (vehicleId: number) => void
+  reset: () => void
   tick: (dt: number) => void
 }
 
+function initialState() {
+  return {
+    time: 0,
+    day: 1,
+    money: CONFIG.startMoney,
+    totalCarried: 0,
+    queue: 0,
+    spots: CONFIG.startSpots,
+    drivers: 1,
+    vehicles: [makeVehicle(1, 0, true)],
+    toasts: [] as Toast[],
+    spawnTimer: 1,
+  }
+}
+
 export const useGame = create<GameState>((set, get) => ({
-  time: 0,
-  day: 1,
-  money: CONFIG.startMoney,
-  totalCarried: 0,
-  queue: 0,
-  spots: CONFIG.startSpots,
-  drivers: 1,
-  vehicles: [makeVehicle(1, 0, true)],
-  toasts: [],
-  spawnTimer: 1,
+  ...initialState(),
+  ...(loadSave() ?? {}),
 
   vehicleCost: () => CONFIG.vehicleBaseCost * get().vehicles.length,
   spotCost: () => CONFIG.spotBaseCost * (get().spots - CONFIG.startSpots + 1),
@@ -175,6 +249,16 @@ export const useGame = create<GameState>((set, get) => ({
       money: s.money - cost,
       vehicles: s.vehicles.map((veh) => (veh.id === vehicleId ? { ...veh, wear: 0 } : veh)),
     })
+  },
+
+  reset: () => {
+    try {
+      localStorage.removeItem(SAVE_KEY)
+    } catch {
+      /* yoksay */
+    }
+    nextId = 1
+    set(initialState())
   },
 
   tick: (dt: number) => {
@@ -310,5 +394,12 @@ export const useGame = create<GameState>((set, get) => ({
     })
 
     set({ time, day, money, totalCarried, queue, spawnTimer, vehicles, toasts })
+
+    // ~2.5 sn'de bir kaydet — her frame localStorage'a yazmak gereksiz
+    saveAcc += dt
+    if (saveAcc >= 2.5) {
+      saveAcc = 0
+      persist(get())
+    }
   },
 }))

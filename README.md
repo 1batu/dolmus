@@ -31,7 +31,7 @@ npm run dev
 
 ## Roadmap (öncelik sırasıyla)
 
-1. **Save/load** (localStorage) — ilerleme kaybolmasın; sonrasında offline kazanç
+1. ~~**Save/load** (localStorage)~~ ✅ — 2.5 sn'de bir otomatik kayıt, `SAVE_VERSION` ile şema koruması, iki aşamalı Sıfırla; sırada offline kazanç
 2. **İtibar + günlük görevler** — bekletilen yolcu itibarı düşürür, itibar yolcu akışını besler; günlük hedefler oyuncuya pusula olur
 3. **Terminal tesisleri (inşaat menüsü)** — büfe (bekleyen yolcudan pasif gelir), tamirhane (bakım indirimi), çay ocağı (şoför morali), yıkama
 4. **Şoför derinliği** — isim, seviye/beceri (hızlı biniş, az yıpratma), moral
