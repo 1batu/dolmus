@@ -5,9 +5,11 @@ import { LAYOUT, spotPos } from '../game/paths'
 import { useGame } from '../game/store'
 import { Vehicle } from './Vehicle'
 import {
+  Apartment,
   CarMesh,
   PassengerMesh,
   StreetLamp,
+  TrashBin,
   TreeBlob,
   TreePine,
   cyl,
@@ -47,6 +49,18 @@ function Road() {
           <meshStandardMaterial color="#f2d34e" />
         </mesh>
       ))}
+      {/* Yaya geçidi */}
+      {Array.from({ length: 8 }, (_, i) => (
+        <mesh key={`z${i}`} position={[-6, 0.045, 17.1 + i * 0.82]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[1.4, 0.48]} />
+          <meshStandardMaterial color="#e8e4d8" />
+        </mesh>
+      ))}
+      {/* Karşı kaldırım */}
+      <mesh position={[0, 0.015, 25.6]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[190, 3.6]} />
+        <meshStandardMaterial color="#c6c9c1" />
+      </mesh>
     </group>
   )
 }
@@ -154,12 +168,51 @@ function Peron() {
         <mesh geometry={rbox(0.9, 0.65, 0.09, 0.06)} material={mat('#2160c4', 0.4, { emissive: '#2160c4', emissiveIntensity: 0.15 })} position={[0, 2.55, 0]} />
         <mesh geometry={rbox(0.7, 0.1, 0.1, 0.03)} material={mat('#f4f2ec', 0.5)} position={[0, 2.55, 0.01]} />
       </group>
-      {/* Kuyruk */}
+      {/* Çöp kutusu */}
+      <group position={[4.2, 0, 1.3]}>
+        <TrashBin />
+      </group>
+      {/* Kuyruk: saçağın önünde, araç kapısına doğru dizilir (görünürlük için açıkta) */}
       {Array.from({ length: queue }, (_, i) => (
-        <group key={i} position={[-3.5 + (i % 10) * 0.74, 0.22, -0.5 + Math.floor(i / 10) * 1.0]}>
-          <PassengerMesh color={PASSENGER_COLORS[i % PASSENGER_COLORS.length]} />
+        <group
+          key={i}
+          position={[-3.6 + (i % 10) * 0.76, 0, 2.5 + Math.floor(i / 10) * 0.95]}
+          rotation={[0, (i % 5) * 0.35 - 0.7, 0]}
+        >
+          <PassengerMesh color={PASSENGER_COLORS[i % PASSENGER_COLORS.length]} variant={i} />
         </group>
       ))}
+    </group>
+  )
+}
+
+// Terminal pompası: "Doldur" basınca araçlar buraya yanaşır
+function FuelPump() {
+  return (
+    <group position={[-1.1, 0, 4.5]}>
+      {/* Ada */}
+      <mesh geometry={rbox(0.95, 0.18, 4.4, 0.05)} material={mat('#b3b8bd', 0.8)} position={[0, 0.09, 0]} receiveShadow />
+      {/* Pompalar */}
+      {[-1.1, 1.1].map((oz) => (
+        <group key={oz} position={[0, 0, oz]}>
+          <mesh geometry={rbox(0.42, 1.05, 0.34, 0.06)} material={mat('#d23f3f', 0.5)} position={[0, 0.7, 0]} castShadow />
+          <mesh geometry={rbox(0.3, 0.26, 0.06, 0.03)} material={mat('#242f3a', 0.3)} position={[0, 0.95, 0.16]} />
+          <mesh geometry={rbox(0.44, 0.12, 0.36, 0.04)} material={mat('#f4f2ec', 0.5)} position={[0, 1.28, 0]} />
+          <mesh geometry={rbox(0.08, 0.3, 0.1, 0.03)} material={mat('#2a2f35', 0.7)} position={[0.24, 0.85, 0]} />
+        </group>
+      ))}
+      {/* Saçak */}
+      <mesh geometry={rbox(3.2, 0.12, 5.6, 0.05)} material={mat('#f4f2ec', 0.5)} position={[0.2, 3.05, 0]} castShadow />
+      <mesh geometry={rbox(3.25, 0.22, 0.12, 0.04)} material={mat('#2160c4', 0.45)} position={[0.2, 2.98, 2.82]} />
+      {[-2.5, 2.5].map((oz) => (
+        <mesh key={oz} geometry={cyl(0.07, 0.07, 3.0, 10)} material={mat('#8f969e', 0.5, { metal: 0.4 })} position={[0, 1.5, oz]} />
+      ))}
+      {/* Fiyat totemi */}
+      <group position={[0, 0, -3.5]}>
+        <mesh geometry={rbox(0.5, 2.2, 0.24, 0.05)} material={mat('#2160c4', 0.5)} position={[0, 1.1, 0]} castShadow />
+        <mesh geometry={rbox(0.42, 0.5, 0.26, 0.04)} material={mat('#f4f2ec', 0.4, { emissive: '#f4f2ec', emissiveIntensity: 0.2 })} position={[0, 1.7, 0]} />
+        <mesh geometry={rbox(0.42, 0.3, 0.26, 0.04)} material={mat('#d23f3f', 0.5)} position={[0, 2.15, 0]} />
+      </group>
     </group>
   )
 }
@@ -190,12 +243,26 @@ function Office() {
 
 const BLOB_TREES: Array<[number, number, number]> = [
   [-32, -8, 1.1], [-28, 12, 0.9], [34, -8, 1.2], [40, 6, 1.0], [22, -10, 0.85], [-45, 14, 1.15],
+  [-62, 26.5, 0.8], [-14, 26.5, 0.85], [34, 26.5, 0.8], [66, 26.5, 0.9],
 ]
 const PINE_TREES: Array<[number, number, number]> = [
-  [-40, 26, 1.1], [50, 26, 1.0], [-52, -4, 1.2], [46, -14, 0.9], [-14, 27, 1.0],
+  [-52, -4, 1.2], [46, -14, 0.9], [-38, -14, 1.0], [58, -6, 1.1],
 ]
 const LAMPS: Array<[number, boolean]> = [
   [-60, false], [-30, true], [12, false], [40, true], [70, false],
+]
+
+// Mahalle silueti: terminalin arkasında, çitin gerisinde (kamera +z'den bakar,
+// karşı tarafa koyulursa sahneyi kapatır — buraya değil!)
+const APARTMENTS = [
+  { x: -52, z: -16, w: 10, floors: 4, color: '#d8b48f', awning: '#c94f4f', seed: 1 },
+  { x: -36, z: -14.5, w: 9, floors: 5, color: '#c9cfd4', awning: '#3a6b5a', seed: 2 },
+  { x: -21, z: -16.5, w: 8, floors: 3, color: '#e3c1b0', awning: '#3a5a8a', seed: 3 },
+  { x: -6, z: -14, w: 10, floors: 5, color: '#cfd8b8', awning: '#c94f4f', seed: 4 },
+  { x: 10, z: -16, w: 9, floors: 4, color: '#e8d9b8', awning: '#7a4a8a', seed: 5 },
+  { x: 26, z: -14.5, w: 8, floors: 3, color: '#d4c3d8', awning: '#3a6b5a', seed: 6 },
+  { x: 42, z: -16.5, w: 10, floors: 5, color: '#c9b8a5', awning: '#c98a3a', seed: 7 },
+  { x: 58, z: -14, w: 9, floors: 4, color: '#dfc9c0', awning: '#3a5a8a', seed: 8 },
 ]
 
 export function World() {
@@ -244,6 +311,7 @@ export function World() {
       <AmbientTraffic />
       <Peron />
       <Office />
+      <FuelPump />
 
       {Array.from({ length: spots }, (_, i) => (
         <ParkingSpot key={i} index={i} />
@@ -263,6 +331,24 @@ export function World() {
         <group key={`l${i}`} position={[x, 0, flip ? LAYOUT.roadZ + LAYOUT.roadHalf + 0.8 : LAYOUT.roadZ - LAYOUT.roadHalf - 0.8]}>
           <StreetLamp flip={!flip} />
         </group>
+      ))}
+
+      {/* Mahalle silueti: terminal arkası apartman sırası */}
+      {APARTMENTS.map((a) => (
+        <group key={a.x} position={[a.x, 0, a.z]}>
+          <Apartment w={a.w} floors={a.floors} color={a.color} awning={a.awning} seed={a.seed} />
+        </group>
+      ))}
+
+      {/* Terminal arka çiti */}
+      <mesh geometry={rbox(63, 0.72, 0.2, 0.04)} material={mat('#c9ccc4', 0.8)} position={[6, 0.36, -8.4]} />
+      {Array.from({ length: 11 }, (_, i) => (
+        <mesh
+          key={`fp${i}`}
+          geometry={rbox(0.28, 1.0, 0.28, 0.05)}
+          material={mat('#aeb2ab', 0.8)}
+          position={[-24 + i * 6.2, 0.5, -8.4]}
+        />
       ))}
 
       {vehicleIds.map((id) => (

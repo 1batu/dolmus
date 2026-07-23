@@ -15,6 +15,7 @@ const dicts = {
     departed: (no: number, n: number, fare: number) =>
       `Minibüs ${no} sefere çıktı: ${n} yolcu +₺${fare}`,
     wagesPaid: (total: number) => `Yevmiyeler ödendi: -₺${total}`,
+    refueled: (no: number, cost: number) => `⛽ Minibüs ${no} pompaya yanaştı: -₺${cost}`,
     busLabel: (no: number) => `Minibüs ${no}`,
     seats: (used: number, total: number) => `${used}/${total}`,
     fuel: 'Yakıt',
@@ -31,6 +32,9 @@ const dicts = {
       departing: 'Yola çıkıyor',
       onTrip: 'Seferde',
       returning: 'Dönüyor',
+      toPump: 'Pompaya gidiyor',
+      fueling: 'Yakıt alıyor',
+      fromPump: 'Parka dönüyor',
     },
   },
   en: {
@@ -46,6 +50,7 @@ const dicts = {
     departed: (no: number, n: number, fare: number) =>
       `Minibus ${no} departed: ${n} passengers +₺${fare}`,
     wagesPaid: (total: number) => `Wages paid: -₺${total}`,
+    refueled: (no: number, cost: number) => `⛽ Minibus ${no} at the pump: -₺${cost}`,
     busLabel: (no: number) => `Minibus ${no}`,
     seats: (used: number, total: number) => `${used}/${total}`,
     fuel: 'Fuel',
@@ -62,6 +67,9 @@ const dicts = {
       departing: 'Departing',
       onTrip: 'On trip',
       returning: 'Returning',
+      toPump: 'Driving to pump',
+      fueling: 'Refueling',
+      fromPump: 'Returning to spot',
     },
   },
 } satisfies Record<Lang, unknown>

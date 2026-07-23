@@ -130,15 +130,113 @@ export function CarMesh({ color, kind = 'sedan' }: { color: string; kind?: 'seda
   )
 }
 
-// Yolcu: gövde kapsül + kafa — kuyrukta bekleyenler
-export function PassengerMesh({ color }: { color: string }) {
+// Yolcu: kafa + gövde + bacaklar, kimi çantalı — variant ile deterministik çeşitlilik
+const SKIN_TONES = ['#e8b98c', '#d9a06b', '#c98a5b', '#f0c9a0']
+const PANTS = ['#3a4454', '#5a5248', '#2e3a2e', '#4a3b52']
+const BAGS = ['#8a4a3a', '#3a5a7a', '#6b6b3a']
+
+export function PassengerMesh({ color, variant = 0 }: { color: string; variant?: number }) {
+  const h = 0.92 + (variant % 3) * 0.07 // boy çeşitliliği
+  const skin = SKIN_TONES[variant % SKIN_TONES.length]
+  const pants = PANTS[(variant * 3 + 1) % PANTS.length]
+  const hasBag = variant % 4 === 0
   return (
-    <group>
-      <mesh geometry={sph(0.19, false)} material={mat('#e8b98c', 0.7)} position={[0, 0.78, 0]} castShadow />
-      <mesh position={[0, 0.42, 0]} castShadow>
-        <capsuleGeometry args={[0.17, 0.42, 4, 10]} />
+    <group scale={h}>
+      {/* Bacaklar */}
+      {[-0.08, 0.08].map((x) => (
+        <mesh key={x} geometry={cyl(0.06, 0.07, 0.34, 8)} material={mat(pants, 0.8)} position={[x, 0.17, 0]} />
+      ))}
+      {/* Gövde */}
+      <mesh position={[0, 0.55, 0]} castShadow>
+        <capsuleGeometry args={[0.16, 0.36, 4, 10]} />
         <meshStandardMaterial color={color} roughness={0.7} />
       </mesh>
+      {/* Kollar */}
+      {[-0.21, 0.21].map((x) => (
+        <mesh key={x} geometry={cyl(0.045, 0.05, 0.36, 8)} material={mat(color, 0.75)} position={[x, 0.56, 0]} rotation={[0, 0, x > 0 ? -0.12 : 0.12]} />
+      ))}
+      {/* Kafa */}
+      <mesh geometry={sph(0.15, false)} material={mat(skin, 0.7)} position={[0, 0.92, 0]} castShadow />
+      {/* Çanta */}
+      {hasBag && (
+        <mesh geometry={rbox(0.22, 0.26, 0.12, 0.04)} material={mat(BAGS[variant % BAGS.length], 0.8)} position={[0.3, 0.32, 0]} />
+      )}
+    </group>
+  )
+}
+
+// Çöp kutusu — durak/peron aksesuarı
+export function TrashBin() {
+  return (
+    <group>
+      <mesh geometry={cyl(0.2, 0.17, 0.55, 12)} material={mat('#3d6b4f', 0.7)} position={[0, 0.28, 0]} castShadow />
+      <mesh geometry={cyl(0.22, 0.22, 0.06, 12)} material={mat('#2e5240', 0.7)} position={[0, 0.58, 0]} />
+    </group>
+  )
+}
+
+// Türk mahalle apartmanı: pencere grid'i, balkonlar, zemin katta kepenkli dükkân
+export function Apartment({
+  w = 9,
+  floors = 4,
+  color,
+  awning = '#c94f4f',
+  seed = 0,
+}: {
+  w?: number
+  floors?: number
+  color: string
+  awning?: string
+  seed?: number
+}) {
+  const floorH = 1.9
+  const baseH = 2.3 // zemin kat (dükkân)
+  const H = baseH + floors * floorH
+  const cols = Math.max(2, Math.floor(w / 2.4))
+  const colXs = Array.from({ length: cols }, (_, i) => -w / 2 + (w / (cols + 1)) * (i + 1) + w / (2 * (cols + 1)))
+  return (
+    <group>
+      {/* Gövde */}
+      <mesh geometry={rbox(w, H, 7, 0.08)} material={mat(color, 0.75)} position={[0, H / 2, 0]} castShadow />
+      {/* Çatı parapeti + teras */}
+      <mesh geometry={rbox(w + 0.3, 0.35, 7.3, 0.06)} material={mat('#8c8579', 0.8)} position={[0, H + 0.12, 0]} />
+      <mesh geometry={rbox(1.2, 0.7, 1.2, 0.06)} material={mat('#b3b8bd', 0.7)} position={[w / 4, H + 0.6, -1]} />
+      {/* Zemin kat dükkân: vitrin + tente */}
+      <mesh geometry={rbox(w - 0.8, 1.5, 0.15, 0.04)} material={mat('#2f3b46', 0.3)} position={[0, 1.05, 3.5]} />
+      <mesh
+        geometry={rbox(w - 0.6, 0.08, 1.3, 0.03)}
+        material={mat(awning, 0.6)}
+        position={[0, 2.25, 4.05]}
+        rotation={[0.32, 0, 0]}
+        castShadow
+      />
+      {/* Kat pencereleri + balkonlar */}
+      {Array.from({ length: floors }, (_, f) =>
+        colXs.map((x, c) => {
+          const y = baseH + f * floorH + 1.0
+          const lit = (seed * 7 + f * 3 + c) % 6 === 0
+          const hasBalcony = (seed + f + c) % 3 === 1
+          return (
+            <group key={`${f},${c}`}>
+              <mesh
+                geometry={rbox(0.95, 1.05, 0.1, 0.03)}
+                material={
+                  lit
+                    ? mat('#ffd98c', 0.4, { emissive: '#ffca5f', emissiveIntensity: 0.5 })
+                    : mat('#42525f', 0.25)
+                }
+                position={[x, y, 3.52]}
+              />
+              {hasBalcony && (
+                <group position={[x, y - 0.62, 3.95]}>
+                  <mesh geometry={rbox(1.5, 0.09, 0.85, 0.03)} material={mat('#cfc9bd', 0.8)} castShadow />
+                  <mesh geometry={rbox(1.5, 0.45, 0.07, 0.02)} material={mat('#9aa1a8', 0.6)} position={[0, 0.26, 0.4]} />
+                </group>
+              )}
+            </group>
+          )
+        }),
+      )}
     </group>
   )
 }

@@ -3,10 +3,12 @@ import { CONFIG } from './config'
 import {
   type P2,
   departPath,
+  fromPumpPath,
   pathLength,
   returnPath,
   spotPos,
   toPeronPath,
+  toPumpPath,
 } from './paths'
 import { t } from '../i18n'
 
@@ -17,6 +19,9 @@ export type VehicleState =
   | 'departing'
   | 'onTrip'
   | 'returning'
+  | 'toPump'
+  | 'fueling'
+  | 'fromPump'
 
 export type Vehicle = {
   id: number
@@ -143,12 +148,20 @@ export const useGame = create<GameState>((set, get) => ({
     const v = s.vehicles.find((veh) => veh.id === vehicleId)
     if (!v) return
     const cost = refuelCost(v)
-    if (cost <= 0 || s.money < cost) return
+    // Gerçekçi akış: araç fiilen pompaya sürer — şoför ve boş pompa şart
+    const pumpBusy = s.vehicles.some((veh) => veh.state === 'toPump' || veh.state === 'fueling')
+    if (cost <= 0 || s.money < cost || v.state !== 'parked' || !v.hasDriver || pumpBusy) return
     set({
       money: s.money - cost,
       vehicles: s.vehicles.map((veh) =>
-        veh.id === vehicleId ? { ...veh, fuel: CONFIG.fuelCapacity } : veh,
+        veh.id === vehicleId
+          ? { ...veh, state: 'toPump' as const, path: toPumpPath(spotPos(veh.spotIdx)), dist: 0 }
+          : veh,
       ),
+      toasts: [
+        ...s.toasts,
+        { id: nextId++, text: t.refueled(v.no, cost), expireAt: s.time + CONFIG.toastLifetime },
+      ].slice(-5),
     })
   },
 
@@ -265,6 +278,27 @@ export const useGame = create<GameState>((set, get) => ({
           break
         }
         case 'returning': {
+          if (advance()) {
+            v.state = 'parked'
+            v.path = null
+          }
+          break
+        }
+        case 'toPump': {
+          // path korunur: dolum sırasında araç pompada sabit durur
+          if (advance()) v.state = 'fueling'
+          break
+        }
+        case 'fueling': {
+          v.fuel = Math.min(CONFIG.fuelCapacity, v.fuel + CONFIG.fuelFillRate * dt)
+          if (v.fuel >= CONFIG.fuelCapacity) {
+            v.state = 'fromPump'
+            v.path = fromPumpPath(spotPos(v.spotIdx))
+            v.dist = 0
+          }
+          break
+        }
+        case 'fromPump': {
           if (advance()) {
             v.state = 'parked'
             v.path = null

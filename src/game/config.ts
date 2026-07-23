@@ -7,6 +7,7 @@ export const CONFIG = {
   fuelCapacity: 100, // depo (birim)
   fuelPerTrip: 20, // sefer başına yakıt tüketimi (birim)
   refuelCostPerUnit: 1.8, // ₺/birim — tam depo ≈ ₺180
+  fuelFillRate: 22, // pompada dolum hızı (birim/sn)
   wearPerTrip: 8, // sefer başına yıpranma (%); 100'de araç bakım ister
   repairCostPerUnit: 2.2, // ₺/yıpranma puanı — tam bakım ≈ ₺220
   tripDurationMin: 12, // sefer süresi (sn), ekran dışı

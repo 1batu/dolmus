@@ -109,6 +109,9 @@ export function HUD() {
   )
   const refuel = useGame((s) => s.refuel)
   const repair = useGame((s) => s.repair)
+  const pumpBusy = useGame((s) =>
+    s.vehicles.some((v) => v.state === 'toPump' || v.state === 'fueling'),
+  )
 
   const vehicleCost = CONFIG.vehicleBaseCost * vehicleCount
   const spotCost = CONFIG.spotBaseCost * (spots - CONFIG.startSpots + 1)
@@ -174,6 +177,8 @@ export function HUD() {
           const warn = state === 'noDriver' || state === 'noFuel' || state === 'wornOut'
           const refuelPrice = Math.ceil((CONFIG.fuelCapacity - fuel) * CONFIG.refuelCostPerUnit)
           const repairPrice = Math.ceil(wear * CONFIG.repairCostPerUnit)
+          // Fiilen parkta mı? (pseudo-durumlar da parkta bekleyen aracı temsil eder)
+          const isParked = state === 'parked' || state === 'noFuel' || state === 'wornOut'
           return (
             <div key={id} className="w-52 rounded-xl bg-white/95 px-3 py-2 shadow-md">
               <div className="flex items-baseline justify-between">
@@ -192,12 +197,12 @@ export function HUD() {
               <div className="mt-1.5 flex gap-1.5">
                 <MiniButton
                   label={`⛽ ${t.refuel} ₺${refuelPrice}`}
-                  enabled={refuelPrice > 0 && money >= refuelPrice}
+                  enabled={refuelPrice > 0 && money >= refuelPrice && isParked && !pumpBusy}
                   onClick={() => refuel(id)}
                 />
                 <MiniButton
                   label={`🔧 ${t.repair} ₺${repairPrice}`}
-                  enabled={repairPrice > 0 && money >= repairPrice}
+                  enabled={repairPrice > 0 && money >= repairPrice && (isParked || state === 'noDriver')}
                   onClick={() => repair(id)}
                 />
               </div>

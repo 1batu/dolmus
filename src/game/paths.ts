@@ -44,6 +44,17 @@ export function returnPath(spot: P2): P2[] {
   ]
 }
 
+// Terminal içi akaryakıt pompası: "Doldur" basınca araç buraya sürer
+export const PUMP_STOP: P2 = [1, 4.5]
+
+export function toPumpPath(spot: P2): P2[] {
+  return [spot, [spot[0], LAYOUT.aisleZ], [PUMP_STOP[0], LAYOUT.aisleZ], PUMP_STOP]
+}
+
+export function fromPumpPath(spot: P2): P2[] {
+  return [PUMP_STOP, [PUMP_STOP[0], LAYOUT.aisleZ], [spot[0], LAYOUT.aisleZ], spot]
+}
+
 export function pathLength(path: P2[]): number {
   let len = 0
   for (let i = 1; i < path.length; i++) {
