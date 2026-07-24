@@ -9,8 +9,9 @@ export const CONFIG = {
   // Gelir
   farePerPassenger: 43, // ₺, indi-bindi (0-4 km tarifesi)
   nightFareMultiplier: 1.5, // gece tarifesi (00:00-06:00)
-  enRouteFaresMin: 25, // hat boyunca inen-binen ek yolcu (dönüşte kasaya girer)
-  enRouteFaresMax: 50, // gerçek günlük ciroyu (₺13-15k/araç) yakalayan ana kalem
+  enRouteFaresMin: 30, // hat boyunca inen-binen ek yolcu (dönüşte kasaya girer)
+  enRouteFaresMax: 60, // gerçek günlük ciroyu (₺13-15k/araç) yakalayan ana kalem
+  kahyaEnRouteBonus: 0.15, // kahya seviyesi başına durak dışı indi-bindi artışı
 
   // Yakıt (litre bazlı)
   fuelCapacity: 80, // depo (L)
@@ -19,7 +20,7 @@ export const CONFIG = {
   fuelFillRate: 16, // pompada dolum hızı (L/sn)
 
   // Bakım
-  wearPerTrip: 6, // sefer başına yıpranma (%); 100'de araç bakım ister
+  wearPerTrip: 4, // sefer başına yıpranma (%); 100'de araç bakım ister
   repairCostPerUnit: 120, // ₺/puan — tam bakım ≈ ₺12.000
 
   // Sefer/terminal ritmi
@@ -40,6 +41,27 @@ export const CONFIG = {
   // Personel & yatırım
   driverWage: 1750, // ₺/gün
   driverHireCost: 4000, // ₺, işe alım
+  // Kahya (muavin): ayakta yolcu aldırır — kapasite artar, yevmiye eklenir
+  kahyaHireCost: 2500,
+  kahyaWage: 1000, // ₺/gün
+  kahyaWagePerLevel: 250, // seviye başına ek yevmiye
+  kahyaBaseStanding: 4, // Sv.1'de ayakta yolcu
+  kahyaStandingPerLevel: 2, // her seviyede +2
+  kahyaMaxLevel: 3,
+  kahyaUpgradeCosts: [5000, 10000], // Sv.2 ve Sv.3 geçiş ücreti
+  // Senet erken kapatma: kalan borcun %5'i silinir
+  payoffDiscount: 0.95,
+
+  // Rakip minibüsler: aynı hattın diğer esnafı — perona girer, yolcu kapar
+  rivalCount: 2,
+  rivalVisitMin: 180, // ziyaret aralığı (sn) — sık gelirse oyuncunun cirosunu boğar
+  rivalVisitMax: 360,
+  rivalMaxWaitAtPeron: 6, // rakip peronda daha aceleci
+  rivalBuyFactor: 0.6, // devren fiyat = yeni araç fiyatı × bu
+  rivalWearMin: 55, // devren gelirkenki yıpranma (%)
+  rivalWearMax: 80,
+  oldBusWearFactor: 1.5, // eski kasa: sefer başına yıpranma çarpanı
+  rivalRespawnSec: 240, // satın alınca hatta yeni esnaf katılma süresi
   vehicleBaseCost: 390000, // eski kasa 2. el minibüs
   vehicleCostStep: 130000, // her ilave araçta artış
   // Senetli satış: dolmuşçu usulü — peşinat ver, kalanı her akşam taksitle öde
@@ -66,6 +88,18 @@ export const CONFIG = {
   taskTripsPerVehicle: 4, // sefer / araç
   taskRewardBase: 5000, // ₺ ödül tabanı
   taskRewardPerVehicle: 4000,
+
+  // İnşaat: terminal tesisleri (tek seferlik yatırım)
+  bufeCost: 120000, // büfe — bekleyen yolcu + yoldan geçen satışı
+  bufeSaleChance: 0.55, // gelen yolcunun alışveriş olasılığı
+  bufeSaleMin: 25, // ₺ simit/su bandı (2026: simit ₺25-30, çay ₺15-25)
+  bufeSaleMax: 150, // ₺ tost + içecek sepeti
+  bufeStreetSalesMin: 1, // saatlik yoldan geçen müşteri (06-24 arası)
+  bufeStreetSalesMax: 4,
+  cayOcagiCost: 80000, // çay ocağı — şoför morali: biniş %25 hızlanır
+  cayOcagiBoardFactor: 0.8,
+  tamirhaneCost: 250000, // tamirhane — bakım %40 indirimli
+  tamirhaneDiscount: 0.6, // bakım fiyat çarpanı
 
   toastLifetime: 3, // sn
 }

@@ -5,7 +5,8 @@ export type P2 = [number, number] // [x, z]
 export const LAYOUT = {
   aisleZ: 8, // park sırası ile peron arasındaki servis yolu
   peronX: -12, // biniş peronu (araç duruş noktası: [peronX, aisleZ])
-  entranceX: 2, // ana yola bağlanan giriş
+  gateInX: -20, // giriş kapısı (batı) — dönen araçlar buradan girer
+  gateOutX: 24, // çıkış kapısı (doğu) — sefere çıkan buradan yola bağlanır
   roadZ: 20, // ana yol merkezi
   roadHalf: 3.5,
   laneNearZ: 18.25, // +x yönü akan şerit (bizim araçlar bunu kullanır)
@@ -25,20 +26,20 @@ export function toPeronPath(spot: P2): P2[] {
   return [spot, [spot[0], LAYOUT.aisleZ], [LAYOUT.peronX, LAYOUT.aisleZ]]
 }
 
-// Perondan ana yola, sağa dönüp ekran dışına (sefer başlangıcı)
+// Perondan doğu kapısına, sağa dönüp ekran dışına (sefer başlangıcı)
 export const departPath: P2[] = [
   [LAYOUT.peronX, LAYOUT.aisleZ],
-  [LAYOUT.entranceX, LAYOUT.aisleZ],
-  [LAYOUT.entranceX, LAYOUT.laneNearZ],
+  [LAYOUT.gateOutX, LAYOUT.aisleZ],
+  [LAYOUT.gateOutX, LAYOUT.laneNearZ],
   [LAYOUT.offX, LAYOUT.laneNearZ],
 ]
 
-// Seferden dönüş: ekran dışından girip park yerine
+// Seferden dönüş: batı kapısından girip park yerine
 export function returnPath(spot: P2): P2[] {
   return [
     [-LAYOUT.offX, LAYOUT.laneNearZ],
-    [LAYOUT.entranceX, LAYOUT.laneNearZ],
-    [LAYOUT.entranceX, LAYOUT.aisleZ],
+    [LAYOUT.gateInX, LAYOUT.laneNearZ],
+    [LAYOUT.gateInX, LAYOUT.aisleZ],
     [spot[0], LAYOUT.aisleZ],
     spot,
   ]

@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { LAYOUT, spotPos } from '../game/paths'
 import { clockOf } from '../game/config'
 import { useGame } from '../game/store'
-import { Vehicle } from './Vehicle'
+import { RivalBus, Vehicle } from './Vehicle'
 import {
   Apartment,
   CarMesh,
@@ -302,16 +302,19 @@ function Peron() {
       <group position={[4.2, 0, 1.3]}>
         <TrashBin />
       </group>
-      {/* Kuyruk: saçağın önünde, araç kapısına doğru dizilir (görünürlük için açıkta) */}
-      {Array.from({ length: queue }, (_, i) => (
-        <group
-          key={i}
-          position={[-3.6 + (i % 10) * 0.76, 0, 2.5 + Math.floor(i / 10) * 0.95]}
-          rotation={[0, (i % 5) * 0.35 - 0.7, 0]}
-        >
-          <PassengerMesh color={PASSENGER_COLORS[i % PASSENGER_COLORS.length]} variant={i} />
-        </group>
-      ))}
+      {/* Kuyruk: ilk sıra platformda saçak önünde, taşanlar öne ikinci sıra */}
+      {Array.from({ length: queue }, (_, i) => {
+        const row = Math.floor(i / 10)
+        return (
+          <group
+            key={i}
+            position={[-3.6 + (i % 10) * 0.76, row === 0 ? 0.22 : 0, row === 0 ? 1.05 : 2.3]}
+            rotation={[0, (i % 5) * 0.35 - 0.7, 0]}
+          >
+            <PassengerMesh color={PASSENGER_COLORS[i % PASSENGER_COLORS.length]} variant={i} />
+          </group>
+        )
+      })}
     </group>
   )
 }
@@ -344,6 +347,55 @@ function FuelPump() {
         <mesh geometry={rbox(0.42, 0.3, 0.26, 0.04)} material={mat('#d23f3f', 0.5)} position={[0, 2.15, 0]} />
       </group>
     </group>
+  )
+}
+
+// İnşa edilen tesisler: arka şeritte sıralanır, satın alınınca belirir
+function TerminalBuildings() {
+  const buildings = useGame((s) => s.buildings)
+  return (
+    <>
+      {buildings.bufe && (
+        <group position={[-6, 0, -5.2]}>
+          {/* Büfe: kepenkli satış penceresi + tente */}
+          <mesh geometry={rbox(3.2, 2.5, 2.4, 0.08)} material={mat('#e0c9a0', 0.7)} position={[0, 1.25, 0]} castShadow />
+          <mesh geometry={rbox(3.6, 0.24, 2.8, 0.06)} material={mat('#7a5a3a', 0.8)} position={[0, 2.6, 0]} />
+          <mesh geometry={rbox(1.8, 1.0, 0.12, 0.04)} material={mat('#2f3b46', 0.3)} position={[0, 1.35, 1.21]} />
+          <mesh geometry={rbox(2.0, 0.1, 0.5, 0.03)} material={mat('#c9cdd2', 0.6)} position={[0, 0.85, 1.35]} />
+          <mesh
+            geometry={rbox(2.6, 0.07, 1.0, 0.03)}
+            material={mat('#d23f3f', 0.6)}
+            position={[0, 2.15, 1.6]}
+            rotation={[0.3, 0, 0]}
+            castShadow
+          />
+          <mesh geometry={rbox(2.2, 0.45, 0.14, 0.04)} material={mat('#d9a03a', 0.4, { emissive: '#d9a03a', emissiveIntensity: 0.25 })} position={[0, 2.9, 1.1]} />
+        </group>
+      )}
+      {buildings.cayOcagi && (
+        <group position={[-15, 0, -5.2]}>
+          {/* Çay ocağı: küçük kulübe + baca */}
+          <mesh geometry={rbox(2.3, 2.2, 2.0, 0.08)} material={mat('#b56b4a', 0.7)} position={[0, 1.1, 0]} castShadow />
+          <mesh geometry={rbox(2.7, 0.2, 2.4, 0.06)} material={mat('#6f4a33', 0.8)} position={[0, 2.3, 0]} />
+          <mesh geometry={cyl(0.12, 0.12, 0.9, 8)} material={mat('#4a4f55', 0.7)} position={[0.7, 2.8, -0.5]} />
+          <mesh geometry={rbox(1.0, 0.9, 0.12, 0.04)} material={mat('#2f3b46', 0.3)} position={[-0.3, 1.25, 1.01]} />
+          <mesh geometry={rbox(1.6, 0.38, 0.14, 0.04)} material={mat('#c94f4f', 0.4, { emissive: '#c94f4f', emissiveIntensity: 0.25 })} position={[0, 2.55, 0.95]} />
+        </group>
+      )}
+      {buildings.tamirhane && (
+        <group position={[26, 0, -5.6]}>
+          {/* Tamirhane: geniş garaj + sürgülü kapı */}
+          <mesh geometry={rbox(6.4, 3.4, 4.2, 0.1)} material={mat('#9aa1a8', 0.75)} position={[0, 1.7, 0]} castShadow />
+          <mesh geometry={rbox(7.0, 0.3, 4.6, 0.08)} material={mat('#5d646b', 0.8)} position={[0, 3.5, 0]} />
+          <mesh geometry={rbox(4.2, 2.5, 0.14, 0.04)} material={mat('#3a4046', 0.6)} position={[-0.6, 1.35, 2.11]} />
+          {[0.6, 1.1, 1.6, 2.1].map((y) => (
+            <mesh key={y} geometry={rbox(4.1, 0.05, 0.16, 0.02)} material={mat('#565d64', 0.6)} position={[-0.6, y, 2.12]} />
+          ))}
+          <mesh geometry={rbox(1.2, 1.0, 0.12, 0.04)} material={mat('#8fb8d4', 0.25)} position={[2.4, 1.6, 2.11]} />
+          <mesh geometry={rbox(3.0, 0.5, 0.16, 0.05)} material={mat('#2160c4', 0.4, { emissive: '#2160c4', emissiveIntensity: 0.25 })} position={[0, 3.85, 1.9]} />
+        </group>
+      )}
+    </>
   )
 }
 
@@ -442,6 +494,12 @@ export function World() {
     () => useGame.getState().vehicles.map((v) => v.id),
     [vehicleCount],
   )
+  // Rakip kimlikleri: değer eşitliği sayesinde sadece havuz değişince re-render
+  const rivalIdKey = useGame((s) => s.rivals.map((r) => r.id).join(','))
+  const rivalIds = useMemo(
+    () => (rivalIdKey ? rivalIdKey.split(',').map(Number) : []),
+    [rivalIdKey],
+  )
 
   return (
     <>
@@ -460,11 +518,30 @@ export function World() {
         <planeGeometry args={[62, 21]} />
         <meshStandardMaterial color="#b9bcb4" />
       </mesh>
-      {/* Giriş yolu */}
-      <mesh position={[LAYOUT.entranceX, 0.015, 14.5]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[5, 4.2]} />
-        <meshStandardMaterial color="#b9bcb4" />
-      </mesh>
+      {/* Giriş (batı) ve çıkış (doğu) yolları */}
+      {[LAYOUT.gateInX, LAYOUT.gateOutX].map((x) => (
+        <mesh key={x} position={[x, 0.015, 14.5]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[5, 4.2]} />
+          <meshStandardMaterial color="#b9bcb4" />
+        </mesh>
+      ))}
+      {/* Kapılar: portal + yön plakası (yeşil giriş, kırmızı çıkış) */}
+      {[
+        { x: LAYOUT.gateInX, plate: '#3f9d4f' },
+        { x: LAYOUT.gateOutX, plate: '#d23f3f' },
+      ].map((gate) => (
+        <group key={gate.x} position={[gate.x, 0, 12.2]}>
+          {[-2.9, 2.9].map((ox) => (
+            <mesh key={ox} geometry={rbox(0.28, 3.4, 0.28, 0.06)} material={mat('#8f969e', 0.5, { metal: 0.3 })} position={[ox, 1.7, 0]} castShadow />
+          ))}
+          <mesh geometry={rbox(6.4, 0.5, 0.32, 0.08)} material={mat('#2160c4', 0.45)} position={[0, 3.55, 0]} castShadow />
+          <mesh
+            geometry={rbox(1.1, 0.34, 0.36, 0.05)}
+            material={mat(gate.plate, 0.4, { emissive: gate.plate, emissiveIntensity: 0.35 })}
+            position={[0, 3.55, 0]}
+          />
+        </group>
+      ))}
 
       <Road />
       <BackStreet />
@@ -472,6 +549,7 @@ export function World() {
       <Peron />
       <Office />
       <FuelPump />
+      <TerminalBuildings />
 
       {Array.from({ length: spots }, (_, i) => (
         <ParkingSpot key={i} index={i} />
@@ -513,6 +591,9 @@ export function World() {
 
       {vehicleIds.map((id) => (
         <Vehicle key={id} vehicleId={id} />
+      ))}
+      {rivalIds.map((id) => (
+        <RivalBus key={id} rivalId={id} />
       ))}
     </>
   )

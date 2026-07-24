@@ -34,9 +34,9 @@ npm run dev
 1. ~~**Save/load** (localStorage)~~ ✅ — 2.5 sn'de bir otomatik kayıt, `SAVE_VERSION` ile şema koruması, iki aşamalı Sıfırla; sırada offline kazanç
 2. ~~**Gerçekçi ekonomi + gece/gündüz + nöbetçi**~~ ✅ — Tem 2026 İstanbul fiyatları (indi-bindi ₺43, motorin ₺74/L, yevmiye ₺1.750 akşam ödenir), 300 sn = 24 saat, 00-06 sadece 🌙 nöbetçi araçlar, gece tarifesi ×1.5, dinamik ışık/gökyüzü + terminal gece aydınlatması
 3. ~~**İtibar + günlük görevler**~~ ✅ — ⭐ 0-5 itibar: sefer artırır, kuyruk doluyken kaçan yolcu düşürür, itibar yolcu akış hızını belirler; her sabah 06:00'da filo boyuna ölçekli görev (yolcu/hasılat/sefer), ödül nakit + itibar. Senetli araç alımı da eklendi (%25 peşinat, 30 gün taksit, akşam ödemeli)
-3. **Terminal tesisleri (inşaat menüsü)** — büfe (bekleyen yolcudan pasif gelir), tamirhane (bakım indirimi), çay ocağı (şoför morali), yıkama
-4. **Şoför derinliği** — isim, seviye/beceri (hızlı biniş, az yıpratma), moral
-5. **Otomasyon** — oto-doldur/oto-bakım toggle'ları (idle QoL)
-6. **Gün/gece + hava** — görsel derinlik, gece far/pencere ışıkları hazır
-7. **Olaylar** — zabıta cezası, lastik patlaması, korsan dolmuş rakibi
-8. **Hat plakası** → ikinci hat, uzun/karlı seferler; Capacitor ile mobil
+4. ~~**Terminal tesisleri (inşaat menüsü)**~~ ✅ — 🥯 Büfe ₺120k (bekleyenler alışveriş yapar, akşam özet), 🫖 Çay Ocağı ₺80k (biniş %25 hızlı), 🔧 Tamirhane ₺250k (bakım %40 indirim); kurulunca arka şeritte 3D binası belirir
+5. ~~**Kahya + senet paneli**~~ ✅ — 🧢 araç başına kahya (Sv.1-3: +4/+6/+8 ayakta yolcu, günlük yevmiye); 📝 Borç çipine tıklayınca senet paneli: taksit öde / %5 indirimle erken kapat
+6. **Şoför derinliği** — isim, seviye/beceri (hızlı biniş, az yıpratma), moral
+7. **Otomasyon** — oto-doldur/oto-bakım toggle'ları (idle QoL)
+8. **Olaylar** — zabıta cezası, lastik patlaması, korsan dolmuş rakibi
+9. **Hat plakası** → ikinci hat, uzun/karlı seferler; Capacitor ile mobil

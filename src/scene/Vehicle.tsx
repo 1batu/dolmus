@@ -10,16 +10,16 @@ const STRIPE = '#2160c4'
 const GLASS = '#242f3a'
 const BUMPER = '#b6bac0'
 
-// Klasik beyaz + mavi şerit Türk minibüsü — yuvarlatılmış modern kasa, sıfır asset
-export function MinibusMesh() {
+// Klasik beyaz + renkli şerit Türk minibüsü — yuvarlatılmış modern kasa, sıfır asset
+export function MinibusMesh({ stripe = STRIPE, body = BODY }: { stripe?: string; body?: string }) {
   return (
     <group>
       {/* Ana gövde */}
-      <mesh geometry={rbox(1.7, 1.15, 3.75, 0.16)} material={mat(BODY, 0.35)} position={[0, 0.95, 0]} castShadow />
+      <mesh geometry={rbox(1.7, 1.15, 3.75, 0.16)} material={mat(body, 0.35)} position={[0, 0.95, 0]} castShadow />
       {/* Etek + tamponlar */}
       <mesh geometry={rbox(1.74, 0.26, 3.85, 0.1)} material={mat(BUMPER, 0.6)} position={[0, 0.42, 0]} />
-      {/* Mavi şerit */}
-      <mesh geometry={rbox(1.73, 0.15, 3.77, 0.06)} material={mat(STRIPE, 0.4)} position={[0, 0.72, 0]} />
+      {/* Hat şeridi */}
+      <mesh geometry={rbox(1.73, 0.15, 3.77, 0.06)} material={mat(stripe, 0.4)} position={[0, 0.72, 0]} />
       {/* Ön cam (eğimli) */}
       <mesh
         geometry={rbox(1.5, 0.52, 0.07, 0.03)}
@@ -86,7 +86,7 @@ export function MinibusMesh() {
         position={[0, 1.62, 1.78]}
       />
       {/* Tavan havalandırması */}
-      <mesh geometry={rbox(0.5, 0.07, 0.7, 0.03)} material={mat(BODY, 0.5)} position={[0, 1.56, -0.6]} />
+      <mesh geometry={rbox(0.5, 0.07, 0.7, 0.03)} material={mat(body, 0.5)} position={[0, 1.56, -0.6]} />
       <Wheel x={-0.78} z={1.25} />
       <Wheel x={0.78} z={1.25} />
       <Wheel x={-0.78} z={-1.25} />
@@ -98,6 +98,7 @@ export function MinibusMesh() {
 // Store'daki aracı sahnede sürer; seferdeyken (ekran dışı) gizlenir
 export function Vehicle({ vehicleId }: { vehicleId: number }) {
   const group = useRef<THREE.Group>(null)
+  const old = useGame((s) => s.vehicles.find((v) => v.id === vehicleId)?.old ?? false)
 
   useFrame(() => {
     const v = useGame.getState().vehicles.find((veh) => veh.id === vehicleId)
@@ -122,7 +123,32 @@ export function Vehicle({ vehicleId }: { vehicleId: number }) {
 
   return (
     <group ref={group}>
-      <MinibusMesh />
+      <MinibusMesh body={old ? '#ece5d4' : undefined} />
+    </group>
+  )
+}
+
+// Rakip minibüs: yeşil şeritli, hafif kirli gövde — hattın diğer esnafı
+export function RivalBus({ rivalId }: { rivalId: number }) {
+  const group = useRef<THREE.Group>(null)
+
+  useFrame(() => {
+    const r = useGame.getState().rivals.find((rv) => rv.id === rivalId)
+    if (!group.current) return
+    const g = group.current
+    if (!r || r.state === 'away' || !r.path) {
+      g.visible = false
+      return
+    }
+    g.visible = true
+    const { x, z, angle } = pointAt(r.path, r.dist)
+    g.position.set(x, 0, z)
+    g.rotation.y = angle
+  })
+
+  return (
+    <group ref={group} visible={false}>
+      <MinibusMesh stripe="#3f9d4f" body="#efe9dc" />
     </group>
   )
 }

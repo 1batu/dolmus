@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { useGame } from '../game/store'
+import { useGame, BUILDING_COSTS, capacityOf, type BuildingKind } from '../game/store'
 import { CONFIG, clockOf } from '../game/config'
 import { t } from '../i18n'
+
+const BUILDING_ICONS: Record<BuildingKind, string> = {
+  bufe: '🥯',
+  cayOcagi: '🫖',
+  tamirhane: '🔧',
+}
 
 const fmt = (n: number) => n.toLocaleString('tr-TR')
 
@@ -97,6 +103,45 @@ function VehicleBuyCard({
         {t.loanNote(daily, CONFIG.loanTermDays)}
       </div>
     </div>
+  )
+}
+
+// Tesis kartı: kurulunca yeşil ✓, etki açıklaması hep görünür
+function BuildCard({
+  kind,
+  owned,
+  money,
+  onBuy,
+}: {
+  kind: BuildingKind
+  owned: boolean
+  money: number
+  onBuy: () => void
+}) {
+  const cost = BUILDING_COSTS[kind]
+  const enabled = !owned && money >= cost
+  return (
+    <button
+      onClick={onBuy}
+      disabled={!enabled}
+      className={`pointer-events-auto flex w-64 items-center gap-3 px-3 py-2 text-left transition active:scale-[0.98] ${GLASS}
+        ${owned ? 'border-emerald-400/30' : enabled ? 'cursor-pointer hover:border-white/25 hover:bg-neutral-800/80' : 'opacity-45'}`}
+    >
+      <span
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-base shadow-inner ${owned ? 'bg-emerald-500/30' : 'bg-white/10'}`}
+      >
+        {BUILDING_ICONS[kind]}
+      </span>
+      <span className="flex-1">
+        <span className="block text-[12px] font-extrabold text-white">
+          {t.buildingNames[kind]}
+        </span>
+        <span className="block text-[10px] font-bold text-white/45">{t.buildingEffects[kind]}</span>
+      </span>
+      <span className={`text-[11px] font-extrabold tabular-nums ${owned ? 'text-emerald-300' : 'text-white/60'}`}>
+        {owned ? `✓ ${t.built}` : `₺${fmt(cost)}`}
+      </span>
+    </button>
   )
 }
 
@@ -200,6 +245,8 @@ export function HUD() {
   const repair = useGame((s) => s.repair)
   const reset = useGame((s) => s.reset)
   const toggleNightShift = useGame((s) => s.toggleNightShift)
+  const buildings = useGame((s) => s.buildings)
+  const buyBuilding = useGame((s) => s.buyBuilding)
   const pumpBusy = useGame((s) =>
     s.vehicles.some((v) => v.state === 'toPump' || v.state === 'fueling'),
   )
@@ -214,10 +261,20 @@ export function HUD() {
             : v.state === 'parked' && v.wear >= 100
               ? 'wornOut'
               : v.state
-        return `${v.id}|${v.no}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}`
+        return `${v.id}|${v.no}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}`
       })
       .join(','),
   )
+  const debtsKey = useGame((s) =>
+    s.debts.map((d) => `${d.id}|${d.no}|${d.remaining}|${d.daily}`).join(','),
+  )
+  const payInstallment = useGame((s) => s.payInstallment)
+  const payOffDebt = useGame((s) => s.payOffDebt)
+  const hireKahya = useGame((s) => s.hireKahya)
+  const upgradeKahya = useGame((s) => s.upgradeKahya)
+  const [debtsOpen, setDebtsOpen] = useState(false)
+  const rivalsKey = useGame((s) => s.rivals.map((r) => `${r.id}|${r.no}|${r.wear}`).join(','))
+  const buyRival = useGame((s) => s.buyRival)
 
   const vehicleCost = CONFIG.vehicleBaseCost + CONFIG.vehicleCostStep * (vehicleCount - 1)
   const spotCost = CONFIG.spotBaseCost * (spots - CONFIG.startSpots + 1)
@@ -234,7 +291,14 @@ export function HUD() {
         <Stat icon="📅" label={t.day} value={`${day}`} />
         <Stat icon={isNightHour ? '🌙' : '☀️'} label={t.clock} value={clock} />
         <Stat icon="💰" label={t.cash} value={`₺${fmt(money)}`} accent={money < 0 ? 'text-red-400' : 'text-emerald-300'} />
-        {totalDebt > 0 && <Stat icon="📝" label={t.debt} value={`₺${fmt(totalDebt)}`} accent="text-red-300" />}
+        {totalDebt > 0 && (
+          <button
+            onClick={() => setDebtsOpen((o) => !o)}
+            className={`pointer-events-auto cursor-pointer transition hover:bg-white/5 ${debtsOpen ? 'bg-white/10' : ''}`}
+          >
+            <Stat icon="📝" label={t.debt} value={`₺${fmt(totalDebt)}`} accent="text-red-300" />
+          </button>
+        )}
         <Stat icon="🧍" label={t.waiting} value={`${queue}`} accent={queue >= CONFIG.maxQueue ? 'text-amber-300' : 'text-white'} />
         <Stat icon="🧔" label={t.drivers} value={`${drivers}`} />
         <Stat
@@ -244,6 +308,52 @@ export function HUD() {
           accent={rep >= 4 ? 'text-emerald-300' : rep < 2 ? 'text-red-400' : 'text-white'}
         />
       </div>
+
+      {/* Senet paneli: taksit öde / erken kapat */}
+      {debtsOpen && debtsKey && (
+        <div className={`absolute left-[320px] top-[72px] w-80 p-3 ${GLASS}`}>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
+              📝 {t.debtsTitle}
+            </span>
+            <span className="text-[9px] font-bold text-emerald-300/70">{t.payoffNote}</span>
+          </div>
+          <div className="mt-2 flex flex-col gap-2">
+            {debtsKey.split(',').map((entry) => {
+              const [idStr, no, remainingStr, dailyStr] = entry.split('|')
+              const id = Number(idStr)
+              const remaining = Number(remainingStr)
+              const daily = Number(dailyStr)
+              const installment = Math.min(daily, remaining)
+              const payoff = Math.ceil(remaining * CONFIG.payoffDiscount)
+              return (
+                <div key={id} className="rounded-xl bg-white/5 p-2">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[12px] font-extrabold text-white">
+                      {t.debtItem(Number(no))}
+                    </span>
+                    <span className="text-[11px] font-bold tabular-nums text-red-300">
+                      ₺{fmt(remaining)} · {t.perDay(daily)}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 flex gap-1.5">
+                    <MiniButton
+                      label={`${t.payInstallment} ₺${fmt(installment)}`}
+                      enabled={money >= installment}
+                      onClick={() => payInstallment(id)}
+                    />
+                    <MiniButton
+                      label={`${t.payOff} ₺${fmt(payoff)}`}
+                      enabled={money >= payoff}
+                      onClick={() => payOffDebt(id)}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Günlük görev */}
       {taskKey && (() => {
@@ -297,6 +407,59 @@ export function HUD() {
           accent="bg-amber-500"
           onClick={buySpot}
         />
+        <div className="mt-1 px-1 text-[9px] font-black uppercase tracking-widest text-white/40">
+          🏗 {t.construction}
+        </div>
+        {(Object.keys(BUILDING_ICONS) as BuildingKind[]).map((kind) => (
+          <BuildCard
+            key={kind}
+            kind={kind}
+            owned={buildings[kind]}
+            money={money}
+            onBuy={() => buyBuilding(kind)}
+          />
+        ))}
+        {rivalsKey && (
+          <>
+            <div className="mt-1 px-1 text-[9px] font-black uppercase tracking-widest text-white/40">
+              🤝 {t.devren}
+            </div>
+            {rivalsKey.split(',').map((entry) => {
+              const [idStr, no, wearStr] = entry.split('|')
+              const id = Number(idStr)
+              const wear = Number(wearStr)
+              const price = Math.ceil(
+                (CONFIG.vehicleBaseCost + CONFIG.vehicleCostStep * (vehicleCount - 1)) *
+                  CONFIG.rivalBuyFactor,
+              )
+              const enabled = money >= price && hasFreeSpot
+              return (
+                <button
+                  key={id}
+                  onClick={() => buyRival(id)}
+                  disabled={!enabled}
+                  className={`pointer-events-auto flex w-64 items-center gap-3 px-3 py-2 text-left transition active:scale-[0.98] ${GLASS}
+                    ${enabled ? 'cursor-pointer hover:border-white/25 hover:bg-neutral-800/80' : 'opacity-45'}`}
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-700/60 text-base shadow-inner">
+                    🚐
+                  </span>
+                  <span className="flex-1">
+                    <span className="block text-[12px] font-extrabold text-white">
+                      {t.rivalLabel(Number(no))}
+                    </span>
+                    <span className="block text-[10px] font-bold text-amber-300/80">
+                      {t.oldBus} · {t.rivalWear(wear)}
+                    </span>
+                  </span>
+                  <span className="text-[11px] font-extrabold tabular-nums text-white/60">
+                    ₺{fmt(price)}
+                  </span>
+                </button>
+              )
+            })}
+          </>
+        )}
       </div>
 
       {/* Kasa akışı bildirimleri */}
@@ -319,16 +482,21 @@ export function HUD() {
       {/* Filo: depo + yıpranma barları, doldur/bakım, nöbetçi */}
       <div className="absolute bottom-4 left-4 flex flex-wrap gap-2">
         {fleetKey.split(',').map((entry) => {
-          const [idStr, no, state, count, fuelStr, wearStr, nightStr] = entry.split('|')
+          const [idStr, no, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr] = entry.split('|')
           const id = Number(idStr)
           const fuel = Number(fuelStr)
           const wear = Number(wearStr)
           const night = nightStr === '1'
+          const kahya = Number(kahyaStr)
+          const cap = Number(capStr)
+          const isOld = oldStr === '1'
           const fuelPct = (fuel / CONFIG.fuelCapacity) * 100
           const stateText = t.state[state as keyof typeof t.state]
           const warn = state === 'noDriver' || state === 'noFuel' || state === 'wornOut'
           const refuelPrice = Math.ceil((CONFIG.fuelCapacity - fuel) * CONFIG.refuelCostPerUnit)
-          const repairPrice = Math.ceil(wear * CONFIG.repairCostPerUnit)
+          const repairPrice = Math.ceil(
+            wear * CONFIG.repairCostPerUnit * (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
+          )
           // Fiilen parkta mı? (pseudo-durumlar da parkta bekleyen aracı temsil eder)
           const isParked = state === 'parked' || state === 'noFuel' || state === 'wornOut'
           return (
@@ -336,6 +504,7 @@ export function HUD() {
               <div className="flex items-center justify-between gap-1">
                 <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
                   {t.busLabel(Number(no))}
+                  {isOld && <span className="ml-1 text-amber-400/80" title={t.oldBus}>🕰</span>}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span
@@ -343,7 +512,7 @@ export function HUD() {
                   >
                     {warn && '⚠️ '}
                     {stateText}
-                    {!warn && ` · ${t.seats(Number(count), CONFIG.seatCount)}`}
+                    {!warn && ` · ${t.seats(Number(count), cap)}`}
                   </span>
                   <button
                     onClick={() => toggleNightShift(id)}
@@ -370,6 +539,28 @@ export function HUD() {
                   enabled={repairPrice > 0 && money >= repairPrice && (isParked || state === 'noDriver')}
                   onClick={() => repair(id)}
                 />
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                {kahya === 0 ? (
+                  <MiniButton
+                    label={`🧢 ${t.hireKahya} ₺${fmt(CONFIG.kahyaHireCost)}`}
+                    enabled={state !== 'noDriver' && money >= CONFIG.kahyaHireCost}
+                    onClick={() => hireKahya(id)}
+                  />
+                ) : (
+                  <>
+                    <span className="flex-1 rounded-lg bg-indigo-400/15 px-1.5 py-1.5 text-center text-[10px] font-bold text-indigo-300">
+                      🧢 {t.kahya} {t.kahyaLevel(kahya)} · {t.kahyaEffect(cap - CONFIG.seatCount)}
+                    </span>
+                    {kahya < CONFIG.kahyaMaxLevel && (
+                      <MiniButton
+                        label={`⬆ ${t.upgrade} ₺${fmt(CONFIG.kahyaUpgradeCosts[kahya - 1])}`}
+                        enabled={money >= CONFIG.kahyaUpgradeCosts[kahya - 1]}
+                        onClick={() => upgradeKahya(id)}
+                      />
+                    )}
+                  </>
+                )}
               </div>
             </div>
           )
