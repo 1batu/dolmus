@@ -1,12 +1,44 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useGame, BUILDING_COSTS, capacityOf, valuationOf, type BuildingKind } from '../game/store'
 import { CONFIG, clockOf, queueCapOf } from '../game/config'
+import { isMuted, toggleMute } from '../game/sound'
 import { t } from '../i18n'
 
 const BUILDING_ICONS: Record<BuildingKind, string> = {
   bufe: '🥯',
   cayOcagi: '🫖',
   tamirhane: '🔧',
+  otoPompa: '⛽',
+  otoBakim: '🛠️',
+}
+
+// Görev/milestone kutlaması: kısa konfeti yağmuru
+function Confetti({ token }: { token: number }) {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    if (token <= 0) return
+    setVisible(true)
+    const id = setTimeout(() => setVisible(false), 1800)
+    return () => clearTimeout(id)
+  }, [token])
+  if (!visible) return null
+  const colors = ['#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#eab308', '#a855f7']
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <style>{`@keyframes dolmus-confetti { 0% { transform: translateY(-8vh) rotate(0deg); opacity: 1 } 100% { transform: translateY(110vh) rotate(720deg); opacity: 0.6 } }`}</style>
+      {Array.from({ length: 28 }, (_, i) => (
+        <span
+          key={`${token}-${i}`}
+          className="absolute top-0 block h-2.5 w-1.5 rounded-sm"
+          style={{
+            left: `${(i * 37) % 100}%`,
+            background: colors[i % colors.length],
+            animation: `dolmus-confetti ${1 + (i % 5) * 0.16}s ease-in ${(i % 7) * 0.08}s forwards`,
+          }}
+        />
+      ))}
+    </div>
+  )
 }
 
 const fmt = (n: number) => n.toLocaleString('tr-TR')
@@ -377,7 +409,7 @@ export function HUD() {
               : v.state === 'parked' && v.wear >= 100
                 ? 'wornOut'
                 : v.state
-        return `${v.id}|${v.plate}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}|${v.share}|${valuationOf(v, s.vehicles.length, s.rep)}|${v.pendingRefuel ? 1 : 0}|${v.pendingRepair ? 1 : 0}|${v.kind}`
+        return `${v.id}|${v.plate}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}|${v.share}|${valuationOf(v, s.vehicles.length, s.rep)}|${v.pendingRefuel ? 1 : 0}|${v.pendingRepair ? 1 : 0}|${v.kind}|${v.hasDriver ? v.driverName : ''}|${v.driverSkill}`
       })
       .join(','),
   )
@@ -398,13 +430,29 @@ export function HUD() {
   const sellShare = useGame((s) => s.sellShare)
   const buyBackShare = useGame((s) => s.buyBackShare)
   const [buildOpen, setBuildOpen] = useState(false)
-  const [buildTab, setBuildTab] = useState<'arac' | 'personel' | 'tesis' | 'kontrat' | 'taksi' | 'devren'>('arac')
+  const [buildTab, setBuildTab] = useState<'arac' | 'personel' | 'tesis' | 'kontrat' | 'taksi' | 'devren' | 'prestij'>('arac')
   const taxisKey = useGame((s) =>
     s.taxis.map((tx) => `${tx.id}|${tx.plate}|${tx.mode}|${tx.hasCar ? 1 : 0}`).join(','),
   )
   const buyTaxiPlate = useGame((s) => s.buyTaxiPlate)
   const buyTaxiCar = useGame((s) => s.buyTaxiCar)
   const setTaxiMode = useGame((s) => s.setTaxiMode)
+  const offlineEarned = useGame((s) => s.offlineEarned)
+  const offlineSecs = useGame((s) => s.offlineSecs)
+  const dismissOffline = useGame((s) => s.dismissOffline)
+  const celebrateAt = useGame((s) => s.celebrateAt)
+  const prestige = useGame((s) => s.prestige)
+  const prestigeGain = useGame((s) =>
+    Math.max(
+      1,
+      Math.floor(Math.sqrt(s.totalCarried / 200)) +
+        s.taxis.length * 3 +
+        Math.floor(s.vehicles.length / 3),
+    ),
+  )
+  const prestigeReset = useGame((s) => s.prestigeReset)
+  const [prestigeArmed, setPrestigeArmed] = useState(false)
+  const [mutedUi, setMutedUi] = useState(isMuted())
   const contractsKey = useGame((s) =>
     s.contracts
       .map(
@@ -546,8 +594,37 @@ export function HUD() {
         )
       })()}
 
-      {/* İşletme paneli: sağ üstte tek İnşaat butonu, tıklayınca açılır */}
+      <Confetti token={celebrateAt} />
+
+      {/* Offline kazanç karşılaması */}
+      {offlineEarned > 0 && (
+        <div className="pointer-events-auto fixed inset-0 z-20 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" />
+          <div className={`relative w-80 p-5 text-center ${GLASS}`}>
+            <div className="text-3xl">😴→💰</div>
+            <div className="mt-2 text-sm font-black text-white">{t.offlineTitle}</div>
+            <div className="mt-1 text-[11px] font-bold text-white/50">
+              {t.offlineMsg(Math.round(offlineSecs / 60))}
+            </div>
+            <div className="mt-2 text-xl font-black tabular-nums text-emerald-300">
+              +₺{fmt(offlineEarned)}
+            </div>
+            <div className="mt-3">
+              <PriceButton label={t.continueBtn} enabled onClick={dismissOffline} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* İşletme paneli: sağ üstte İnşaat + ses düğmesi */}
       <div className="absolute right-4 top-4 flex flex-col items-end gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setMutedUi(toggleMute())}
+            className={`pointer-events-auto cursor-pointer rounded-xl px-2.5 py-3 text-sm shadow-lg transition active:scale-95 ${GLASS} ${mutedUi ? 'opacity-50' : ''}`}
+          >
+            {mutedUi ? '🔇' : '🔊'}
+          </button>
         <button
           onClick={() => setBuildOpen((o) => !o)}
           className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white shadow-lg transition active:scale-95
@@ -558,6 +635,7 @@ export function HUD() {
             <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-emerald-400 shadow" />
           )}
         </button>
+        </div>
       </div>
 
       {/* İnşaat & Yatırım modalı: sekmeli, kart grid'li */}
@@ -588,6 +666,7 @@ export function HUD() {
                   ['kontrat', `📑 ${t.tabContracts}`],
                   ['taksi', `🚕 ${t.tabTaxi}`],
                   ['devren', `🤝 ${t.devren}`],
+                  ['prestij', `⭐ ${t.tabPrestige}`],
                 ] as const
               ).map(([key, label]) => (
                 <button
@@ -827,6 +906,42 @@ export function HUD() {
                     })}
                 </>
               )}
+              {buildTab === 'prestij' && (
+                <div className="col-span-2">
+                  <ModalCard
+                    icon="⭐"
+                    title={t.prestigeTitle}
+                    badge={t.prestigeLevel(prestige)}
+                    badgeClass="bg-yellow-400/15 text-yellow-300"
+                    desc={t.prestigeDesc}
+                  >
+                    <div className="text-center text-[11px] font-bold text-white/60">
+                      {t.prestigeGain(prestigeGain)}
+                    </div>
+                    <div className="text-center text-[10px] font-bold text-white/40">
+                      {t.prestigeBonuses(
+                        Math.round(CONFIG.prestigeMoneyBonus * (prestige + prestigeGain) * 100),
+                        (CONFIG.prestigeRepBonus * (prestige + prestigeGain)).toFixed(1),
+                        Math.round(CONFIG.prestigeSpawnBonus * (prestige + prestigeGain) * 100),
+                      )}
+                    </div>
+                    <PriceButton
+                      label={prestigeArmed ? `⚠️ ${t.resetConfirm}` : `⭐ ${t.prestigeBtn}`}
+                      enabled
+                      onClick={() => {
+                        if (prestigeArmed) {
+                          prestigeReset()
+                          setPrestigeArmed(false)
+                          setBuildOpen(false)
+                        } else {
+                          setPrestigeArmed(true)
+                          setTimeout(() => setPrestigeArmed(false), 3000)
+                        }
+                      }}
+                    />
+                  </ModalCard>
+                </div>
+              )}
               {buildTab === 'devren' &&
                 (rivalsKey
                   ? rivalsKey.split(',').map((entry) => {
@@ -958,7 +1073,7 @@ export function HUD() {
 
       {/* Seçili araç detayı */}
       {selectedEntry && (() => {
-        const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr, kindStr] = selectedEntry.split('|')
+        const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr, kindStr, driverName, driverSkillStr] = selectedEntry.split('|')
         const id = Number(idStr)
         const fuel = Number(fuelStr)
         const wear = Number(wearStr)
@@ -1015,6 +1130,11 @@ export function HUD() {
                 </button>
               )}
             </div>
+            {driverName && (
+              <div className="mt-1.5 rounded-lg bg-white/5 px-1.5 py-1 text-center text-[10px] font-bold text-white/60">
+                {t.driverRow(driverName, Number(driverSkillStr))}
+              </div>
+            )}
             <div className="mt-1.5 flex flex-col gap-1">
               <Bar icon="⛽" pct={fuelPct} from="from-amber-500" to="to-yellow-400" low={fuel < CONFIG.fuelPerTrip} />
               <Bar icon="🔧" pct={100 - wear} from="from-emerald-500" to="to-green-400" low={wear >= 100} />

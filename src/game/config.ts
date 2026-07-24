@@ -172,6 +172,35 @@ export const CONFIG = {
   taxiOperateMin: 6000, // kendi işletmede günlük net bandı (₺)
   taxiOperateMax: 12000,
 
+  // Offline kazanç: kapalıyken terminal düşük verimle çalışır
+  offlineCapSec: 4 * 3600, // azami birikim süresi (gerçek sn)
+  offlineEfficiency: 0.5, // aktif oyuna göre verim
+  offlineRatePerVehicle: 28, // ₺/sn, şoförlü dolmuş başına tahmini net
+
+  // Olaylar: gündüz rastgele — zabıta, lastik, yağmur, korsan
+  eventIntervalMin: 70, // sn
+  eventIntervalMax: 160,
+  zabitaFinePerStanding: 2500, // ayakta yolcu başına ceza
+  zabitaCleanRep: 0.05, // temiz denetim itibar bonusu
+  tireBlowWear: 18, // lastik patlaması yıpranması (%)
+  rainDuration: 45, // sn
+  rainSpawnFactor: 0.55, // yağmurda yolcu aralığı çarpanı (daha sık)
+  korsanDuration: 40, // sn
+  korsanSpawnFactor: 1.6, // korsan varken yolcu aralığı çarpanı (seyrek)
+
+  // Şoför becerisi: seviye başına biniş hızı ve yakıt verimliliği
+  driverSkillBoardBonus: 0.08, // boardInterval çarpan azalması / seviye
+  driverSkillFuelBonus: 0.05, // sefer yakıtı azalması / seviye
+
+  // Otomasyon anlaşmaları (İnşaat > Tesisler)
+  otoPompaCost: 150000, // depo azalınca araç kendiliğinden pompaya gider
+  otoBakimCost: 200000, // yıpranma %80'i geçince otomatik bakım
+
+  // Prestij: hattı devret, kalıcı bonuslarla yeni başla
+  prestigeSpawnBonus: 0.05, // seviye başına yolcu akış hızı
+  prestigeMoneyBonus: 0.25, // seviye başına başlangıç parası çarpanı
+  prestigeRepBonus: 0.2, // seviye başına başlangıç itibarı
+
   toastLifetime: 3, // sn
 }
 

@@ -57,16 +57,16 @@ npm run dev
 2. ~~**📑 Servis kontratları**~~ ✅ — okul/fabrika/otel/plaza: 30 günlük kontrat, her gün 07:00 ve 17:00 seferi (kaçarsa itibar cezası), sefer başına günlük ödemenin yarısı akşam yatar
 3. ~~**🚕 Taksi işletmesi**~~ ✅ — plaka ₺11,5M (Tem 2026 gerçek borsa!): kirada ₺2.200/gün pasif ya da taksi al (₺750k) + işlet (₺6-12k/gün, sahnede sarı taksin dolaşır); maks 3 plaka
 
-### Retention (araştırma temelli)
-4. **Offline kazanç** — kapalıyken birikim + üst limit ("kaçırma hissi" geri getirir; idle janrının 1 numaralı retention mekaniği)
-5. **Milestone/başarımlar** — "İlk milyon", "5 araçlık filo", "İlk taksi plakası": küçük ödül + rozet, her biri dopamin durağı
-6. **Prestij** — hattı devret, kalıcı bonuslarla (başlangıç itibarı, ucuz senet) yeni ilçede baştan başla; uzun vadeli meta-ilerleme
-7. **Günlük seri (streak)** — art arda giriş ödülleri, haftalık büyük görev
+### Retention
+4. ~~**Offline kazanç**~~ ✅ — kapalıyken birikim (verim %50, 4 saat kapak) + "sen yokken" karşılama modalı
+5. ~~**Milestone/başarımlar**~~ ✅ — 11 kilometre taşı (ilk 100k/milyon, filo, yolcu, taksi...): nakit ödül + konfeti
+6. ~~**Prestij**~~ ✅ — İnşaat > ⭐ Prestij: hattı devret, kalıcı bonus (başlangıç parası +%25/sv, itibar +0,2/sv, yolcu akışı +%5/sv); milestone'lar korunur
+7. ~~**Olaylar**~~ ✅ — 👮 zabıta (ayakta yolcu cezası — kahya riski!), 🛞 lastik patlaması, 🌧 yağmur (yolcu patlar), 🕵️ korsan dolmuş
+8. ~~**Şoför profili**~~ ✅ — isimli şoförler, 1-3⭐ beceri (hızlı biniş, az yakıt)
+9. ~~**Otomasyon**~~ ✅ — Oto-Pompa Anlaşması + Bakım Aboneliği (Tesisler'de tek seferlik)
+10. ~~**Ses + juice**~~ ✅ — WebAudio klakson/para/ding + görev-milestone konfetisi + 🔊 sessize alma
 
-### Diğer
-8. **Şoför derinliği** — isimli şoförler, beceriler, moral (çay ocağı besler)
-9. **Olaylar** — zabıta denetimi (ayakta yolcu cezası — kahya riskiyle sinerji), lastik patlaması, yağmur, korsan dolmuş
-10. **Otomasyon** — oto-doldur/oto-bakım toggle'ları
-11. **Ses + juice** — klakson, motor, para sesi, görev konfetisi
+### Kalan
+11. **Günlük seri (streak)** — art arda giriş ödülleri, haftalık büyük görev
 12. **Yayın** — Vercel deploy; dokunmatik uyum + Capacitor ile mobil
 13. **Onboarding + istatistik** — ilk oyuncu rehberi, günlük kâr/zarar paneli
