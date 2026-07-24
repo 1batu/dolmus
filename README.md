@@ -32,7 +32,8 @@ npm run dev
 ## Roadmap (öncelik sırasıyla)
 
 1. ~~**Save/load** (localStorage)~~ ✅ — 2.5 sn'de bir otomatik kayıt, `SAVE_VERSION` ile şema koruması, iki aşamalı Sıfırla; sırada offline kazanç
-2. **İtibar + günlük görevler** — bekletilen yolcu itibarı düşürür, itibar yolcu akışını besler; günlük hedefler oyuncuya pusula olur
+2. ~~**Gerçekçi ekonomi + gece/gündüz + nöbetçi**~~ ✅ — Tem 2026 İstanbul fiyatları (indi-bindi ₺43, motorin ₺74/L, yevmiye ₺1.750 akşam ödenir), 300 sn = 24 saat, 00-06 sadece 🌙 nöbetçi araçlar, gece tarifesi ×1.5, dinamik ışık/gökyüzü + terminal gece aydınlatması
+3. ~~**İtibar + günlük görevler**~~ ✅ — ⭐ 0-5 itibar: sefer artırır, kuyruk doluyken kaçan yolcu düşürür, itibar yolcu akış hızını belirler; her sabah 06:00'da filo boyuna ölçekli görev (yolcu/hasılat/sefer), ödül nakit + itibar. Senetli araç alımı da eklendi (%25 peşinat, 30 gün taksit, akşam ödemeli)
 3. **Terminal tesisleri (inşaat menüsü)** — büfe (bekleyen yolcudan pasif gelir), tamirhane (bakım indirimi), çay ocağı (şoför morali), yıkama
 4. **Şoför derinliği** — isim, seviye/beceri (hızlı biniş, az yıpratma), moral
 5. **Otomasyon** — oto-doldur/oto-bakım toggle'ları (idle QoL)

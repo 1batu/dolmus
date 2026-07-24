@@ -16,6 +16,21 @@ const dicts = {
     hireDriver: 'Şoför Kirala',
     buySpot: 'Park Yeri Al',
     nightShift: 'Nöbetçi',
+    payCash: 'Nakit',
+    payLoan: 'Senetli',
+    debt: 'Borç',
+    loanNote: (daily: number, days: number) => `Senet: ${days} gün × ₺${fmt(daily)}/gün`,
+    installmentsPaid: (total: number) => `Senet taksitleri ödendi: -₺${fmt(total)}`,
+    rep: 'İtibar',
+    dailyTask: 'Günlük Görev',
+    taskReward: 'Ödül',
+    taskDoneLabel: 'Tamam',
+    taskDone: (reward: number) => `🎯 Günlük görev tamamlandı! +₺${fmt(reward)}`,
+    taskDesc: {
+      carry: (n: number) => `${fmt(n)} yolcu taşı`,
+      revenue: (n: number) => `₺${fmt(n)} hasılat yap`,
+      trips: (n: number) => `${fmt(n)} sefer tamamla`,
+    },
     departed: (no: number, n: number, fare: number) =>
       `Minibüs ${no} sefere çıktı: ${n} yolcu +₺${fmt(fare)}`,
     returned: (no: number, extra: number) =>
@@ -57,6 +72,21 @@ const dicts = {
     hireDriver: 'Hire Driver',
     buySpot: 'Buy Parking Spot',
     nightShift: 'Night duty',
+    payCash: 'Cash',
+    payLoan: 'Installments',
+    debt: 'Debt',
+    loanNote: (daily: number, days: number) => `Note: ${days} days × ₺${fmt(daily)}/day`,
+    installmentsPaid: (total: number) => `Installments paid: -₺${fmt(total)}`,
+    rep: 'Rating',
+    dailyTask: 'Daily Task',
+    taskReward: 'Reward',
+    taskDoneLabel: 'Done',
+    taskDone: (reward: number) => `🎯 Daily task complete! +₺${fmt(reward)}`,
+    taskDesc: {
+      carry: (n: number) => `Carry ${fmt(n)} passengers`,
+      revenue: (n: number) => `Earn ₺${fmt(n)}`,
+      trips: (n: number) => `Complete ${fmt(n)} trips`,
+    },
     departed: (no: number, n: number, fare: number) =>
       `Minibus ${no} departed: ${n} passengers +₺${fmt(fare)}`,
     returned: (no: number, extra: number) =>

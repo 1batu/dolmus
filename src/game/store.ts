@@ -42,12 +42,45 @@ export type Vehicle = {
 
 export type Toast = { id: number; text: string; expireAt: number }
 
+// Senet borcu: her akşam yevmiyelerle birlikte günlük taksit düşer
+export type Debt = { id: number; no: number; remaining: number; daily: number }
+
+// Günlük görev: her sabah 06:00'da yenilenir
+export type DailyTask = {
+  kind: 'carry' | 'revenue' | 'trips'
+  target: number
+  progress: number
+  reward: number
+  done: boolean
+}
+
+function makeTask(vehicleCount: number): DailyTask {
+  const kinds = ['carry', 'revenue', 'trips'] as const
+  const kind = kinds[Math.floor(Math.random() * kinds.length)]
+  const target =
+    kind === 'carry'
+      ? CONFIG.taskCarryPerVehicle * vehicleCount
+      : kind === 'revenue'
+        ? CONFIG.taskRevenuePerVehicle * vehicleCount
+        : CONFIG.taskTripsPerVehicle * vehicleCount
+  return {
+    kind,
+    target,
+    progress: 0,
+    reward: CONFIG.taskRewardBase + CONFIG.taskRewardPerVehicle * vehicleCount,
+    done: false,
+  }
+}
+
+const clampRep = (r: number) => Math.max(0, Math.min(5, r))
+
 let nextId = 1
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
 
 // --- Kalıcılık: localStorage'a periyodik yaz, açılışta geri yükle ---
 const SAVE_KEY = 'dolmus-save'
-const SAVE_VERSION = 2 // araç/ekonomi şeması değişince artır — eski kayıt sessizce atılır
+const SAVE_VERSION = 4 // araç/ekonomi şeması değişince artır — eski kayıt sessizce atılır
+const SAVE_ACCEPTS = [3, 4] // v3 kayıtları yeni alanlar varsayılanla açılır
 let saveAcc = 0
 
 type SavedFields = Pick<
@@ -61,12 +94,16 @@ type SavedFields = Pick<
   | 'spots'
   | 'drivers'
   | 'vehicles'
+  | 'debts'
   | 'spawnTimer'
+  | 'rep'
+  | 'task'
+  | 'taskDay'
 >
 
 function persist(s: SavedFields) {
   try {
-    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, spawnTimer } = s
+    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay } = s
     localStorage.setItem(
       SAVE_KEY,
       JSON.stringify({
@@ -81,7 +118,11 @@ function persist(s: SavedFields) {
         spots,
         drivers,
         vehicles,
+        debts,
         spawnTimer,
+        rep,
+        task,
+        taskDay,
       }),
     )
   } catch {
@@ -94,7 +135,8 @@ function loadSave(): Partial<SavedFields> | null {
     const raw = localStorage.getItem(SAVE_KEY)
     if (!raw) return null
     const d = JSON.parse(raw)
-    if (d?.v !== SAVE_VERSION || !Array.isArray(d.vehicles) || d.vehicles.length === 0) return null
+    if (!SAVE_ACCEPTS.includes(d?.v) || !Array.isArray(d.vehicles) || d.vehicles.length === 0)
+      return null
     if (![d.time, d.money, d.spots, d.drivers].every(Number.isFinite)) return null
     nextId = Number.isFinite(d.nextId) ? d.nextId : 100000
     return {
@@ -107,7 +149,11 @@ function loadSave(): Partial<SavedFields> | null {
       spots: d.spots,
       drivers: d.drivers,
       vehicles: d.vehicles,
+      debts: Array.isArray(d.debts) ? d.debts : [],
       spawnTimer: d.spawnTimer ?? 1,
+      rep: Number.isFinite(d.rep) ? clampRep(d.rep) : CONFIG.repStart,
+      task: d.task ?? null,
+      taskDay: d.taskDay ?? 0,
     }
   } catch {
     return null
@@ -156,11 +202,15 @@ type GameState = {
   spots: number
   drivers: number
   vehicles: Vehicle[]
+  debts: Debt[]
   toasts: Toast[]
   spawnTimer: number
+  rep: number // itibar 0-5 ⭐
+  task: DailyTask | null
+  taskDay: number // görevi üretilmiş son gün
   vehicleCost: () => number
   spotCost: () => number
-  buyVehicle: () => void
+  buyVehicle: (mode: 'cash' | 'loan') => void
   buySpot: () => void
   hireDriver: () => void
   refuel: (vehicleId: number) => void
@@ -181,8 +231,12 @@ function initialState() {
     spots: CONFIG.startSpots,
     drivers: 1,
     vehicles: [makeVehicle(1, 0, true)],
+    debts: [] as Debt[],
     toasts: [] as Toast[],
     spawnTimer: 1,
+    rep: CONFIG.repStart,
+    task: null as DailyTask | null,
+    taskDay: 0,
   }
 }
 
@@ -194,17 +248,33 @@ export const useGame = create<GameState>((set, get) => ({
     CONFIG.vehicleBaseCost + CONFIG.vehicleCostStep * (get().vehicles.length - 1),
   spotCost: () => CONFIG.spotBaseCost * (get().spots - CONFIG.startSpots + 1),
 
-  buyVehicle: () => {
+  buyVehicle: (mode: 'cash' | 'loan') => {
     const s = get()
-    const cost = s.vehicleCost()
-    if (s.money < cost || s.vehicles.length >= s.spots) return
+    const price = s.vehicleCost()
+    if (s.vehicles.length >= s.spots) return
+    const no = s.vehicles.length + 1
     // İlk boş park yerine konur; şoförü yoksa orada bekler
     const usedSpots = new Set(s.vehicles.map((v) => v.spotIdx))
     let spotIdx = 0
     while (usedSpots.has(spotIdx)) spotIdx++
+    const vehicles = [...s.vehicles, makeVehicle(no, spotIdx, false)]
+
+    if (mode === 'cash') {
+      if (s.money < price) return
+      set({ money: s.money - price, vehicles })
+      return
+    }
+    // Senetli satış: peşinat şimdi, kalanı vade farkıyla her akşam taksit
+    const down = Math.ceil(price * CONFIG.loanDownRate)
+    if (s.money < down) return
+    const remaining = Math.round(price * (1 + CONFIG.loanMarkupRate)) - down
     set({
-      money: s.money - cost,
-      vehicles: [...s.vehicles, makeVehicle(s.vehicles.length + 1, spotIdx, false)],
+      money: s.money - down,
+      vehicles,
+      debts: [
+        ...s.debts,
+        { id: nextId++, no, remaining, daily: Math.ceil(remaining / CONFIG.loanTermDays) },
+      ],
     })
   },
 
@@ -282,7 +352,7 @@ export const useGame = create<GameState>((set, get) => ({
   tick: (dt: number) => {
     const s = get()
     const time = s.time + dt
-    let { money, totalCarried, queue, spawnTimer, wageDay } = s
+    let { money, totalCarried, queue, spawnTimer, wageDay, rep, task, taskDay } = s
     const clock = clockOf(time)
     const day = clock.day
     const isNight = clock.hour < CONFIG.nightEndHour // 00:00-06:00
@@ -296,20 +366,54 @@ export const useGame = create<GameState>((set, get) => ({
       toasts = [...toasts, { id: nextId++, text, expireAt: time + CONFIG.toastLifetime }].slice(-5)
     }
 
-    // Yevmiyeler akşam ödenir (nakit yoksa borca girilir)
+    // Görev ilerlemesi: hedef tutunca ödül + itibar bonusu
+    const advanceTask = (kind: DailyTask['kind'], amount: number) => {
+      if (!task || task.done || task.kind !== kind) return
+      task = { ...task, progress: task.progress + amount }
+      if (task.progress >= task.target) {
+        task = { ...task, progress: task.target, done: true }
+        money += task.reward
+        rep = clampRep(rep + CONFIG.repTaskBonus)
+        pushToast(t.taskDone(task.reward))
+      }
+    }
+
+    // Yeni işletme günü (06:00): taze günlük görev
+    if (clock.hour >= CONFIG.nightEndHour && taskDay < day) {
+      taskDay = day
+      task = makeTask(s.vehicles.length)
+    }
+
+    // Yevmiyeler + senet taksitleri akşam ödenir (nakit yoksa borca girilir)
+    let debts = s.debts
     if (clock.hour >= CONFIG.wageHour && wageDay < day) {
       wageDay = day
       const wages = s.drivers * CONFIG.driverWage
       money -= wages
       pushToast(t.wagesPaid(wages))
+      if (debts.length > 0) {
+        let paid = 0
+        debts = debts
+          .map((d) => {
+            const pay = Math.min(d.daily, d.remaining)
+            paid += pay
+            return { ...d, remaining: d.remaining - pay }
+          })
+          .filter((d) => d.remaining > 0)
+        money -= paid
+        pushToast(t.installmentsPaid(paid))
+      }
     }
 
-    // Terminale yolcu akışı — gece ayak seyrekleşir
+    // Terminale yolcu akışı — gece ayak seyrekleşir, itibar yoğunluğu belirler.
+    // Kuyruk doluysa gelen yolcu vazgeçer ve itibar zedelenir.
     spawnTimer -= dt
     if (spawnTimer <= 0) {
-      const factor = isNight ? CONFIG.nightSpawnFactor : 1
-      spawnTimer = rand(CONFIG.spawnIntervalMin, CONFIG.spawnIntervalMax) * factor
+      const nightFactor = isNight ? CONFIG.nightSpawnFactor : 1
+      const repFactor = CONFIG.repSpawnBase - CONFIG.repSpawnSlope * rep
+      spawnTimer = rand(CONFIG.spawnIntervalMin, CONFIG.spawnIntervalMax) * nightFactor * repFactor
       if (queue < CONFIG.maxQueue) queue++
+      else rep = clampRep(rep - CONFIG.repLostPassenger)
     }
 
     // Peron tek araçlık: sırada biri varsa diğerleri parkta bekler
@@ -358,6 +462,8 @@ export const useGame = create<GameState>((set, get) => ({
             const fare = Math.round(v.passengers * CONFIG.farePerPassenger * fareMult)
             money += fare
             totalCarried += v.passengers
+            advanceTask('carry', v.passengers)
+            advanceTask('revenue', fare)
             v.fuel = Math.max(0, v.fuel - CONFIG.fuelPerTrip)
             v.wear = Math.min(100, v.wear + CONFIG.wearPerTrip)
             pushToast(t.departed(v.no, v.passengers, fare))
@@ -383,6 +489,10 @@ export const useGame = create<GameState>((set, get) => ({
             const extra = Math.round(enRoute * CONFIG.farePerPassenger * fareMult)
             money += extra
             totalCarried += enRoute
+            advanceTask('carry', enRoute)
+            advanceTask('revenue', extra)
+            advanceTask('trips', 1)
+            rep = clampRep(rep + CONFIG.repPerTrip)
             pushToast(t.returned(v.no, extra))
             v.state = 'returning'
             v.path = returnPath(spotPos(v.spotIdx))
@@ -423,7 +533,7 @@ export const useGame = create<GameState>((set, get) => ({
       return v
     })
 
-    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, toasts })
+    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay })
 
     // ~2.5 sn'de bir kaydet — her frame localStorage'a yazmak gereksiz
     saveAcc += dt

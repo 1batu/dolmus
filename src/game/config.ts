@@ -9,8 +9,8 @@ export const CONFIG = {
   // Gelir
   farePerPassenger: 43, // ₺, indi-bindi (0-4 km tarifesi)
   nightFareMultiplier: 1.5, // gece tarifesi (00:00-06:00)
-  enRouteFaresMin: 10, // hat boyunca inen-binen ek yolcu (dönüşte kasaya girer)
-  enRouteFaresMax: 20,
+  enRouteFaresMin: 25, // hat boyunca inen-binen ek yolcu (dönüşte kasaya girer)
+  enRouteFaresMax: 50, // gerçek günlük ciroyu (₺13-15k/araç) yakalayan ana kalem
 
   // Yakıt (litre bazlı)
   fuelCapacity: 80, // depo (L)
@@ -42,10 +42,30 @@ export const CONFIG = {
   driverHireCost: 4000, // ₺, işe alım
   vehicleBaseCost: 390000, // eski kasa 2. el minibüs
   vehicleCostStep: 130000, // her ilave araçta artış
+  // Senetli satış: dolmuşçu usulü — peşinat ver, kalanı her akşam taksitle öde
+  loanDownRate: 0.25, // peşinat oranı
+  loanMarkupRate: 0.15, // vade farkı
+  loanTermDays: 30, // taksit süresi (gün)
   spotBaseCost: 30000, // park cebi devri, her cepte katlanır
   maxSpots: 8,
   startMoney: 150000,
   startSpots: 2,
+
+  // İtibar (0-5 ⭐): yüksek itibar durağa daha çok yolcu çeker
+  repStart: 3,
+  repPerTrip: 0.02, // tamamlanan sefer başına artış
+  repLostPassenger: 0.01, // kuyruk doluyken vazgeçen yolcu başına düşüş
+  repTaskBonus: 0.2, // günlük görev ödülü
+  // Yolcu geliş çarpanı: 5⭐ → ×0.7 (yoğun), 0⭐ → ×1.6 (tenha)
+  repSpawnBase: 1.6,
+  repSpawnSlope: 0.18,
+
+  // Günlük görev: her sabah 06:00'da yenilenir, hedefler filo boyuyla ölçeklenir
+  taskCarryPerVehicle: 150, // taşınacak yolcu / araç
+  taskRevenuePerVehicle: 8000, // ₺ hasılat / araç
+  taskTripsPerVehicle: 4, // sefer / araç
+  taskRewardBase: 5000, // ₺ ödül tabanı
+  taskRewardPerVehicle: 4000,
 
   toastLifetime: 3, // sn
 }

@@ -55,6 +55,51 @@ function BuyButton({
   )
 }
 
+// Araç alımı: nakit mi senetli mi? Dolmuşçu usulü seçim
+function VehicleBuyCard({
+  price,
+  money,
+  hasFreeSpot,
+  onBuy,
+}: {
+  price: number
+  money: number
+  hasFreeSpot: boolean
+  onBuy: (mode: 'cash' | 'loan') => void
+}) {
+  const down = Math.ceil(price * CONFIG.loanDownRate)
+  const total = Math.round(price * (1 + CONFIG.loanMarkupRate))
+  const daily = Math.ceil((total - down) / CONFIG.loanTermDays)
+  return (
+    <div className={`w-64 p-3 ${GLASS} ${hasFreeSpot ? '' : 'opacity-45'}`}>
+      <div className="flex items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-500 text-lg shadow-inner">
+          🚐
+        </span>
+        <span className="flex-1">
+          <span className="block text-[13px] font-extrabold text-white">{t.buyVehicle}</span>
+          <span className="block text-[11px] font-bold tabular-nums text-white/50">₺{fmt(price)}</span>
+        </span>
+      </div>
+      <div className="mt-2 flex gap-1.5">
+        <MiniButton
+          label={`💵 ${t.payCash} ₺${fmt(price)}`}
+          enabled={hasFreeSpot && money >= price}
+          onClick={() => onBuy('cash')}
+        />
+        <MiniButton
+          label={`📝 ${t.payLoan} ₺${fmt(down)}`}
+          enabled={hasFreeSpot && money >= down}
+          onClick={() => onBuy('loan')}
+        />
+      </div>
+      <div className="mt-1 text-right text-[9px] font-bold tabular-nums text-white/35">
+        {t.loanNote(daily, CONFIG.loanTermDays)}
+      </div>
+    </div>
+  )
+}
+
 // Durum → renk eşlemesi (pill)
 const STATE_STYLE: Record<string, string> = {
   onTrip: 'bg-sky-400/15 text-sky-300',
@@ -136,7 +181,13 @@ export function HUD() {
     const h = clockOf(s.time).hour
     return h < 6 || h >= 21
   })
+  const rep = useGame((s) => Math.round(s.rep * 10) / 10)
+  // Görev anahtarı: string eşitliği sayesinde sadece ilerleme değişince re-render
+  const taskKey = useGame((s) =>
+    s.task ? `${s.task.kind}|${s.task.target}|${Math.floor(s.task.progress)}|${s.task.done ? 1 : 0}|${s.task.reward}` : '',
+  )
   const money = useGame((s) => s.money)
+  const totalDebt = useGame((s) => s.debts.reduce((sum, d) => sum + d.remaining, 0))
   const queue = useGame((s) => s.queue)
   const drivers = useGame((s) => s.drivers)
   const spots = useGame((s) => s.spots)
@@ -183,20 +234,53 @@ export function HUD() {
         <Stat icon="📅" label={t.day} value={`${day}`} />
         <Stat icon={isNightHour ? '🌙' : '☀️'} label={t.clock} value={clock} />
         <Stat icon="💰" label={t.cash} value={`₺${fmt(money)}`} accent={money < 0 ? 'text-red-400' : 'text-emerald-300'} />
+        {totalDebt > 0 && <Stat icon="📝" label={t.debt} value={`₺${fmt(totalDebt)}`} accent="text-red-300" />}
         <Stat icon="🧍" label={t.waiting} value={`${queue}`} accent={queue >= CONFIG.maxQueue ? 'text-amber-300' : 'text-white'} />
         <Stat icon="🧔" label={t.drivers} value={`${drivers}`} />
+        <Stat
+          icon="⭐"
+          label={t.rep}
+          value={rep.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+          accent={rep >= 4 ? 'text-emerald-300' : rep < 2 ? 'text-red-400' : 'text-white'}
+        />
       </div>
+
+      {/* Günlük görev */}
+      {taskKey && (() => {
+        const [kind, targetStr, progressStr, doneStr, rewardStr] = taskKey.split('|')
+        const target = Number(targetStr)
+        const progress = Number(progressStr)
+        const done = doneStr === '1'
+        const desc = t.taskDesc[kind as keyof typeof t.taskDesc](target)
+        return (
+          <div className={`absolute left-4 top-[72px] w-72 p-3 ${GLASS} ${done ? 'border-emerald-400/30' : ''}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
+                🎯 {t.dailyTask}
+              </span>
+              <span className={`text-[10px] font-extrabold tabular-nums ${done ? 'text-emerald-300' : 'text-white/50'}`}>
+                {done ? `✓ ${t.taskDoneLabel}` : `${t.taskReward} ₺${fmt(Number(rewardStr))}`}
+              </span>
+            </div>
+            <div className="mt-1 text-[13px] font-extrabold text-white">{desc}</div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className={`h-full rounded-full bg-gradient-to-r transition-all ${done ? 'from-emerald-500 to-green-400' : 'from-sky-500 to-cyan-400'}`}
+                  style={{ width: `${Math.min(100, (progress / target) * 100)}%` }}
+                />
+              </div>
+              <span className="text-[10px] font-bold tabular-nums text-white/50">
+                {fmt(Math.min(progress, target))}/{fmt(target)}
+              </span>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* İşletme paneli */}
       <div className="absolute right-4 top-4 flex flex-col gap-2">
-        <BuyButton
-          icon="🚐"
-          label={t.buyVehicle}
-          cost={vehicleCost}
-          enabled={money >= vehicleCost && hasFreeSpot}
-          accent="bg-blue-500"
-          onClick={buyVehicle}
-        />
+        <VehicleBuyCard price={vehicleCost} money={money} hasFreeSpot={hasFreeSpot} onBuy={buyVehicle} />
         <BuyButton
           icon="🧔"
           label={t.hireDriver}
