@@ -45,6 +45,36 @@ export type Vehicle = {
   share: number // oyuncunun hisse payı (%); 100 = tamamı
   pendingRefuel: boolean // seferdeyken planlanan yakıt: parka dönünce pompaya gider
   pendingRepair: boolean // seferdeyken planlanan bakım: parka dönünce uygulanır
+  charterPayout: number // aktif özel servisin ödemesi; 0 = serviste değil
+  charterQueued: boolean // dönüş yolunda kabul edildi: park edince servise çıkar
+  charterDuration: number // kuyruktaki servisin süresi (sn)
+}
+
+// Özel servis teklifi: düğün/havalimanı vb. — süresi içinde kabul edilmezse uçar.
+// Mesafe fiyatı, süreyi ve masrafı belirler.
+export type Charter = {
+  id: number
+  kind: number
+  km: number
+  payout: number
+  duration: number
+  expiresAt: number
+}
+
+function makeCharter(time: number, activeFleet: number): Charter {
+  const km = Math.round(rand(CONFIG.charterKmMin, CONFIG.charterKmMax))
+  const fleetBonus = 1 + CONFIG.charterFleetBonus * (activeFleet - 1)
+  return {
+    id: nextId++,
+    kind: Math.floor(Math.random() * 5),
+    km,
+    payout: Math.round(
+      (CONFIG.charterBaseFee + km * rand(CONFIG.charterPerKmMin, CONFIG.charterPerKmMax)) *
+        fleetBonus,
+    ),
+    duration: CONFIG.charterDurationBase + km * CONFIG.charterDurationPerKm,
+    expiresAt: time + CONFIG.charterLifetime,
+  }
 }
 
 // Araç değerlemesi: taban fiyat × kasa yaşı × yıpranma × işletme itibarı
@@ -157,6 +187,7 @@ function genPlate(): string {
   return `34 M ${1000 + Math.floor(Math.random() * 9000)}`
 }
 let bufeStreetTimer = 0 // yoldan geçen müşteri sayacı (kalıcı olması gerekmez)
+let charterTimer = 45 // ilk servis teklifine kalan süre
 
 // --- Kalıcılık: localStorage'a periyodik yaz, açılışta geri yükle ---
 const SAVE_KEY = 'dolmus-save'
@@ -245,6 +276,9 @@ function loadSave(): Partial<SavedFields> | null {
         share: v.share ?? 100,
         pendingRefuel: v.pendingRefuel ?? false,
         pendingRepair: v.pendingRepair ?? false,
+        charterPayout: v.charterPayout ?? 0,
+        charterQueued: v.charterQueued ?? false,
+        charterDuration: v.charterDuration ?? 0,
       })),
       debts: Array.isArray(d.debts) ? d.debts : [],
       spawnTimer: d.spawnTimer ?? 1,
@@ -293,6 +327,9 @@ function makeVehicle(no: number, spotIdx: number, hasDriver: boolean, plate?: st
     share: 100,
     pendingRefuel: false,
     pendingRepair: false,
+    charterPayout: 0,
+    charterQueued: false,
+    charterDuration: 0,
   }
 }
 
@@ -329,6 +366,8 @@ type GameState = {
   bufeToday: number // büfenin bugünkü hasılatı (akşam özetlenir)
   rivals: Rival[]
   rivalRespawn: number // hatta yeni esnaf katılma sayacı
+  charter: Charter | null // bekleyen özel servis teklifi
+  acceptCharter: () => void
   buyBuilding: (kind: BuildingKind) => void
   buyRival: (rivalId: number) => void
   buyRivalShare: (rivalId: number, pct: number) => void
@@ -372,6 +411,7 @@ function initialState() {
     bufeToday: 0,
     rivals: [makeRival(7), makeRival(12)],
     rivalRespawn: 0,
+    charter: null as Charter | null,
   }
 }
 
@@ -649,6 +689,56 @@ export const useGame = create<GameState>((set, get) => ({
     })
   },
 
+  acceptCharter: () => {
+    const s = get()
+    const c = s.charter
+    if (!c) return
+    // Uygun araç: şoförlü, yakıtı yeter, bakımı gelmemiş — parktaki hemen çıkar,
+    // dönüş yolundaki park edince servise yönlenir
+    const fuelNeed = Math.ceil(c.km * CONFIG.charterFuelPerKm)
+    const eligible = (veh: Vehicle) =>
+      veh.hasDriver && veh.fuel >= fuelNeed && veh.wear < 100 && veh.charterPayout === 0
+    const v =
+      s.vehicles.find((veh) => veh.state === 'parked' && eligible(veh)) ??
+      s.vehicles.find(
+        (veh) => (veh.state === 'returning' || veh.state === 'fromPump') && eligible(veh),
+      )
+    if (!v) return
+    const wearAdd =
+      (CONFIG.charterWearBase + c.km * CONFIG.charterWearPerKm) *
+      (v.old ? CONFIG.oldBusWearFactor : 1)
+    const immediate = v.state === 'parked'
+    set({
+      charter: null,
+      vehicles: s.vehicles.map((veh) =>
+        veh.id === v.id
+          ? {
+              ...veh,
+              ...(immediate
+                ? {
+                    state: 'departing' as const,
+                    path: departPath,
+                    dist: 0,
+                    tripLeft: c.duration,
+                  }
+                : { charterQueued: true, charterDuration: c.duration }),
+              fuel: Math.max(0, veh.fuel - fuelNeed),
+              wear: Math.min(100, veh.wear + wearAdd),
+              charterPayout: c.payout,
+            }
+          : veh,
+      ),
+      toasts: [
+        ...s.toasts,
+        {
+          id: nextId++,
+          text: t.charterAccepted(v.plate, c.km),
+          expireAt: s.time + CONFIG.toastLifetime,
+        },
+      ].slice(-5),
+    })
+  },
+
   toggleNightShift: (vehicleId: number) => {
     const s = get()
     set({
@@ -671,7 +761,7 @@ export const useGame = create<GameState>((set, get) => ({
   tick: (dt: number) => {
     const s = get()
     const time = s.time + dt
-    let { money, totalCarried, queue, spawnTimer, wageDay, rep, task, taskDay, bufeToday, rivalRespawn } = s
+    let { money, totalCarried, queue, spawnTimer, wageDay, rep, task, taskDay, bufeToday, rivalRespawn, charter } = s
     const { buildings } = s
     const clock = clockOf(time)
     const day = clock.day
@@ -777,6 +867,16 @@ export const useGame = create<GameState>((set, get) => ({
       }
     }
 
+    // Özel servis teklifleri: gündüz arada bir düşer, süresi geçerse uçar
+    if (charter && charter.expiresAt <= time) charter = null
+    if (!charter && !isNight) {
+      charterTimer -= dt
+      if (charterTimer <= 0) {
+        charterTimer = rand(CONFIG.charterIntervalMin, CONFIG.charterIntervalMax)
+        charter = makeCharter(time, activeFleet)
+      }
+    }
+
     // Büfe ayak trafiği: yoldan geçenler de alışveriş yapar (gündüz, saatte 1-4)
     if (buildings.bufe && !isNight) {
       bufeStreetTimer += dt
@@ -875,6 +975,15 @@ export const useGame = create<GameState>((set, get) => ({
 
       switch (v.state) {
         case 'parked': {
+          // Kuyruktaki özel servis: park eder etmez yola çıkar (masrafı kabulde ödendi)
+          if (v.charterQueued) {
+            v.charterQueued = false
+            v.state = 'departing'
+            v.path = departPath
+            v.dist = 0
+            v.tripLeft = v.charterDuration
+            break
+          }
           // Planlı bakım: parka döner dönmez uygulanır
           if (v.pendingRepair) {
             if (v.wear <= 0) {
@@ -967,12 +1076,30 @@ export const useGame = create<GameState>((set, get) => ({
           if (advance()) {
             v.state = 'onTrip'
             v.path = null
-            v.tripLeft = rand(CONFIG.tripDurationMin, CONFIG.tripDurationMax)
+            // Özel servisteyse süresi kabul anında belirlendi
+            if (v.charterPayout <= 0) {
+              v.tripLeft = rand(CONFIG.tripDurationMin, CONFIG.tripDurationMax)
+            }
           }
           break
         }
         case 'onTrip': {
           v.tripLeft -= dt
+          if (v.tripLeft <= 0 && v.charterPayout > 0) {
+            // Özel servis dönüşü: toplu ödeme (hisse oranında)
+            const pay = Math.round((v.charterPayout * v.share) / 100)
+            money += pay
+            rep = clampRep(rep + CONFIG.repPerTrip)
+            advanceTask('trips', 1)
+            advanceTask('revenue', pay)
+            pushToast(t.charterDone(v.plate, pay))
+            v.charterPayout = 0
+            v.state = 'returning'
+            v.path = returnPath(spotPos(v.spotIdx))
+            v.dist = 0
+            v.passengers = 0
+            break
+          }
           if (v.tripLeft <= 0) {
             // Hat boyunca inen-binen: dönüşte ek indi-bindi hasılatı.
             // Kahya kapıdan hat bağırır — seviyesi durak dışı yolcuyu artırır.
@@ -1030,7 +1157,7 @@ export const useGame = create<GameState>((set, get) => ({
       return v
     })
 
-    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay, bufeToday, rivals, rivalRespawn })
+    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay, bufeToday, rivals, rivalRespawn, charter })
 
     // ~2.5 sn'de bir kaydet — her frame localStorage'a yazmak gereksiz
     saveAcc += dt

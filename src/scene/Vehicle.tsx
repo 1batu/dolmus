@@ -10,8 +10,46 @@ const STRIPE = '#2160c4'
 const GLASS = '#242f3a'
 const BUMPER = '#b6bac0'
 
+// Plaka dokusu: beyaz zemin + mavi TR bandı + siyah koyu punto (plaka başına önbellekli)
+const plateMatCache = new Map<string, THREE.MeshBasicMaterial>()
+function plateMaterial(plate: string): THREE.MeshBasicMaterial {
+  let m = plateMatCache.get(plate)
+  if (!m) {
+    const canvas = document.createElement('canvas')
+    canvas.width = 256
+    canvas.height = 64
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, 256, 64)
+    ctx.fillStyle = '#1d4ed8'
+    ctx.fillRect(0, 0, 34, 64)
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 20px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText('TR', 17, 44)
+    ctx.fillStyle = '#111111'
+    ctx.font = 'bold 38px monospace'
+    ctx.fillText(plate, 145, 46)
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.anisotropy = 4
+    m = new THREE.MeshBasicMaterial({ map: tex })
+    plateMatCache.set(plate, m)
+  }
+  return m
+}
+
+const plateGeo = new THREE.PlaneGeometry(0.72, 0.18)
+
 // Klasik beyaz + renkli şerit Türk minibüsü — yuvarlatılmış modern kasa, sıfır asset
-export function MinibusMesh({ stripe = STRIPE, body = BODY }: { stripe?: string; body?: string }) {
+export function MinibusMesh({
+  stripe = STRIPE,
+  body = BODY,
+  plate,
+}: {
+  stripe?: string
+  body?: string
+  plate?: string
+}) {
   return (
     <group>
       {/* Ana gövde */}
@@ -60,9 +98,23 @@ export function MinibusMesh({ stripe = STRIPE, body = BODY }: { stripe?: string;
           position={[x, 0.68, 1.89]}
         />
       ))}
-      {/* Plakalar */}
-      <mesh geometry={rbox(0.36, 0.11, 0.03, 0.01)} material={mat('#f4f2ec', 0.4)} position={[0, 0.48, 1.93]} />
-      <mesh geometry={rbox(0.36, 0.11, 0.03, 0.01)} material={mat('#f4f2ec', 0.4)} position={[0, 0.48, -1.93]} />
+      {/* Plakalar: araç kendi plakasını taşır */}
+      {plate ? (
+        <>
+          <mesh geometry={plateGeo} material={plateMaterial(plate)} position={[0, 0.48, 1.94]} />
+          <mesh
+            geometry={plateGeo}
+            material={plateMaterial(plate)}
+            position={[0, 0.48, -1.94]}
+            rotation={[0, Math.PI, 0]}
+          />
+        </>
+      ) : (
+        <>
+          <mesh geometry={rbox(0.36, 0.11, 0.03, 0.01)} material={mat('#f4f2ec', 0.4)} position={[0, 0.48, 1.93]} />
+          <mesh geometry={rbox(0.36, 0.11, 0.03, 0.01)} material={mat('#f4f2ec', 0.4)} position={[0, 0.48, -1.93]} />
+        </>
+      )}
       {/* Stoplar */}
       {[-0.6, 0.6].map((x) => (
         <mesh
@@ -99,6 +151,7 @@ export function MinibusMesh({ stripe = STRIPE, body = BODY }: { stripe?: string;
 export function Vehicle({ vehicleId }: { vehicleId: number }) {
   const group = useRef<THREE.Group>(null)
   const old = useGame((s) => s.vehicles.find((v) => v.id === vehicleId)?.old ?? false)
+  const plate = useGame((s) => s.vehicles.find((v) => v.id === vehicleId)?.plate ?? '')
 
   useFrame(() => {
     const v = useGame.getState().vehicles.find((veh) => veh.id === vehicleId)
@@ -123,7 +176,7 @@ export function Vehicle({ vehicleId }: { vehicleId: number }) {
 
   return (
     <group ref={group}>
-      <MinibusMesh body={old ? '#ece5d4' : undefined} />
+      <MinibusMesh body={old ? '#ece5d4' : undefined} plate={plate || undefined} />
     </group>
   )
 }
@@ -131,6 +184,7 @@ export function Vehicle({ vehicleId }: { vehicleId: number }) {
 // Rakip minibüs: yeşil şeritli, hafif kirli gövde — hattın diğer esnafı
 export function RivalBus({ rivalId }: { rivalId: number }) {
   const group = useRef<THREE.Group>(null)
+  const plate = useGame((s) => s.rivals.find((r) => r.id === rivalId)?.plate ?? '')
 
   useFrame(() => {
     const r = useGame.getState().rivals.find((rv) => rv.id === rivalId)
@@ -148,7 +202,7 @@ export function RivalBus({ rivalId }: { rivalId: number }) {
 
   return (
     <group ref={group} visible={false}>
-      <MinibusMesh stripe="#3f9d4f" body="#efe9dc" />
+      <MinibusMesh stripe="#3f9d4f" body="#efe9dc" plate={plate || undefined} />
     </group>
   )
 }

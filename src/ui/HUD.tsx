@@ -74,18 +74,18 @@ function PriceButton({ label, enabled, onClick }: { label: string; enabled: bool
 }
 
 // Gerçek plaka görünümü: mavi TR bandı + beyaz zemin + siyah koyu punto
-function PlateBadge({ plate }: { plate: string }) {
+function PlateBadge({ plate, small = false }: { plate: string; small?: boolean }) {
   return (
-    <div className="mt-2 flex justify-center">
-      <div className="flex items-stretch overflow-hidden rounded-[5px] border border-neutral-500 bg-white shadow-md">
-        <span className="flex flex-col items-center justify-center bg-blue-700 px-1 leading-none">
-          <span className="text-[6px]">🇹🇷</span>
-          <span className="text-[7px] font-black text-white">TR</span>
-        </span>
-        <span className="px-2.5 py-0.5 font-mono text-[13px] font-black tracking-[0.12em] text-neutral-900">
-          {plate}
-        </span>
-      </div>
+    <div className="inline-flex items-stretch overflow-hidden rounded-[4px] border border-neutral-500 bg-white shadow-md">
+      <span className={`flex flex-col items-center justify-center bg-blue-700 leading-none ${small ? 'px-0.5' : 'px-1'}`}>
+        {!small && <span className="text-[6px]">🇹🇷</span>}
+        <span className={`${small ? 'text-[6px]' : 'text-[7px]'} font-black text-white`}>TR</span>
+      </span>
+      <span
+        className={`font-mono font-black text-neutral-900 ${small ? 'px-1.5 text-[11px] tracking-[0.08em]' : 'px-2.5 py-0.5 text-[13px] tracking-[0.12em]'}`}
+      >
+        {plate}
+      </span>
     </div>
   )
 }
@@ -219,6 +219,7 @@ const STATE_STYLE: Record<string, string> = {
   fueling: 'bg-orange-400/15 text-orange-300',
   fromPump: 'bg-orange-400/15 text-orange-300',
   parked: 'bg-white/10 text-white/60',
+  charter: 'bg-purple-400/15 text-purple-300',
   noDriver: 'bg-red-400/15 text-red-300',
   noFuel: 'bg-red-400/15 text-red-300',
   wornOut: 'bg-red-400/15 text-red-300',
@@ -316,17 +317,37 @@ export function HUD() {
   const pumpBusy = useGame((s) =>
     s.vehicles.some((v) => v.state === 'toPump' || v.state === 'fueling'),
   )
+  const charterKey = useGame((s) =>
+    s.charter
+      ? `${s.charter.id}|${s.charter.kind}|${s.charter.km}|${s.charter.payout}|${Math.ceil(s.charter.expiresAt - s.time)}`
+      : '',
+  )
+  const charterVehicleReady = useGame((s) =>
+    s.charter
+      ? s.vehicles.some(
+          (v) =>
+            (v.state === 'parked' || v.state === 'returning' || v.state === 'fromPump') &&
+            v.hasDriver &&
+            v.charterPayout === 0 &&
+            v.fuel >= Math.ceil(s.charter!.km * CONFIG.charterFuelPerKm) &&
+            v.wear < 100,
+        )
+      : false,
+  )
+  const acceptCharter = useGame((s) => s.acceptCharter)
   // Değer eşitliği sayesinde bu string seçici her frame re-render tetiklemez
   const fleetKey = useGame((s) =>
     s.vehicles
       .map((v) => {
         const state = !v.hasDriver
           ? 'noDriver'
-          : v.state === 'parked' && v.fuel < CONFIG.fuelPerTrip
-            ? 'noFuel'
-            : v.state === 'parked' && v.wear >= 100
-              ? 'wornOut'
-              : v.state
+          : v.charterPayout > 0 && v.state !== 'parked'
+            ? 'charter'
+            : v.state === 'parked' && v.fuel < CONFIG.fuelPerTrip
+              ? 'noFuel'
+              : v.state === 'parked' && v.wear >= 100
+                ? 'wornOut'
+                : v.state
         return `${v.id}|${v.plate}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}|${v.share}|${valuationOf(v, s.vehicles.length, s.rep)}|${v.pendingRefuel ? 1 : 0}|${v.pendingRepair ? 1 : 0}`
       })
       .join(','),
@@ -349,6 +370,7 @@ export function HUD() {
   const buyBackShare = useGame((s) => s.buyBackShare)
   const [buildOpen, setBuildOpen] = useState(false)
   const [buildTab, setBuildTab] = useState<'arac' | 'personel' | 'tesis' | 'devren'>('arac')
+  const [openVehicle, setOpenVehicle] = useState<number | null>(null)
 
   const vehicleCost = CONFIG.vehicleBaseCost + CONFIG.vehicleCostStep * (vehicleCount - 1)
   const spotCost = CONFIG.spotBaseCost * (spots - CONFIG.startSpots + 1)
@@ -670,8 +692,44 @@ export function HUD() {
       </div>
 
 
-      {/* Filo: depo + yıpranma barları, doldur/bakım, nöbetçi */}
-      <div className="absolute bottom-4 left-4 flex flex-wrap gap-2">
+      {/* Özel servis teklifi: süresi dolmadan kabul et */}
+      {charterKey && (() => {
+        const [, kindStr, kmStr, payoutStr, leftStr] = charterKey.split('|')
+        const kind = t.charterKinds[Number(kindStr)]
+        const left = Math.max(0, Number(leftStr))
+        return (
+          <div className={`pointer-events-auto absolute left-1/2 top-1/2 w-72 -translate-x-1/2 -translate-y-1/2 p-3 ${GLASS} border-purple-400/30 shadow-2xl`}>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-purple-300/80">
+                📢 {t.charterTitle}
+              </span>
+              <span className="text-[10px] font-bold tabular-nums text-white/50">{left} sn</span>
+            </div>
+            <div className="mt-1 text-[13px] font-extrabold text-white">
+              {kind} · {t.charterKm(Number(kmStr))}
+            </div>
+            <div className="mt-0.5 text-[12px] font-extrabold tabular-nums text-emerald-300">
+              +₺{fmt(Number(payoutStr))}
+            </div>
+            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-purple-500 to-fuchsia-400 transition-all"
+                style={{ width: `${(left / CONFIG.charterLifetime) * 100}%` }}
+              />
+            </div>
+            <div className="mt-2 flex">
+              <PriceButton
+                label={charterVehicleReady ? t.accept : t.noVehicleAvailable}
+                enabled={charterVehicleReady}
+                onClick={acceptCharter}
+              />
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Filo: kompakt kartlar, tıklayınca detay açılır */}
+      <div className="absolute bottom-4 left-4 flex flex-wrap items-end gap-2">
         {fleetKey.split(',').map((entry) => {
           const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr] = entry.split('|')
           const id = Number(idStr)
@@ -694,86 +752,104 @@ export function HUD() {
           )
           // Fiilen parkta mı? (pseudo-durumlar da parkta bekleyen aracı temsil eder)
           const isParked = state === 'parked' || state === 'noFuel' || state === 'wornOut'
+          const expanded = openVehicle === id
           return (
-            <div key={id} className={`w-60 p-3 ${GLASS}`}>
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[11px] text-amber-400/80">
-                  {isOld && <span title={t.oldBus}>🕰</span>}
+            <div
+              key={id}
+              onClick={() => setOpenVehicle(expanded ? null : id)}
+              className={`pointer-events-auto cursor-pointer transition-all ${GLASS} ${expanded ? 'w-60 p-3' : 'w-48 p-2 hover:border-white/25'}`}
+            >
+              {/* Kompakt başlık: ortalanmış plaka — her zaman görünür */}
+              <div className="relative flex items-center justify-center">
+                <PlateBadge plate={plate} small />
+                <span className="absolute right-0 flex items-center gap-0.5">
+                  {isOld && <span className="text-[10px] text-amber-400/80" title={t.oldBus}>🕰</span>}
+                  {(pendF || pendR) && <span className="text-[10px]" title={t.planned}>⏳</span>}
+                  {night && !expanded && <span className="text-[10px]">🌙</span>}
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold tabular-nums ${STATE_STYLE[state] ?? 'bg-white/10 text-white/60'}`}
-                  >
-                    {warn && '⚠️ '}
-                    {stateText}
-                    {!warn && ` · ${t.seats(Number(count), cap)}`}
-                  </span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span
+                  className={`flex-1 rounded-full px-2 py-0.5 text-center text-[10px] font-extrabold tabular-nums ${STATE_STYLE[state] ?? 'bg-white/10 text-white/60'}`}
+                >
+                  {warn && '⚠️ '}
+                  {stateText}
+                  {!warn && ` · ${t.seats(Number(count), cap)}`}
+                </span>
+                {expanded && (
                   <button
-                    onClick={() => toggleNightShift(id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleNightShift(id)
+                    }}
                     title={t.nightShift}
                     className={`pointer-events-auto cursor-pointer rounded-lg px-1.5 py-0.5 text-[11px] transition active:scale-95
                       ${night ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]' : 'bg-white/10 opacity-40 hover:opacity-100'}`}
                   >
                     🌙
                   </button>
-                </span>
+                )}
               </div>
-              <div className="mt-2 flex flex-col gap-1.5">
+              <div className="mt-1.5 flex flex-col gap-1">
                 <Bar icon="⛽" pct={fuelPct} from="from-amber-500" to="to-yellow-400" low={fuel < CONFIG.fuelPerTrip} />
                 <Bar icon="🔧" pct={100 - wear} from="from-emerald-500" to="to-green-400" low={wear >= 100} />
               </div>
-              <div className="mt-2 flex gap-1.5">
-                <MiniButton
-                  label={pendF ? `⛽ ⏳ ${t.planned}` : `⛽ ${t.refuel} ₺${fmt(refuelPrice)}`}
-                  enabled={
-                    !pendF &&
-                    refuelPrice > 0 &&
-                    state !== 'noDriver' &&
-                    (isParked ? money >= refuelPrice && !pumpBusy : true)
-                  }
-                  onClick={() => refuel(id)}
-                />
-                <MiniButton
-                  label={pendR ? `🔧 ⏳ ${t.planned}` : `🔧 ${t.repair} ₺${fmt(repairPrice)}`}
-                  enabled={
-                    !pendR &&
-                    repairPrice > 0 &&
-                    (isParked || state === 'noDriver' ? money >= repairPrice : true)
-                  }
-                  onClick={() => repair(id)}
-                />
-              </div>
-              <OwnShareControls
-                vehicleId={id}
-                share={share}
-                valuation={valuation}
-                money={money}
-                onSell={sellShare}
-                onBuyBack={buyBackShare}
-              />
-              <div className="mt-1.5 flex items-center gap-1.5">
-                {kahya === 0 ? (
-                  <MiniButton
-                    label={`🧢 ${t.hireKahya} ₺${fmt(CONFIG.kahyaHireCost)}`}
-                    enabled={state !== 'noDriver' && money >= CONFIG.kahyaHireCost}
-                    onClick={() => hireKahya(id)}
+              {/* Detay: karta tıklayınca açılır */}
+              {expanded && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <div className="mt-2 flex gap-1.5">
+                    <MiniButton
+                      label={pendF ? `⛽ ⏳ ${t.planned}` : `⛽ ${t.refuel} ₺${fmt(refuelPrice)}`}
+                      enabled={
+                        !pendF &&
+                        refuelPrice > 0 &&
+                        state !== 'noDriver' &&
+                        (isParked ? money >= refuelPrice && !pumpBusy : true)
+                      }
+                      onClick={() => refuel(id)}
+                    />
+                    <MiniButton
+                      label={pendR ? `🔧 ⏳ ${t.planned}` : `🔧 ${t.repair} ₺${fmt(repairPrice)}`}
+                      enabled={
+                        !pendR &&
+                        repairPrice > 0 &&
+                        (isParked || state === 'noDriver' ? money >= repairPrice : true)
+                      }
+                      onClick={() => repair(id)}
+                    />
+                  </div>
+                  <OwnShareControls
+                    vehicleId={id}
+                    share={share}
+                    valuation={valuation}
+                    money={money}
+                    onSell={sellShare}
+                    onBuyBack={buyBackShare}
                   />
-                ) : (
-                  <>
-                    <span className="flex-1 rounded-lg bg-indigo-400/15 px-1.5 py-1.5 text-center text-[10px] font-bold text-indigo-300">
-                      🧢 {t.kahya} {t.kahyaLevel(kahya)} · {t.kahyaEffect(cap - CONFIG.seatCount)}
-                    </span>
-                    {kahya < CONFIG.kahyaMaxLevel && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    {kahya === 0 ? (
                       <MiniButton
-                        label={`⬆ ${t.upgrade} ₺${fmt(CONFIG.kahyaUpgradeCosts[kahya - 1])}`}
-                        enabled={money >= CONFIG.kahyaUpgradeCosts[kahya - 1]}
-                        onClick={() => upgradeKahya(id)}
+                        label={`🧢 ${t.hireKahya} ₺${fmt(CONFIG.kahyaHireCost)}`}
+                        enabled={state !== 'noDriver' && money >= CONFIG.kahyaHireCost}
+                        onClick={() => hireKahya(id)}
                       />
+                    ) : (
+                      <>
+                        <span className="flex-1 rounded-lg bg-indigo-400/15 px-1.5 py-1.5 text-center text-[10px] font-bold text-indigo-300">
+                          🧢 {t.kahya} {t.kahyaLevel(kahya)} · {t.kahyaEffect(cap - CONFIG.seatCount)}
+                        </span>
+                        {kahya < CONFIG.kahyaMaxLevel && (
+                          <MiniButton
+                            label={`⬆ ${t.upgrade} ₺${fmt(CONFIG.kahyaUpgradeCosts[kahya - 1])}`}
+                            enabled={money >= CONFIG.kahyaUpgradeCosts[kahya - 1]}
+                            onClick={() => upgradeKahya(id)}
+                          />
+                        )}
+                      </>
                     )}
-                  </>
-                )}
-              </div>
-              <PlateBadge plate={plate} />
+                  </div>
+                </div>
+              )}
             </div>
           )
         })}

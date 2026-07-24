@@ -115,6 +115,22 @@ export const CONFIG = {
   tamirhaneCost: 250000, // tamirhane — bakım %40 indirimli
   tamirhaneDiscount: 0.6, // bakım fiyat çarpanı
 
+  // Özel servis teklifleri: düğün/havalimanı vb. — mesafe fiyatı belirler
+  charterIntervalMin: 40, // teklifler arası süre (sn, gündüz)
+  charterIntervalMax: 100,
+  charterLifetime: 40, // teklifin geçerlilik süresi (sn)
+  charterKmMin: 5, // servis mesafesi (km)
+  charterKmMax: 60,
+  charterBaseFee: 1500, // ₺ taban ücret
+  charterPerKmMin: 140, // ₺/km bandı
+  charterPerKmMax: 220,
+  charterFleetBonus: 0.1, // araç başına teklif büyümesi
+  charterDurationBase: 15, // sn + km başına süre
+  charterDurationPerKm: 0.8,
+  charterFuelPerKm: 0.35, // L/km (gidiş-dönüş dahil)
+  charterWearBase: 2, // % + km başına yıpranma
+  charterWearPerKm: 0.08,
+
   toastLifetime: 3, // sn
 }
 
