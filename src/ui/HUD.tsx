@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
-import { useGame, BUILDING_COSTS, capacityOf, type BuildingKind } from '../game/store'
-import { CONFIG, clockOf } from '../game/config'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useGame, BUILDING_COSTS, capacityOf, valuationOf, type BuildingKind } from '../game/store'
+import { CONFIG, clockOf, queueCapOf } from '../game/config'
 import { t } from '../i18n'
 
 const BUILDING_ICONS: Record<BuildingKind, string> = {
@@ -26,122 +26,185 @@ function Stat({ icon, label, value, accent = 'text-white' }: { icon: string; lab
   )
 }
 
-function BuyButton({
+// Modal kartı: ikon karosu + isim + etki rozeti + açıklama + aksiyon
+function ModalCard({
   icon,
-  label,
-  cost,
-  enabled,
-  accent,
-  onClick,
+  title,
+  badge,
+  badgeClass,
+  desc,
+  children,
 }: {
   icon: string
-  label: string
-  cost: number
-  enabled: boolean
-  accent: string // örn 'bg-blue-500'
-  onClick: () => void
+  title: string
+  badge?: string
+  badgeClass?: string
+  desc: string
+  children: ReactNode
 }) {
+  return (
+    <div className="flex flex-col rounded-xl border border-white/10 bg-white/5 p-3">
+      <div className="flex h-14 items-center justify-center rounded-lg bg-white/5 text-3xl">
+        {icon}
+      </div>
+      <div className="mt-2 text-[12px] font-extrabold text-white">{title}</div>
+      {badge && (
+        <div className={`mt-1 self-start rounded-full px-1.5 py-0.5 text-[9px] font-extrabold ${badgeClass ?? 'bg-white/10 text-white/60'}`}>
+          {badge}
+        </div>
+      )}
+      <div className="mt-1 flex-1 text-[10px] font-bold leading-tight text-white/45">{desc}</div>
+      <div className="mt-2 flex flex-col gap-1.5">{children}</div>
+    </div>
+  )
+}
+
+// Referans oyundaki yeşil fiyat butonu
+function PriceButton({ label, enabled, onClick }: { label: string; enabled: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       disabled={!enabled}
-      className={`pointer-events-auto flex w-64 items-center gap-3 px-3 py-2.5 text-left transition active:scale-[0.98] ${GLASS}
-        ${enabled ? 'cursor-pointer hover:border-white/25 hover:bg-neutral-800/80' : 'opacity-45'}`}
+      className={`w-full rounded-lg px-2 py-2 text-[11px] font-extrabold tabular-nums transition active:scale-[0.98]
+        ${enabled ? 'cursor-pointer bg-emerald-600 text-white shadow hover:bg-emerald-500' : 'bg-white/5 text-white/30'}`}
     >
-      <span
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg shadow-inner ${enabled ? accent : 'bg-white/10'}`}
-      >
-        {icon}
-      </span>
-      <span className="flex-1">
-        <span className="block text-[13px] font-extrabold text-white">{label}</span>
-        <span className="block text-[11px] font-bold tabular-nums text-white/50">₺{fmt(cost)}</span>
-      </span>
+      {label}
     </button>
   )
 }
 
-// Araç alımı: nakit mi senetli mi? Dolmuşçu usulü seçim
-function VehicleBuyCard({
-  price,
-  money,
-  hasFreeSpot,
-  onBuy,
-}: {
-  price: number
-  money: number
-  hasFreeSpot: boolean
-  onBuy: (mode: 'cash' | 'loan') => void
-}) {
-  const down = Math.ceil(price * CONFIG.loanDownRate)
-  const total = Math.round(price * (1 + CONFIG.loanMarkupRate))
-  const daily = Math.ceil((total - down) / CONFIG.loanTermDays)
+// Gerçek plaka görünümü: mavi TR bandı + beyaz zemin + siyah koyu punto
+function PlateBadge({ plate }: { plate: string }) {
   return (
-    <div className={`w-64 p-3 ${GLASS} ${hasFreeSpot ? '' : 'opacity-45'}`}>
-      <div className="flex items-center gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-500 text-lg shadow-inner">
-          🚐
+    <div className="mt-2 flex justify-center">
+      <div className="flex items-stretch overflow-hidden rounded-[5px] border border-neutral-500 bg-white shadow-md">
+        <span className="flex flex-col items-center justify-center bg-blue-700 px-1 leading-none">
+          <span className="text-[6px]">🇹🇷</span>
+          <span className="text-[7px] font-black text-white">TR</span>
         </span>
-        <span className="flex-1">
-          <span className="block text-[13px] font-extrabold text-white">{t.buyVehicle}</span>
-          <span className="block text-[11px] font-bold tabular-nums text-white/50">₺{fmt(price)}</span>
+        <span className="px-2.5 py-0.5 font-mono text-[13px] font-black tracking-[0.12em] text-neutral-900">
+          {plate}
         </span>
-      </div>
-      <div className="mt-2 flex gap-1.5">
-        <MiniButton
-          label={`💵 ${t.payCash} ₺${fmt(price)}`}
-          enabled={hasFreeSpot && money >= price}
-          onClick={() => onBuy('cash')}
-        />
-        <MiniButton
-          label={`📝 ${t.payLoan} ₺${fmt(down)}`}
-          enabled={hasFreeSpot && money >= down}
-          onClick={() => onBuy('loan')}
-        />
-      </div>
-      <div className="mt-1 text-right text-[9px] font-bold tabular-nums text-white/35">
-        {t.loanNote(daily, CONFIG.loanTermDays)}
       </div>
     </div>
   )
 }
 
-// Tesis kartı: kurulunca yeşil ✓, etki açıklaması hep görünür
-function BuildCard({
-  kind,
-  owned,
-  money,
-  onBuy,
+// Hisse kaydırıcısı: oran kullanıcının elinde
+function ShareSlider({
+  value,
+  min,
+  max,
+  onChange,
 }: {
-  kind: BuildingKind
-  owned: boolean
-  money: number
-  onBuy: () => void
+  value: number
+  min: number
+  max: number
+  onChange: (v: number) => void
 }) {
-  const cost = BUILDING_COSTS[kind]
-  const enabled = !owned && money >= cost
   return (
-    <button
-      onClick={onBuy}
-      disabled={!enabled}
-      className={`pointer-events-auto flex w-64 items-center gap-3 px-3 py-2 text-left transition active:scale-[0.98] ${GLASS}
-        ${owned ? 'border-emerald-400/30' : enabled ? 'cursor-pointer hover:border-white/25 hover:bg-neutral-800/80' : 'opacity-45'}`}
-    >
-      <span
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-base shadow-inner ${owned ? 'bg-emerald-500/30' : 'bg-white/10'}`}
-      >
-        {BUILDING_ICONS[kind]}
-      </span>
-      <span className="flex-1">
-        <span className="block text-[12px] font-extrabold text-white">
-          {t.buildingNames[kind]}
-        </span>
-        <span className="block text-[10px] font-bold text-white/45">{t.buildingEffects[kind]}</span>
-      </span>
-      <span className={`text-[11px] font-extrabold tabular-nums ${owned ? 'text-emerald-300' : 'text-white/60'}`}>
-        {owned ? `✓ ${t.built}` : `₺${fmt(cost)}`}
-      </span>
-    </button>
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={5}
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="pointer-events-auto h-1.5 flex-1 cursor-pointer accent-indigo-400"
+    />
+  )
+}
+
+// Kendi aracının hissesi: kaydırıcıyla dilim seç, sat ya da geri al
+function OwnShareControls({
+  vehicleId,
+  share,
+  valuation,
+  money,
+  onSell,
+  onBuyBack,
+}: {
+  vehicleId: number
+  share: number
+  valuation: number
+  money: number
+  onSell: (id: number, pct: number) => void
+  onBuyBack: (id: number, pct: number) => void
+}) {
+  const [pct, setPct] = useState(25)
+  const sellable = Math.min(pct, share - CONFIG.minOwnShare)
+  const buyable = Math.min(pct, 100 - share)
+  const sellPrice = Math.round((valuation * sellable) / 100)
+  const buyPrice = Math.ceil(((valuation * buyable) / 100) * CONFIG.shareBuyBackPremium)
+  return (
+    <>
+      {share < 100 && (
+        <div className="mt-1.5 rounded-lg bg-indigo-400/15 px-1.5 py-1 text-center text-[10px] font-bold text-indigo-300">
+          {t.partneredBadge(100 - share)}
+        </div>
+      )}
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <span className="w-4 text-[10px]">🤝</span>
+        <ShareSlider value={pct} min={5} max={75} onChange={setPct} />
+        <span className="w-8 text-right text-[10px] font-bold tabular-nums text-white/50">%{pct}</span>
+      </div>
+      <div className="mt-1.5 flex gap-1.5">
+        <MiniButton
+          label={t.sellShareBtn(sellable, fmt(sellPrice))}
+          enabled={sellable > 0}
+          onClick={() => onSell(vehicleId, pct)}
+        />
+        <MiniButton
+          label={`📈 %${buyable} ${t.buyBack} ₺${fmt(buyPrice)}`}
+          enabled={buyable > 0 && money >= buyPrice}
+          onClick={() => onBuyBack(vehicleId, pct)}
+        />
+      </div>
+    </>
+  )
+}
+
+// Rakip ortaklığı: payını artır ya da sat
+function RivalPartnerRow({
+  rivalId,
+  fullPrice,
+  playerShare,
+  money,
+  onPartner,
+  onSellShare,
+}: {
+  rivalId: number
+  fullPrice: number
+  playerShare: number
+  money: number
+  onPartner: (id: number, pct: number) => void
+  onSellShare: (id: number, pct: number) => void
+}) {
+  const [pct, setPct] = useState(25)
+  const addable = Math.min(pct, 90 - playerShare)
+  const sellable = Math.min(pct, playerShare)
+  const addCost = Math.ceil((fullPrice * addable) / 100)
+  const refund = Math.floor(((fullPrice * sellable) / 100) * CONFIG.shareSellRefund)
+  return (
+    <>
+      <div className="flex items-center gap-1.5">
+        <span className="w-4 text-[10px]">🤝</span>
+        <ShareSlider value={pct} min={5} max={90} onChange={setPct} />
+        <span className="w-8 text-right text-[10px] font-bold tabular-nums text-white/50">%{pct}</span>
+      </div>
+      <div className="flex gap-1.5">
+        <MiniButton
+          label={`🤝 %${addable} ₺${fmt(addCost)}`}
+          enabled={addable > 0 && money >= addCost}
+          onClick={() => onPartner(rivalId, pct)}
+        />
+        <MiniButton
+          label={`💸 %${sellable} +₺${fmt(refund)}`}
+          enabled={sellable > 0}
+          onClick={() => onSellShare(rivalId, pct)}
+        />
+      </div>
+    </>
   )
 }
 
@@ -234,6 +297,9 @@ export function HUD() {
   const money = useGame((s) => s.money)
   const totalDebt = useGame((s) => s.debts.reduce((sum, d) => sum + d.remaining, 0))
   const queue = useGame((s) => s.queue)
+  const queueCap = useGame((s) =>
+    queueCapOf(Math.max(1, s.vehicles.filter((v) => v.hasDriver).length)),
+  )
   const drivers = useGame((s) => s.drivers)
   const spots = useGame((s) => s.spots)
   const toasts = useGame((s) => s.toasts)
@@ -261,25 +327,41 @@ export function HUD() {
             : v.state === 'parked' && v.wear >= 100
               ? 'wornOut'
               : v.state
-        return `${v.id}|${v.no}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}`
+        return `${v.id}|${v.plate}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}|${v.share}|${valuationOf(v, s.vehicles.length, s.rep)}|${v.pendingRefuel ? 1 : 0}|${v.pendingRepair ? 1 : 0}`
       })
       .join(','),
   )
   const debtsKey = useGame((s) =>
-    s.debts.map((d) => `${d.id}|${d.no}|${d.remaining}|${d.daily}`).join(','),
+    s.debts.map((d) => `${d.id}|${d.plate ?? `Minibüs ${d.no}`}|${d.remaining}|${d.daily}`).join(','),
   )
   const payInstallment = useGame((s) => s.payInstallment)
   const payOffDebt = useGame((s) => s.payOffDebt)
   const hireKahya = useGame((s) => s.hireKahya)
   const upgradeKahya = useGame((s) => s.upgradeKahya)
   const [debtsOpen, setDebtsOpen] = useState(false)
-  const rivalsKey = useGame((s) => s.rivals.map((r) => `${r.id}|${r.no}|${r.wear}`).join(','))
+  const rivalsKey = useGame((s) =>
+    s.rivals.map((r) => `${r.id}|${r.no}|${r.wear}|${r.playerShare}|${r.plate}`).join(','),
+  )
   const buyRival = useGame((s) => s.buyRival)
+  const buyRivalShare = useGame((s) => s.buyRivalShare)
+  const sellRivalShare = useGame((s) => s.sellRivalShare)
+  const sellShare = useGame((s) => s.sellShare)
+  const buyBackShare = useGame((s) => s.buyBackShare)
+  const [buildOpen, setBuildOpen] = useState(false)
+  const [buildTab, setBuildTab] = useState<'arac' | 'personel' | 'tesis' | 'devren'>('arac')
 
   const vehicleCost = CONFIG.vehicleBaseCost + CONFIG.vehicleCostStep * (vehicleCount - 1)
   const spotCost = CONFIG.spotBaseCost * (spots - CONFIG.startSpots + 1)
   const hasFreeSpot = vehicleCount < spots
   const hasIdleVehicle = fleetKey.includes('|noDriver|')
+  // İnşaat butonundaki yeşil nokta: alınabilecek bir şey var mı?
+  const canBuySomething =
+    (hasFreeSpot && money >= Math.ceil(vehicleCost * CONFIG.loanDownRate)) ||
+    (hasIdleVehicle && money >= CONFIG.driverHireCost) ||
+    (spots < CONFIG.maxSpots && money >= spotCost) ||
+    (Object.keys(BUILDING_ICONS) as BuildingKind[]).some(
+      (k) => !buildings[k] && money >= BUILDING_COSTS[k],
+    )
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none font-sans">
@@ -299,7 +381,7 @@ export function HUD() {
             <Stat icon="📝" label={t.debt} value={`₺${fmt(totalDebt)}`} accent="text-red-300" />
           </button>
         )}
-        <Stat icon="🧍" label={t.waiting} value={`${queue}`} accent={queue >= CONFIG.maxQueue ? 'text-amber-300' : 'text-white'} />
+        <Stat icon="🧍" label={t.waiting} value={`${queue}`} accent={queue >= queueCap ? 'text-amber-300' : 'text-white'} />
         <Stat icon="🧔" label={t.drivers} value={`${drivers}`} />
         <Stat
           icon="⭐"
@@ -388,79 +470,192 @@ export function HUD() {
         )
       })()}
 
-      {/* İşletme paneli */}
-      <div className="absolute right-4 top-4 flex flex-col gap-2">
-        <VehicleBuyCard price={vehicleCost} money={money} hasFreeSpot={hasFreeSpot} onBuy={buyVehicle} />
-        <BuyButton
-          icon="🧔"
-          label={t.hireDriver}
-          cost={CONFIG.driverHireCost}
-          enabled={money >= CONFIG.driverHireCost && hasIdleVehicle}
-          accent="bg-emerald-500"
-          onClick={hireDriver}
-        />
-        <BuyButton
-          icon="🅿️"
-          label={t.buySpot}
-          cost={spotCost}
-          enabled={money >= spotCost && spots < CONFIG.maxSpots}
-          accent="bg-amber-500"
-          onClick={buySpot}
-        />
-        <div className="mt-1 px-1 text-[9px] font-black uppercase tracking-widest text-white/40">
+      {/* İşletme paneli: sağ üstte tek İnşaat butonu, tıklayınca açılır */}
+      <div className="absolute right-4 top-4 flex flex-col items-end gap-2">
+        <button
+          onClick={() => setBuildOpen((o) => !o)}
+          className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white shadow-lg transition active:scale-95
+            ${buildOpen ? 'bg-red-500' : 'bg-red-600 hover:bg-red-500'}`}
+        >
           🏗 {t.construction}
-        </div>
-        {(Object.keys(BUILDING_ICONS) as BuildingKind[]).map((kind) => (
-          <BuildCard
-            key={kind}
-            kind={kind}
-            owned={buildings[kind]}
-            money={money}
-            onBuy={() => buyBuilding(kind)}
-          />
-        ))}
-        {rivalsKey && (
-          <>
-            <div className="mt-1 px-1 text-[9px] font-black uppercase tracking-widest text-white/40">
-              🤝 {t.devren}
-            </div>
-            {rivalsKey.split(',').map((entry) => {
-              const [idStr, no, wearStr] = entry.split('|')
-              const id = Number(idStr)
-              const wear = Number(wearStr)
-              const price = Math.ceil(
-                (CONFIG.vehicleBaseCost + CONFIG.vehicleCostStep * (vehicleCount - 1)) *
-                  CONFIG.rivalBuyFactor,
-              )
-              const enabled = money >= price && hasFreeSpot
-              return (
-                <button
-                  key={id}
-                  onClick={() => buyRival(id)}
-                  disabled={!enabled}
-                  className={`pointer-events-auto flex w-64 items-center gap-3 px-3 py-2 text-left transition active:scale-[0.98] ${GLASS}
-                    ${enabled ? 'cursor-pointer hover:border-white/25 hover:bg-neutral-800/80' : 'opacity-45'}`}
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-700/60 text-base shadow-inner">
-                    🚐
-                  </span>
-                  <span className="flex-1">
-                    <span className="block text-[12px] font-extrabold text-white">
-                      {t.rivalLabel(Number(no))}
-                    </span>
-                    <span className="block text-[10px] font-bold text-amber-300/80">
-                      {t.oldBus} · {t.rivalWear(wear)}
-                    </span>
-                  </span>
-                  <span className="text-[11px] font-extrabold tabular-nums text-white/60">
-                    ₺{fmt(price)}
-                  </span>
-                </button>
-              )
-            })}
-          </>
-        )}
+          {canBuySomething && !buildOpen && (
+            <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-emerald-400 shadow" />
+          )}
+        </button>
       </div>
+
+      {/* İnşaat & Yatırım modalı: sekmeli, kart grid'li */}
+      {buildOpen && (
+        <div className="pointer-events-auto fixed inset-0 z-10 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setBuildOpen(false)} />
+          <div className={`relative flex max-h-[82dvh] w-[620px] max-w-[94vw] flex-col overflow-hidden ${GLASS}`}>
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <span className="flex items-center gap-2 text-sm font-black text-white">
+                <span className="h-4 w-1 rounded-full bg-red-500" /> 🏗 {t.buildModalTitle}
+              </span>
+              <span className="flex items-center gap-2">
+                <ResetButton onReset={reset} />
+                <button
+                  onClick={() => setBuildOpen(false)}
+                  className="cursor-pointer rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-white/70 transition hover:bg-white/20"
+                >
+                  ✕
+                </button>
+              </span>
+            </div>
+            <div className="flex gap-1.5 px-4 pt-3">
+              {(
+                [
+                  ['arac', `🚐 ${t.sectionVehicles}`],
+                  ['personel', `👥 ${t.sectionStaffPark}`],
+                  ['tesis', `🏗 ${t.sectionFacilities}`],
+                  ['devren', `🤝 ${t.devren}`],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setBuildTab(key)}
+                  className={`cursor-pointer rounded-full px-3 py-1.5 text-[11px] font-extrabold transition
+                    ${buildTab === key ? 'bg-white text-neutral-900' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-2 overflow-y-auto p-4">
+              {buildTab === 'arac' && (
+                <ModalCard
+                  icon="🚐"
+                  title={t.buyVehicle}
+                  badge="+1 araç"
+                  badgeClass="bg-sky-400/15 text-sky-300"
+                  desc={t.loanNote(
+                    Math.ceil(
+                      (Math.round(vehicleCost * (1 + CONFIG.loanMarkupRate)) -
+                        Math.ceil(vehicleCost * CONFIG.loanDownRate)) /
+                        CONFIG.loanTermDays,
+                    ),
+                    CONFIG.loanTermDays,
+                  )}
+                >
+                  <PriceButton
+                    label={`💵 ${t.payCash} ₺${fmt(vehicleCost)}`}
+                    enabled={money >= vehicleCost && hasFreeSpot}
+                    onClick={() => buyVehicle('cash')}
+                  />
+                  <PriceButton
+                    label={`📝 ${t.payLoan} ₺${fmt(Math.ceil(vehicleCost * CONFIG.loanDownRate))}`}
+                    enabled={money >= Math.ceil(vehicleCost * CONFIG.loanDownRate) && hasFreeSpot}
+                    onClick={() => buyVehicle('loan')}
+                  />
+                </ModalCard>
+              )}
+              {buildTab === 'personel' && (
+                <>
+                  <ModalCard
+                    icon="🧔"
+                    title={t.hireDriver}
+                    badge="+1 şoför"
+                    badgeClass="bg-emerald-400/15 text-emerald-300"
+                    desc={t.driverDesc}
+                  >
+                    <PriceButton
+                      label={`₺${fmt(CONFIG.driverHireCost)}`}
+                      enabled={money >= CONFIG.driverHireCost && hasIdleVehicle}
+                      onClick={hireDriver}
+                    />
+                  </ModalCard>
+                  <ModalCard
+                    icon="🅿️"
+                    title={t.buySpot}
+                    badge="+1 cep"
+                    badgeClass="bg-amber-400/15 text-amber-300"
+                    desc={t.spotDesc}
+                  >
+                    <PriceButton
+                      label={spots >= CONFIG.maxSpots ? t.maxed : `₺${fmt(spotCost)}`}
+                      enabled={money >= spotCost && spots < CONFIG.maxSpots}
+                      onClick={buySpot}
+                    />
+                  </ModalCard>
+                </>
+              )}
+              {buildTab === 'tesis' &&
+                (Object.keys(BUILDING_ICONS) as BuildingKind[]).map((kind) => (
+                  <ModalCard
+                    key={kind}
+                    icon={BUILDING_ICONS[kind]}
+                    title={t.buildingNames[kind]}
+                    badge={buildings[kind] ? `✓ ${t.built}` : undefined}
+                    badgeClass="bg-emerald-400/15 text-emerald-300"
+                    desc={t.buildingEffects[kind]}
+                  >
+                    <PriceButton
+                      label={buildings[kind] ? `✓ ${t.built}` : `₺${fmt(BUILDING_COSTS[kind])}`}
+                      enabled={!buildings[kind] && money >= BUILDING_COSTS[kind]}
+                      onClick={() => buyBuilding(kind)}
+                    />
+                  </ModalCard>
+                ))}
+              {buildTab === 'devren' &&
+                (rivalsKey
+                  ? rivalsKey.split(',').map((entry) => {
+                      const [idStr, no, wearStr, shareStr, rivalPlate] = entry.split('|')
+                      const id = Number(idStr)
+                      const wear = Number(wearStr)
+                      const playerShare = Number(shareStr)
+                      void no
+                      const price = Math.ceil(
+                        (CONFIG.vehicleBaseCost + CONFIG.vehicleCostStep * (vehicleCount - 1)) *
+                          CONFIG.rivalBuyFactor,
+                      )
+                      const restPrice = Math.ceil(
+                        ((price * (100 - playerShare)) / 100) * CONFIG.shareBuyBackPremium,
+                      )
+                      return (
+                        <ModalCard
+                          key={id}
+                          icon="🚐"
+                          title={rivalPlate}
+                          badge={
+                            playerShare > 0
+                              ? t.partnered(playerShare)
+                              : `${t.oldBus} · ${t.rivalWear(wear)}`
+                          }
+                          badgeClass={
+                            playerShare > 0
+                              ? 'bg-indigo-400/15 text-indigo-300'
+                              : 'bg-amber-400/15 text-amber-300'
+                          }
+                          desc={t.rivalDesc}
+                        >
+                          <RivalPartnerRow
+                            rivalId={id}
+                            fullPrice={price}
+                            playerShare={playerShare}
+                            money={money}
+                            onPartner={buyRivalShare}
+                            onSellShare={sellRivalShare}
+                          />
+                          <PriceButton
+                            label={
+                              playerShare > 0
+                                ? `${t.buyRest} ₺${fmt(restPrice)}`
+                                : `${t.buyFull} ₺${fmt(price)}`
+                            }
+                            enabled={
+                              money >= (playerShare > 0 ? restPrice : price) && hasFreeSpot
+                            }
+                            onClick={() => buyRival(id)}
+                          />
+                        </ModalCard>
+                      )
+                    })
+                  : null)}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Kasa akışı bildirimleri */}
       <div className="absolute left-1/2 top-20 flex -translate-x-1/2 flex-col items-center gap-1.5">
@@ -474,15 +669,11 @@ export function HUD() {
         ))}
       </div>
 
-      {/* Sıfırlama */}
-      <div className="absolute bottom-4 right-4">
-        <ResetButton onReset={reset} />
-      </div>
 
       {/* Filo: depo + yıpranma barları, doldur/bakım, nöbetçi */}
       <div className="absolute bottom-4 left-4 flex flex-wrap gap-2">
         {fleetKey.split(',').map((entry) => {
-          const [idStr, no, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr] = entry.split('|')
+          const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr] = entry.split('|')
           const id = Number(idStr)
           const fuel = Number(fuelStr)
           const wear = Number(wearStr)
@@ -490,6 +681,10 @@ export function HUD() {
           const kahya = Number(kahyaStr)
           const cap = Number(capStr)
           const isOld = oldStr === '1'
+          const share = Number(shareStr)
+          const valuation = Number(valuationStr)
+          const pendF = pendFStr === '1'
+          const pendR = pendRStr === '1'
           const fuelPct = (fuel / CONFIG.fuelCapacity) * 100
           const stateText = t.state[state as keyof typeof t.state]
           const warn = state === 'noDriver' || state === 'noFuel' || state === 'wornOut'
@@ -502,9 +697,8 @@ export function HUD() {
           return (
             <div key={id} className={`w-60 p-3 ${GLASS}`}>
               <div className="flex items-center justify-between gap-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
-                  {t.busLabel(Number(no))}
-                  {isOld && <span className="ml-1 text-amber-400/80" title={t.oldBus}>🕰</span>}
+                <span className="text-[11px] text-amber-400/80">
+                  {isOld && <span title={t.oldBus}>🕰</span>}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span
@@ -530,16 +724,33 @@ export function HUD() {
               </div>
               <div className="mt-2 flex gap-1.5">
                 <MiniButton
-                  label={`⛽ ${t.refuel} ₺${fmt(refuelPrice)}`}
-                  enabled={refuelPrice > 0 && money >= refuelPrice && isParked && !pumpBusy}
+                  label={pendF ? `⛽ ⏳ ${t.planned}` : `⛽ ${t.refuel} ₺${fmt(refuelPrice)}`}
+                  enabled={
+                    !pendF &&
+                    refuelPrice > 0 &&
+                    state !== 'noDriver' &&
+                    (isParked ? money >= refuelPrice && !pumpBusy : true)
+                  }
                   onClick={() => refuel(id)}
                 />
                 <MiniButton
-                  label={`🔧 ${t.repair} ₺${fmt(repairPrice)}`}
-                  enabled={repairPrice > 0 && money >= repairPrice && (isParked || state === 'noDriver')}
+                  label={pendR ? `🔧 ⏳ ${t.planned}` : `🔧 ${t.repair} ₺${fmt(repairPrice)}`}
+                  enabled={
+                    !pendR &&
+                    repairPrice > 0 &&
+                    (isParked || state === 'noDriver' ? money >= repairPrice : true)
+                  }
                   onClick={() => repair(id)}
                 />
               </div>
+              <OwnShareControls
+                vehicleId={id}
+                share={share}
+                valuation={valuation}
+                money={money}
+                onSell={sellShare}
+                onBuyBack={buyBackShare}
+              />
               <div className="mt-1.5 flex items-center gap-1.5">
                 {kahya === 0 ? (
                   <MiniButton
@@ -562,6 +773,7 @@ export function HUD() {
                   </>
                 )}
               </div>
+              <PlateBadge plate={plate} />
             </div>
           )
         })}

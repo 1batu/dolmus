@@ -1,15 +1,31 @@
 # DOLMUŞ! 🚐
 
-Idle/tycoon game about running a Turkish dolmuş (shared minibus) line. Web-first: Three.js scene + DOM UI, one codebase for every platform.
+Idle/tycoon game about running a Turkish dolmuş (shared minibus) terminal. Web-first: Three.js scene + DOM UI, one codebase for every platform. All 3D is procedural — zero art assets.
 
-**TR:** Kendi dolmuş terminalini işletirsin — kamera hep terminaldedir, hat görünmez. Peronda yolcu birikir, minibüs yanaşır, *dolunca kalkar*, ana yoldan ekran dışına sefere gider, süre sonunda döner ve park eder. Araç alırsın, şoför kiralarsın (günlük yevmiye), park yeri satın alırsın; mazot her seferde kasadan düşer. Trafik AI'ı yok — araçlar önceden tanımlı waypoint hatlarını izler, yoldaki diğer arabalar dekordur.
+**TR:** Kendi dolmuş terminalini işletirsin — kamera hep terminaldedir, hat görünmez. Peronda yolcu birikir, minibüs yanaşır, *dolunca kalkar*, doğu kapısından sefere çıkar, hasılatla dönüp batı kapısından girer ve park eder. Ekonomi Temmuz 2026 İstanbul gerçekleriyle kuruludur.
+
+## Oyun Sistemleri / Game Systems
+
+| Sistem | Özet |
+| --- | --- |
+| 💰 Gerçekçi ekonomi | İndi-bindi ₺43, motorin ₺74/L (80L depo), yevmiye ₺1.750, araç ₺390k+. Asıl ciro hat boyu indi-bindiden gelir |
+| 🌙 Gece/gündüz | 1 gün = 24 saat = 5 dk gerçek zaman. 00-06 arası sadece 🌙 nöbetçi ve ortaklı araçlar çalışır, gece tarifesi ×1,5. Dinamik güneş/gökyüzü + terminal projektörleri |
+| 📝 Senetli satış | Araç alırken Nakit/Senetli seçilir: %25 peşinat + %15 vade farkı + 30 gün taksit. Taksitler her akşam 20:00'de yevmiyelerle düşer. Borç çipinden taksit öde / %5 indirimle erken kapat |
+| ⭐ İtibar + günlük görev | Sefer itibar kazandırır, kuyruk doluyken kaçan yolcu düşürür; itibar yolcu akışını belirler. Her sabah 06:00'da filo boyuna ölçekli görev (ödül: nakit + itibar) |
+| 🏗 İnşaat & Yatırım modalı | Sekmeli modal: Araçlar / Personel & Park / Tesisler / Devren. Büfe (bekleyen + yoldan geçen satışı), Çay Ocağı (biniş %25 hızlı), Tamirhane (bakım %40 indirim) |
+| 🧢 Kahya | Araç başına Sv.1-3: +4/+6/+8 ayakta yolcu, hat indi-bindisine +%15/sv, günlük yevmiye |
+| 🤝 Rakipler & Devren | Aynı hattın esnafı perona yanaşıp yolcu kapar (gündüz). Devren: yeni fiyatın %60'ı ama %55-80 yıpranmış eski kasa (×1,5 yıpranır). Oranlı ortaklık: %5-90 pay al/artır/sat, payın kadar günlük cirodan akşam ödemesi |
+| 📊 Hisse ticareti | Kendi aracının %5-75'ini kaydırıcıyla sat (değerleme: taban × yıpranma × itibar), dilim dilim geri al (%10 prim). Ortaklı araç gece de çalışır, gelir-gider hisse oranında bölüşülür |
+| ⛽ Pompa & planlı bakım | "Doldur" basınca araç fiilen terminaldeki pompaya sürer. Araç seferdeyken basılırsa ⏳ planlanır, parka dönünce uygulanır |
+| 📈 Filo talebi | Şoförlü araç başına: yolcu gelişi +%25, kuyruk kapasitesi +6, hat indi-bindisi +%10 |
+| 💾 Save/load | 2,5 sn'de bir localStorage; `SAVE_VERSION` + `SAVE_ACCEPTS` ile geriye uyumlu şema; iki aşamalı Sıfırla |
 
 ## Stack
 
 - Vite + React 19 + TypeScript
-- three + @react-three/fiber — isometric low-poly scene, all geometry procedural (zero assets)
+- three + @react-three/fiber — isometric procedural scene (RoundedBox tabanlı modeller, geometri/materyal cache)
 - zustand — game state + sim tick (`useFrame` driven)
-- Tailwind v4 — HUD is plain DOM on top of the canvas
+- Tailwind v4 — koyu cam (glassmorphism) HUD, DOM üzerinde
 
 ## Run
 
@@ -22,21 +38,22 @@ npm run dev
 
 | Path | What / Ne |
 | --- | --- |
-| `src/game/config.ts` | All balance numbers / Tüm ekonomi dengesi tek yerde |
-| `src/game/paths.ts` | Terminal layout + waypoint paths (spot→peron→road) / Yerleşim ve güzergahlar |
-| `src/game/store.ts` | Vehicle state machine: parked → load → trip → return; wages, fuel, day cycle / Simülasyon |
-| `src/scene/` | World (road, lot, peron, office, ambient traffic), procedural Minibus / 3B sahne |
-| `src/ui/HUD.tsx` | Day, cash, queue, fleet panel, buy/hire buttons, toasts / Arayüz |
+| `src/game/config.ts` | All balance numbers + clock/queue helpers / Tüm ekonomi dengesi tek yerde |
+| `src/game/paths.ts` | Terminal layout, gates, waypoint paths (spot→peron→pompa→yol) / Yerleşim ve güzergahlar |
+| `src/game/store.ts` | Vehicle & rival state machines, economy, shares, debts, tasks, save/load / Simülasyon |
+| `src/scene/models.tsx` | Procedural model library: rbox/cyl/sph + cars, people, trees, apartments / Model kütüphanesi |
+| `src/scene/Vehicle.tsx` | Minibus mesh (own + rival variants), path follower / Minibüs |
+| `src/scene/World.tsx` | Road, terminal, peron, pump, gates, neighborhood, day-night, lights / Sahne |
+| `src/ui/HUD.tsx` | Top bar, task card, debt panel, fleet cards, construction modal / Arayüz |
 | `src/i18n.ts` | All UI strings, tr + en parity / Tüm metinler |
 
-## Roadmap (öncelik sırasıyla)
+## Roadmap
 
-1. ~~**Save/load** (localStorage)~~ ✅ — 2.5 sn'de bir otomatik kayıt, `SAVE_VERSION` ile şema koruması, iki aşamalı Sıfırla; sırada offline kazanç
-2. ~~**Gerçekçi ekonomi + gece/gündüz + nöbetçi**~~ ✅ — Tem 2026 İstanbul fiyatları (indi-bindi ₺43, motorin ₺74/L, yevmiye ₺1.750 akşam ödenir), 300 sn = 24 saat, 00-06 sadece 🌙 nöbetçi araçlar, gece tarifesi ×1.5, dinamik ışık/gökyüzü + terminal gece aydınlatması
-3. ~~**İtibar + günlük görevler**~~ ✅ — ⭐ 0-5 itibar: sefer artırır, kuyruk doluyken kaçan yolcu düşürür, itibar yolcu akış hızını belirler; her sabah 06:00'da filo boyuna ölçekli görev (yolcu/hasılat/sefer), ödül nakit + itibar. Senetli araç alımı da eklendi (%25 peşinat, 30 gün taksit, akşam ödemeli)
-4. ~~**Terminal tesisleri (inşaat menüsü)**~~ ✅ — 🥯 Büfe ₺120k (bekleyenler alışveriş yapar, akşam özet), 🫖 Çay Ocağı ₺80k (biniş %25 hızlı), 🔧 Tamirhane ₺250k (bakım %40 indirim); kurulunca arka şeritte 3D binası belirir
-5. ~~**Kahya + senet paneli**~~ ✅ — 🧢 araç başına kahya (Sv.1-3: +4/+6/+8 ayakta yolcu, günlük yevmiye); 📝 Borç çipine tıklayınca senet paneli: taksit öde / %5 indirimle erken kapat
-6. **Şoför derinliği** — isim, seviye/beceri (hızlı biniş, az yıpratma), moral
-7. **Otomasyon** — oto-doldur/oto-bakım toggle'ları (idle QoL)
-8. **Olaylar** — zabıta cezası, lastik patlaması, korsan dolmuş rakibi
-9. **Hat plakası** → ikinci hat, uzun/karlı seferler; Capacitor ile mobil
+1. **Şoför derinliği** — isimli şoförler, beceriler (hızlı biniş, az yakıt/yıpranma), moral (çay ocağı besler)
+2. **Olaylar** — zabıta denetimi (ayakta yolcu cezası — kahya riskiyle sinerji), lastik patlaması, yağmur, korsan dolmuş
+3. **Otomasyon** — oto-doldur/oto-bakım toggle'ları (idle QoL)
+4. **Ses + juice** — klakson, motor, para sesi, görev konfetisi
+5. **Offline kazanç** — kapalıyken birikim, dönüşte özet ekranı
+6. **Hat plakası** — geç oyun hedefi: ikinci hat, uzun/karlı seferler
+7. **Yayın** — Vercel deploy; sonrasında dokunmatik uyum + Capacitor ile mobil
+8. **Onboarding + istatistik** — ilk oyuncu rehberi, günlük kâr/zarar paneli

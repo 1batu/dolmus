@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { CONFIG, clockOf } from './config'
+import { CONFIG, clockOf, queueCapOf } from './config'
 import {
   type P2,
   LAYOUT,
@@ -27,6 +27,7 @@ export type VehicleState =
 export type Vehicle = {
   id: number
   no: number // filo sıra numarası
+  plate: string // 34 M XXXX — arayüzde araç adı budur
   spotIdx: number // sahip olunan park yeri
   hasDriver: boolean
   state: VehicleState
@@ -41,6 +42,17 @@ export type Vehicle = {
   nightShift: boolean // nöbetçi: 00:00-06:00 arası da çalışır
   kahya: number // muavin seviyesi, 0 = yok
   old: boolean // devren alınan eski kasa: yıpranma hızlı birikir
+  share: number // oyuncunun hisse payı (%); 100 = tamamı
+  pendingRefuel: boolean // seferdeyken planlanan yakıt: parka dönünce pompaya gider
+  pendingRepair: boolean // seferdeyken planlanan bakım: parka dönünce uygulanır
+}
+
+// Araç değerlemesi: taban fiyat × kasa yaşı × yıpranma × işletme itibarı
+export function valuationOf(v: Vehicle, fleetSize: number, rep: number): number {
+  const base = CONFIG.vehicleBaseCost + CONFIG.vehicleCostStep * (fleetSize - 1)
+  return Math.round(
+    base * (v.old ? CONFIG.rivalBuyFactor : 1) * (1 - v.wear / 250) * (0.85 + rep * 0.06),
+  )
 }
 
 // Koltuk + kahyanın aldırdığı ayakta yolcu
@@ -59,6 +71,7 @@ export function kahyaWageOf(v: Vehicle): number {
 export type Rival = {
   id: number
   no: number // hat sıra numarası (görsel etiket)
+  plate: string // 34 M XXXX — devren alınırsa araca taşınır
   state: 'away' | 'toPeron' | 'loading' | 'departing'
   path: P2[] | null
   dist: number
@@ -66,12 +79,14 @@ export type Rival = {
   boardAcc: number
   passengers: number
   wear: number // devren satın alınırsa bu yıpranmayla gelir
+  playerShare: number // oyuncunun ortaklık payı (%), 0 = yok
 }
 
 function makeRival(no: number): Rival {
   return {
     id: nextId++,
     no,
+    plate: genPlate(),
     state: 'away',
     path: null,
     dist: 0,
@@ -79,6 +94,7 @@ function makeRival(no: number): Rival {
     boardAcc: 0,
     passengers: 0,
     wear: Math.round(rand(CONFIG.rivalWearMin, CONFIG.rivalWearMax)),
+    playerShare: 0,
   }
 }
 
@@ -93,7 +109,7 @@ const rivalArrivePath: P2[] = [
 export type Toast = { id: number; text: string; expireAt: number }
 
 // Senet borcu: her akşam yevmiyelerle birlikte günlük taksit düşer
-export type Debt = { id: number; no: number; remaining: number; daily: number }
+export type Debt = { id: number; no: number; plate?: string; remaining: number; daily: number }
 
 // Günlük görev: her sabah 06:00'da yenilenir
 export type DailyTask = {
@@ -135,12 +151,17 @@ export const BUILDING_COSTS: Record<BuildingKind, number> = {
 
 let nextId = 1
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
+
+// İstanbul minibüs plakası: 34 M + 4 hane
+function genPlate(): string {
+  return `34 M ${1000 + Math.floor(Math.random() * 9000)}`
+}
 let bufeStreetTimer = 0 // yoldan geçen müşteri sayacı (kalıcı olması gerekmez)
 
 // --- Kalıcılık: localStorage'a periyodik yaz, açılışta geri yükle ---
 const SAVE_KEY = 'dolmus-save'
-const SAVE_VERSION = 7 // araç/ekonomi şeması değişince artır — eski kayıt sessizce atılır
-const SAVE_ACCEPTS = [3, 4, 5, 6, 7] // eski kayıtlar yeni alanlar varsayılanla açılır
+const SAVE_VERSION = 8 // araç/ekonomi şeması değişince artır — eski kayıt sessizce atılır
+const SAVE_ACCEPTS = [3, 4, 5, 6, 7, 8] // eski kayıtlar yeni alanlar varsayılanla açılır
 let saveAcc = 0
 
 type SavedFields = Pick<
@@ -216,7 +237,15 @@ function loadSave(): Partial<SavedFields> | null {
       queue: d.queue ?? 0,
       spots: d.spots,
       drivers: d.drivers,
-      vehicles: d.vehicles.map((v: Vehicle) => ({ ...v, kahya: v.kahya ?? 0, old: v.old ?? false })),
+      vehicles: d.vehicles.map((v: Vehicle) => ({
+        ...v,
+        plate: v.plate ?? genPlate(),
+        kahya: v.kahya ?? 0,
+        old: v.old ?? false,
+        share: v.share ?? 100,
+        pendingRefuel: v.pendingRefuel ?? false,
+        pendingRepair: v.pendingRepair ?? false,
+      })),
       debts: Array.isArray(d.debts) ? d.debts : [],
       spawnTimer: d.spawnTimer ?? 1,
       rep: Number.isFinite(d.rep) ? clampRep(d.rep) : CONFIG.repStart,
@@ -228,7 +257,13 @@ function loadSave(): Partial<SavedFields> | null {
         tamirhane: d.buildings?.tamirhane ?? false,
       },
       bufeToday: Number.isFinite(d.bufeToday) ? d.bufeToday : 0,
-      rivals: Array.isArray(d.rivals) ? d.rivals : [makeRival(7), makeRival(12)],
+      rivals: Array.isArray(d.rivals)
+        ? d.rivals.map((r: Rival) => ({
+            ...r,
+            plate: r.plate ?? genPlate(),
+            playerShare: r.playerShare ?? 0,
+          }))
+        : [makeRival(7), makeRival(12)],
       rivalRespawn: d.rivalRespawn ?? 0,
     }
   } catch {
@@ -236,10 +271,11 @@ function loadSave(): Partial<SavedFields> | null {
   }
 }
 
-function makeVehicle(no: number, spotIdx: number, hasDriver: boolean): Vehicle {
+function makeVehicle(no: number, spotIdx: number, hasDriver: boolean, plate?: string): Vehicle {
   return {
     id: nextId++,
     no,
+    plate: plate ?? genPlate(),
     spotIdx,
     hasDriver,
     state: 'parked',
@@ -254,6 +290,9 @@ function makeVehicle(no: number, spotIdx: number, hasDriver: boolean): Vehicle {
     nightShift: false,
     kahya: 0,
     old: false,
+    share: 100,
+    pendingRefuel: false,
+    pendingRepair: false,
   }
 }
 
@@ -292,6 +331,10 @@ type GameState = {
   rivalRespawn: number // hatta yeni esnaf katılma sayacı
   buyBuilding: (kind: BuildingKind) => void
   buyRival: (rivalId: number) => void
+  buyRivalShare: (rivalId: number, pct: number) => void
+  sellRivalShare: (rivalId: number, pct: number) => void
+  sellShare: (vehicleId: number, pct: number) => void
+  buyBackShare: (vehicleId: number, pct: number) => void
   hireKahya: (vehicleId: number) => void
   upgradeKahya: (vehicleId: number) => void
   payInstallment: (debtId: number) => void
@@ -349,7 +392,8 @@ export const useGame = create<GameState>((set, get) => ({
     const usedSpots = new Set(s.vehicles.map((v) => v.spotIdx))
     let spotIdx = 0
     while (usedSpots.has(spotIdx)) spotIdx++
-    const vehicles = [...s.vehicles, makeVehicle(no, spotIdx, false)]
+    const veh = makeVehicle(no, spotIdx, false)
+    const vehicles = [...s.vehicles, veh]
 
     if (mode === 'cash') {
       if (s.money < price) return
@@ -365,7 +409,13 @@ export const useGame = create<GameState>((set, get) => ({
       vehicles,
       debts: [
         ...s.debts,
-        { id: nextId++, no, remaining, daily: Math.ceil(remaining / CONFIG.loanTermDays) },
+        {
+          id: nextId++,
+          no,
+          plate: veh.plate,
+          remaining,
+          daily: Math.ceil(remaining / CONFIG.loanTermDays),
+        },
       ],
     })
   },
@@ -392,10 +442,20 @@ export const useGame = create<GameState>((set, get) => ({
     const s = get()
     const v = s.vehicles.find((veh) => veh.id === vehicleId)
     if (!v) return
-    const cost = refuelCost(v)
-    // Gerçekçi akış: araç fiilen pompaya sürer — şoför ve boş pompa şart
+    // Ortaklı araçta yakıt masrafının sadece oyuncu payı ödenir
+    const cost = Math.ceil((refuelCost(v) * v.share) / 100)
+    if (cost <= 0 || !v.hasDriver) return
+    // Araç parkta değilse ya da pompa doluysa: planla — parka dönünce pompaya gider
     const pumpBusy = s.vehicles.some((veh) => veh.state === 'toPump' || veh.state === 'fueling')
-    if (cost <= 0 || s.money < cost || v.state !== 'parked' || !v.hasDriver || pumpBusy) return
+    if (v.state !== 'parked' || pumpBusy) {
+      set({
+        vehicles: s.vehicles.map((veh) =>
+          veh.id === vehicleId ? { ...veh, pendingRefuel: true } : veh,
+        ),
+      })
+      return
+    }
+    if (s.money < cost) return
     set({
       money: s.money - cost,
       vehicles: s.vehicles.map((veh) =>
@@ -405,7 +465,7 @@ export const useGame = create<GameState>((set, get) => ({
       ),
       toasts: [
         ...s.toasts,
-        { id: nextId++, text: t.refueled(v.no, cost), expireAt: s.time + CONFIG.toastLifetime },
+        { id: nextId++, text: t.refueled(v.plate, cost), expireAt: s.time + CONFIG.toastLifetime },
       ].slice(-5),
     })
   },
@@ -415,8 +475,18 @@ export const useGame = create<GameState>((set, get) => ({
     const v = s.vehicles.find((veh) => veh.id === vehicleId)
     if (!v) return
     const discount = s.buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1
-    const cost = Math.ceil(repairCost(v) * discount)
-    if (cost <= 0 || s.money < cost) return
+    const cost = Math.ceil((repairCost(v) * discount * v.share) / 100)
+    if (cost <= 0) return
+    // Araç yoldaysa planla: parka dönünce bakım uygulanır
+    if (v.state !== 'parked') {
+      set({
+        vehicles: s.vehicles.map((veh) =>
+          veh.id === vehicleId ? { ...veh, pendingRepair: true } : veh,
+        ),
+      })
+      return
+    }
+    if (s.money < cost) return
     set({
       money: s.money - cost,
       vehicles: s.vehicles.map((veh) => (veh.id === vehicleId ? { ...veh, wear: 0 } : veh)),
@@ -434,14 +504,20 @@ export const useGame = create<GameState>((set, get) => ({
     const s = get()
     const r = s.rivals.find((rv) => rv.id === rivalId)
     if (!r || s.vehicles.length >= s.spots) return
-    // Devren: yeni araçtan ucuz ama yıpranmış eski kasa gelir
-    const price = Math.ceil(s.vehicleCost() * CONFIG.rivalBuyFactor)
+    // Devren: yeni araçtan ucuz ama yıpranmış eski kasa gelir.
+    // Ortaklık varsa kalan hisse %10 primle alınır.
+    const fullPrice = Math.ceil(s.vehicleCost() * CONFIG.rivalBuyFactor)
+    const price =
+      r.playerShare > 0
+        ? Math.ceil((fullPrice * (100 - r.playerShare)) / 100 * CONFIG.shareBuyBackPremium)
+        : fullPrice
     if (s.money < price) return
     const usedSpots = new Set(s.vehicles.map((v) => v.spotIdx))
     let spotIdx = 0
     while (usedSpots.has(spotIdx)) spotIdx++
+    // Devren alınan araç rakibin plakasını taşır
     const vehicle = {
-      ...makeVehicle(s.vehicles.length + 1, spotIdx, false),
+      ...makeVehicle(s.vehicles.length + 1, spotIdx, false, r.plate),
       wear: r.wear,
       old: true,
     }
@@ -450,6 +526,75 @@ export const useGame = create<GameState>((set, get) => ({
       vehicles: [...s.vehicles, vehicle],
       rivals: s.rivals.filter((rv) => rv.id !== rivalId),
       rivalRespawn: CONFIG.rivalRespawnSec,
+    })
+  },
+
+  buyRivalShare: (rivalId: number, pct: number) => {
+    const s = get()
+    const r = s.rivals.find((rv) => rv.id === rivalId)
+    if (!r) return
+    // Payını dilim dilim artırabilirsin, azami %90
+    const add = Math.min(Math.round(Math.max(5, pct)), 90 - r.playerShare)
+    if (add <= 0) return
+    const fullPrice = Math.ceil(s.vehicleCost() * CONFIG.rivalBuyFactor)
+    const cost = Math.ceil((fullPrice * add) / 100)
+    if (s.money < cost) return
+    set({
+      money: s.money - cost,
+      rivals: s.rivals.map((rv) =>
+        rv.id === rivalId ? { ...rv, playerShare: rv.playerShare + add } : rv,
+      ),
+    })
+  },
+
+  sellRivalShare: (rivalId: number, pct: number) => {
+    const s = get()
+    const r = s.rivals.find((rv) => rv.id === rivalId)
+    if (!r || r.playerShare <= 0) return
+    // Ortaklık payı %10 kesintiyle satılır
+    const sell = Math.min(Math.round(Math.max(5, pct)), r.playerShare)
+    const fullPrice = Math.ceil(s.vehicleCost() * CONFIG.rivalBuyFactor)
+    const refund = Math.floor(((fullPrice * sell) / 100) * CONFIG.shareSellRefund)
+    set({
+      money: s.money + refund,
+      rivals: s.rivals.map((rv) =>
+        rv.id === rivalId ? { ...rv, playerShare: rv.playerShare - sell } : rv,
+      ),
+    })
+  },
+
+  sellShare: (vehicleId: number, pct: number) => {
+    const s = get()
+    const v = s.vehicles.find((veh) => veh.id === vehicleId)
+    if (!v) return
+    // Dilim dilim satılabilir; kontrol kaybolmasın diye asgari pay elde kalır
+    const sold = Math.min(Math.round(Math.max(5, pct)), v.share - CONFIG.minOwnShare)
+    if (sold <= 0) return
+    const price = Math.round((valuationOf(v, s.vehicles.length, s.rep) * sold) / 100)
+    set({
+      money: s.money + price,
+      vehicles: s.vehicles.map((veh) =>
+        veh.id === vehicleId ? { ...veh, share: veh.share - sold } : veh,
+      ),
+    })
+  },
+
+  buyBackShare: (vehicleId: number, pct: number) => {
+    const s = get()
+    const v = s.vehicles.find((veh) => veh.id === vehicleId)
+    if (!v || v.share >= 100) return
+    // Geri alım primli ve dilim dilim: ortak karlı çıkmadan hisseyi bırakmaz
+    const buy = Math.min(Math.round(Math.max(5, pct)), 100 - v.share)
+    if (buy <= 0) return
+    const cost = Math.ceil(
+      ((valuationOf(v, s.vehicles.length, s.rep) * buy) / 100) * CONFIG.shareBuyBackPremium,
+    )
+    if (s.money < cost) return
+    set({
+      money: s.money - cost,
+      vehicles: s.vehicles.map((veh) =>
+        veh.id === vehicleId ? { ...veh, share: veh.share + buy } : veh,
+      ),
     })
   },
 
@@ -563,13 +708,35 @@ export const useGame = create<GameState>((set, get) => ({
     let debts = s.debts
     if (clock.hour >= CONFIG.wageHour && wageDay < day) {
       wageDay = day
-      const kahyaWages = s.vehicles.reduce((sum, v) => sum + kahyaWageOf(v), 0)
-      const wages = s.drivers * CONFIG.driverWage + kahyaWages
+      // Yevmiyeler araç payına göre: ortaklı araçta masrafın yarısı ortağın
+      const wages = Math.round(
+        s.vehicles.reduce(
+          (sum, v) =>
+            sum + ((v.hasDriver ? CONFIG.driverWage : 0) + kahyaWageOf(v)) * (v.share / 100),
+          0,
+        ),
+      )
       money -= wages
       pushToast(t.wagesPaid(wages))
       if (bufeToday > 0) {
         pushToast(t.bufeSummary(bufeToday))
         bufeToday = 0
+      }
+      // Ortaklık payları: rakip esnafın günlük cirosundan hisse oranında
+      const partnerIncome = Math.round(
+        s.rivals.reduce(
+          (sum, r) =>
+            r.playerShare > 0
+              ? sum +
+                rand(CONFIG.rivalDailyGrossMin, CONFIG.rivalDailyGrossMax) *
+                  (r.playerShare / 100)
+              : sum,
+          0,
+        ),
+      )
+      if (partnerIncome > 0) {
+        money += partnerIncome
+        pushToast(t.partnerDaily(partnerIncome))
       }
       if (debts.length > 0) {
         let paid = 0
@@ -585,14 +752,19 @@ export const useGame = create<GameState>((set, get) => ({
       }
     }
 
-    // Terminale yolcu akışı — gece ayak seyrekleşir, itibar yoğunluğu belirler.
-    // Kuyruk doluysa gelen yolcu vazgeçer ve itibar zedelenir.
+    // Terminale yolcu akışı — gece ayak seyrekleşir, itibar ve filo büyüklüğü
+    // yoğunluğu belirler. Kuyruk doluysa gelen yolcu vazgeçer, itibar zedelenir.
+    const activeFleet = Math.max(1, s.vehicles.filter((v) => v.hasDriver).length)
+    const queueCap = queueCapOf(activeFleet)
     spawnTimer -= dt
     if (spawnTimer <= 0) {
       const nightFactor = isNight ? CONFIG.nightSpawnFactor : 1
       const repFactor = CONFIG.repSpawnBase - CONFIG.repSpawnSlope * rep
-      spawnTimer = rand(CONFIG.spawnIntervalMin, CONFIG.spawnIntervalMax) * nightFactor * repFactor
-      if (queue < CONFIG.maxQueue) {
+      const fleetFactor = 1 + CONFIG.fleetSpawnBonus * (activeFleet - 1)
+      spawnTimer =
+        (rand(CONFIG.spawnIntervalMin, CONFIG.spawnIntervalMax) * nightFactor * repFactor) /
+        fleetFactor
+      if (queue < queueCap) {
         queue++
         // Büfe: bekleyen yolcu çay/simit alır, kasaya anında girer
         if (buildings.bufe && Math.random() < CONFIG.bufeSaleChance) {
@@ -624,6 +796,8 @@ export const useGame = create<GameState>((set, get) => ({
     let peronBusy =
       s.vehicles.some((v) => v.state === 'toPeron' || v.state === 'loading') ||
       s.rivals.some((r) => r.state === 'toPeron' || r.state === 'loading')
+    // Pompa da tek araçlık
+    let pumpInUse = s.vehicles.some((v) => v.state === 'toPump' || v.state === 'fueling')
 
     // Rakip minibüsler: gündüz gelir, kuyruktan yolcu kapar, para onlara gider
     let rivals = s.rivals.map((rival) => {
@@ -701,8 +875,40 @@ export const useGame = create<GameState>((set, get) => ({
 
       switch (v.state) {
         case 'parked': {
-          // Gece (00-06) sadece nöbetçi araç sefere çıkar
-          const onDuty = !isNight || v.nightShift
+          // Planlı bakım: parka döner dönmez uygulanır
+          if (v.pendingRepair) {
+            if (v.wear <= 0) {
+              v.pendingRepair = false
+            } else {
+              const discount = buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1
+              const cost = Math.ceil((repairCost(v) * discount * v.share) / 100)
+              if (money >= cost) {
+                money -= cost
+                v.wear = 0
+                v.pendingRepair = false
+              }
+            }
+          }
+          // Planlı yakıt: pompa boşsa öde ve pompaya sür
+          if (v.pendingRefuel && v.hasDriver && !pumpInUse) {
+            if (v.fuel >= CONFIG.fuelCapacity) {
+              v.pendingRefuel = false
+            } else {
+              const cost = Math.ceil((refuelCost(v) * v.share) / 100)
+              if (money >= cost) {
+                money -= cost
+                v.pendingRefuel = false
+                pumpInUse = true
+                pushToast(t.refueled(v.plate, cost))
+                v.state = 'toPump'
+                v.path = toPumpPath(spotPos(v.spotIdx))
+                v.dist = 0
+                break
+              }
+            }
+          }
+          // Gece (00-06) nöbetçi veya ortaklı araç çalışır (ortağın şoförü sürer)
+          const onDuty = !isNight || v.nightShift || v.share < 100
           if (v.hasDriver && canServe(v) && onDuty && !peronBusy) {
             peronBusy = true
             v.state = 'toPeron'
@@ -736,7 +942,10 @@ export const useGame = create<GameState>((set, get) => ({
           if (full || impatient) {
             // Dolmuş usulü: ücret binişte peşin, sefer başlarken kasaya girer.
             // Gece tarifesi zamlı. Gider kasadan değil araçtan: depo + yıpranma.
-            const fare = Math.round(v.passengers * CONFIG.farePerPassenger * fareMult)
+            // Ortaklı araçta hasılatın sadece oyuncu payı kasaya girer
+            const fare = Math.round(
+              (v.passengers * CONFIG.farePerPassenger * fareMult * v.share) / 100,
+            )
             money += fare
             totalCarried += v.passengers
             advanceTask('carry', v.passengers)
@@ -747,7 +956,7 @@ export const useGame = create<GameState>((set, get) => ({
               100,
               v.wear + CONFIG.wearPerTrip * (v.old ? CONFIG.oldBusWearFactor : 1),
             )
-            pushToast(t.departed(v.no, v.passengers, fare))
+            pushToast(t.departed(v.plate, v.passengers, fare))
             v.state = 'departing'
             v.path = departPath
             v.dist = 0
@@ -768,17 +977,20 @@ export const useGame = create<GameState>((set, get) => ({
             // Hat boyunca inen-binen: dönüşte ek indi-bindi hasılatı.
             // Kahya kapıdan hat bağırır — seviyesi durak dışı yolcuyu artırır.
             const kahyaBonus = 1 + CONFIG.kahyaEnRouteBonus * v.kahya
+            const fleetBonus = 1 + CONFIG.fleetEnRouteBonus * (activeFleet - 1)
             const enRoute = Math.floor(
-              rand(CONFIG.enRouteFaresMin, CONFIG.enRouteFaresMax + 1) * kahyaBonus,
+              rand(CONFIG.enRouteFaresMin, CONFIG.enRouteFaresMax + 1) * kahyaBonus * fleetBonus,
             )
-            const extra = Math.round(enRoute * CONFIG.farePerPassenger * fareMult)
+            const extra = Math.round(
+              (enRoute * CONFIG.farePerPassenger * fareMult * v.share) / 100,
+            )
             money += extra
             totalCarried += enRoute
             advanceTask('carry', enRoute)
             advanceTask('revenue', extra)
             advanceTask('trips', 1)
             rep = clampRep(rep + CONFIG.repPerTrip)
-            pushToast(t.returned(v.no, extra))
+            pushToast(t.returned(v.plate, extra))
             v.state = 'returning'
             v.path = returnPath(spotPos(v.spotIdx))
             v.dist = 0

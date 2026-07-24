@@ -31,6 +31,10 @@ export const CONFIG = {
   spawnIntervalMax: 2.0,
   nightSpawnFactor: 4, // gece yolcu aralığı çarpanı (00:00-06:00)
   maxQueue: 20,
+  // Filo etkisi: hat büyüdükçe talep büyür (şoförlü araç başına)
+  fleetSpawnBonus: 0.25, // yolcu geliş hızı artışı (+%25/araç)
+  fleetQueueBonus: 6, // kuyruk kapasitesi artışı (+6/araç)
+  fleetEnRouteBonus: 0.1, // hat boyu indi-bindi artışı (+%10/araç)
 
   // Zaman: 1 oyun günü = 24 saat = 300 sn gerçek zaman. Saat 06:00'da başlar.
   dayLength: 300,
@@ -62,6 +66,16 @@ export const CONFIG = {
   rivalWearMax: 80,
   oldBusWearFactor: 1.5, // eski kasa: sefer başına yıpranma çarpanı
   rivalRespawnSec: 240, // satın alınca hatta yeni esnaf katılma süresi
+
+  // Hisse/ortaklık: kendi aracının %50'sini sat, ortaklı araç gece de çalışır.
+  // Değerleme itibar + yıpranmaya bakar; geri alım primlidir.
+  shareFraction: 0.5,
+  shareBuyBackPremium: 1.1, // hisse geri alırken prim
+  shareSellRefund: 0.9, // rakip ortaklık payını satarken kesinti
+  minOwnShare: 25, // kendi aracında elde kalması gereken asgari pay (%)
+  // Rakip minibüsün günlük cirosu (hat boyu, ekran dışı) — ortaklık payı bundan ödenir
+  rivalDailyGrossMin: 12000,
+  rivalDailyGrossMax: 18000,
   vehicleBaseCost: 390000, // eski kasa 2. el minibüs
   vehicleCostStep: 130000, // her ilave araçta artış
   // Senetli satış: dolmuşçu usulü — peşinat ver, kalanı her akşam taksitle öde
@@ -102,6 +116,11 @@ export const CONFIG = {
   tamirhaneDiscount: 0.6, // bakım fiyat çarpanı
 
   toastLifetime: 3, // sn
+}
+
+// Şoförlü araç sayısına göre kuyruk kapasitesi
+export function queueCapOf(activeFleet: number): number {
+  return CONFIG.maxQueue + CONFIG.fleetQueueBonus * Math.max(0, activeFleet - 1)
 }
 
 // Oyun saati: time (sn) → gün + saat

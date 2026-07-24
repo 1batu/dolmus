@@ -302,13 +302,14 @@ function Peron() {
       <group position={[4.2, 0, 1.3]}>
         <TrashBin />
       </group>
-      {/* Kuyruk: ilk sıra platformda saçak önünde, taşanlar öne ikinci sıra */}
-      {Array.from({ length: queue }, (_, i) => {
+      {/* Kuyruk: ilk sıra platformda, taşanlar öne dizilir (azami 30 figür çizilir) */}
+      {Array.from({ length: Math.min(queue, 30) }, (_, i) => {
         const row = Math.floor(i / 10)
+        const rowZ = row === 0 ? 1.05 : row === 1 ? 2.3 : 3.15
         return (
           <group
             key={i}
-            position={[-3.6 + (i % 10) * 0.76, row === 0 ? 0.22 : 0, row === 0 ? 1.05 : 2.3]}
+            position={[-3.6 + (i % 10) * 0.76 + (row % 2) * 0.3, row === 0 ? 0.22 : 0, rowZ]}
             rotation={[0, (i % 5) * 0.35 - 0.7, 0]}
           >
             <PassengerMesh color={PASSENGER_COLORS[i % PASSENGER_COLORS.length]} variant={i} />
