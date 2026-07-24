@@ -52,11 +52,21 @@ npm run dev
 
 ## Roadmap
 
-1. **Şoför derinliği** — isimli şoförler, beceriler (hızlı biniş, az yakıt/yıpranma), moral (çay ocağı besler)
-2. **Olaylar** — zabıta denetimi (ayakta yolcu cezası — kahya riskiyle sinerji), lastik patlaması, yağmur, korsan dolmuş
-3. **Otomasyon** — oto-doldur/oto-bakım toggle'ları (idle QoL)
-4. **Ses + juice** — klakson, motor, para sesi, görev konfetisi
-5. **Offline kazanç** — kapalıyken birikim, dönüşte özet ekranı
-6. **Hat plakası** — geç oyun hedefi: ikinci hat, uzun/karlı seferler
-7. **Yayın** — Vercel deploy; sonrasında dokunmatik uyum + Capacitor ile mobil
-8. **Onboarding + istatistik** — ilk oyuncu rehberi, günlük kâr/zarar paneli
+### Yeni iş kolları (gelir çeşitliliği)
+1. **🚙 VIP transfer (Uber tarzı)** — orta oyun: transfer aracı al, uygulama çağrıları otomatik gelir; özel servis altyapısının sürekli hali, yüksek marj
+2. **🚌 Servis kontratları** — okul/personel servisi: aylık sabit gelirli kontratlar, sabah-akşam iki sefer, garantili nakit akışı
+3. **🚕 Taksi işletmesi** — geç oyun hedefi: İstanbul taksi plakası **₺11,5-12M** (Tem 2026 gerçek borsa fiyatı!), otonom çalışıp günlük hasılat getirir ya da kiraya verilir (~₺60-70k/ay pasif); oyunun "ilk milyonlar"dan sonraki büyük dağı
+
+### Retention (araştırma temelli)
+4. **Offline kazanç** — kapalıyken birikim + üst limit ("kaçırma hissi" geri getirir; idle janrının 1 numaralı retention mekaniği)
+5. **Milestone/başarımlar** — "İlk milyon", "5 araçlık filo", "İlk taksi plakası": küçük ödül + rozet, her biri dopamin durağı
+6. **Prestij** — hattı devret, kalıcı bonuslarla (başlangıç itibarı, ucuz senet) yeni ilçede baştan başla; uzun vadeli meta-ilerleme
+7. **Günlük seri (streak)** — art arda giriş ödülleri, haftalık büyük görev
+
+### Diğer
+8. **Şoför derinliği** — isimli şoförler, beceriler, moral (çay ocağı besler)
+9. **Olaylar** — zabıta denetimi (ayakta yolcu cezası — kahya riskiyle sinerji), lastik patlaması, yağmur, korsan dolmuş
+10. **Otomasyon** — oto-doldur/oto-bakım toggle'ları
+11. **Ses + juice** — klakson, motor, para sesi, görev konfetisi
+12. **Yayın** — Vercel deploy; dokunmatik uyum + Capacitor ile mobil
+13. **Onboarding + istatistik** — ilk oyuncu rehberi, günlük kâr/zarar paneli
