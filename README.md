@@ -15,10 +15,13 @@ Idle/tycoon game about running a Turkish dolmuş (shared minibus) terminal. Web-
 | 🏗 İnşaat & Yatırım modalı | Sekmeli modal: Araçlar / Personel & Park / Tesisler / Devren. Büfe (bekleyen + yoldan geçen satışı), Çay Ocağı (biniş %25 hızlı), Tamirhane (bakım %40 indirim) |
 | 🧢 Kahya | Araç başına Sv.1-3: +4/+6/+8 ayakta yolcu, hat indi-bindisine +%15/sv, günlük yevmiye |
 | 🤝 Rakipler & Devren | Aynı hattın esnafı perona yanaşıp yolcu kapar (gündüz). Devren: yeni fiyatın %60'ı ama %55-80 yıpranmış eski kasa (×1,5 yıpranır). Oranlı ortaklık: %5-90 pay al/artır/sat, payın kadar günlük cirodan akşam ödemesi |
-| 📊 Hisse ticareti | Kendi aracının %5-75'ini kaydırıcıyla sat (değerleme: taban × yıpranma × itibar), dilim dilim geri al (%10 prim). Ortaklı araç gece de çalışır, gelir-gider hisse oranında bölüşülür |
+| 📊 Hisse ticareti | Kendi aracının hissesini kaydırıcıyla dilim dilim sat/geri al (değerleme: taban × yıpranma × itibar; geri alım %10 primli, elde asgari %25 kalır). Ortaklı araç gece de çalışır, gelir-gider hisse oranında bölüşülür; rakip ortaklık payı akşamları günlük cirodan ödenir |
+| 📢 Özel servisler | Gündüz ekran ortasına mesafeli teklif düşer (düğün/havalimanı/maç/okul/piknik, 5-60 km): fiyat-süre-masraf mesafeyle ölçekli, 40 sn içinde kabul edilmezse uçar. Parktaki veya dönüşteki araç atanır |
+| 🪪 Plakalar | Her araç kalıcı "34 M XXXX" plakası taşır — kartlarda gerçek plaka görünümü (TR bandı), 3D modelde ön/arka tampon dokusu, devren alınan araç rakibin plakasını getirir |
 | ⛽ Pompa & planlı bakım | "Doldur" basınca araç fiilen terminaldeki pompaya sürer. Araç seferdeyken basılırsa ⏳ planlanır, parka dönünce uygulanır |
 | 📈 Filo talebi | Şoförlü araç başına: yolcu gelişi +%25, kuyruk kapasitesi +6, hat indi-bindisi +%10 |
-| 💾 Save/load | 2,5 sn'de bir localStorage; `SAVE_VERSION` + `SAVE_ACCEPTS` ile geriye uyumlu şema; iki aşamalı Sıfırla |
+| 🗂 Kompakt filo kartları | Alt şeritte plaka + durum + barlar; tıklayınca tek kart genişleyip tüm yönetimi açar |
+| 💾 Save/load | 2,5 sn'de bir localStorage; `SAVE_VERSION` + `SAVE_ACCEPTS` ile geriye uyumlu şema; iki aşamalı Sıfırla (İnşaat modalında) |
 
 ## Stack
 
