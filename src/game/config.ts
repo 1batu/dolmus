@@ -72,7 +72,7 @@ export const CONFIG = {
   shareFraction: 0.5,
   shareBuyBackPremium: 1.1, // hisse geri alırken prim
   shareSellRefund: 0.9, // rakip ortaklık payını satarken kesinti
-  minOwnShare: 25, // kendi aracında elde kalması gereken asgari pay (%)
+  minOwnShare: 0, // %100 satılabilir — hisse 0'a inince araç filodan çıkar
   // Rakip minibüsün günlük cirosu (hat boyu, ekran dışı) — ortaklık payı bundan ödenir
   rivalDailyGrossMin: 12000,
   rivalDailyGrossMax: 18000,
@@ -130,6 +130,47 @@ export const CONFIG = {
   charterFuelPerKm: 0.35, // L/km (gidiş-dönüş dahil)
   charterWearBase: 2, // % + km başına yıpranma
   charterWearPerKm: 0.08,
+
+  // VIP transfer aracı (Uber tarzı): çağrı bazlı çalışır, peron kullanmaz, gece de sürer
+  vitoCost: 900000, // ₺ (siyah transfer aracı)
+  vitoCostStep: 150000, // her ilave araçta artış
+  vitoCallMin: 12, // çağrılar arası bekleme (sn)
+  vitoCallMax: 35,
+  vitoNightCallFactor: 1.6, // gece çağrı seyrekliği çarpanı
+  vitoKmMin: 3, // çağrı mesafesi (km)
+  vitoKmMax: 40,
+  vitoBaseFare: 400, // ₺ açılış
+  vitoPerKmMin: 45, // ₺/km bandı
+  vitoPerKmMax: 70,
+  vitoDurationBase: 8, // sn + km başına süre
+  vitoDurationPerKm: 0.7,
+  vitoFuelPerKm: 0.3, // L/km
+  vitoWearBase: 1.5, // % + km başına yıpranma
+  vitoWearPerKm: 0.05,
+
+  // Servis kontratları: okul/personel — sabah-akşam iki sefer, günlük sabit gelir
+  contractSlots: 2, // aynı anda azami kontrat
+  contractOfferMin: 60, // yeni teklif aralığı (sn)
+  contractOfferMax: 140,
+  contractOfferLifetime: 60, // teklifin geçerlilik süresi (sn)
+  contractDays: 30, // kontrat süresi (gün)
+  contractDailyMin: 3000, // günlük ödeme bandı (₺) — aylık ₺90-180k
+  contractDailyMax: 6000,
+  contractMorningHour: 7, // sabah seferi penceresi başlangıcı
+  contractEveningHour: 17, // akşam seferi
+  contractGraceHours: 2, // pencere içinde araç çıkmazsa sefer kaçar
+  contractRunDuration: 22, // sefer süresi (sn)
+  contractFuel: 8, // sefer yakıtı (L)
+  contractWear: 3, // sefer yıpranması (%)
+  contractMissRep: 0.1, // kaçan sefer itibar cezası
+
+  // Taksi işletmesi: plaka Tem 2026 İstanbul borsası — geç oyun hedefi
+  taxiPlateCost: 11500000, // ₺ (gerçek: ₺11,5-12M)
+  taxiPlateMax: 3,
+  taxiRentDaily: 2200, // kiradaki plakanın günlük getirisi (~₺66k/ay)
+  taxiCarCost: 750000, // sarı taksi aracı
+  taxiOperateMin: 6000, // kendi işletmede günlük net bandı (₺)
+  taxiOperateMax: 12000,
 
   toastLifetime: 3, // sn
 }

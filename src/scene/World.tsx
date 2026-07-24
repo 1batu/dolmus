@@ -198,9 +198,25 @@ const AMBIENT_CARS: Array<{
 
 function AmbientTraffic() {
   const refs = useRef<Array<THREE.Group | null>>([])
+  // İşletilen her taksi sahnedeki trafiğe sarı taksi olarak katılır
+  const taxiCount = useGame((s) => s.taxis.filter((tx) => tx.mode === 'operate' && tx.hasCar).length)
+  const cars = useMemo(
+    () => [
+      ...AMBIENT_CARS,
+      ...Array.from({ length: taxiCount }, (_, i) => ({
+        lane: i % 2 === 0 ? LAYOUT.laneNearZ : LAYOUT.laneFarZ,
+        dir: (i % 2 === 0 ? 1 : -1) as 1 | -1,
+        speed: 11 + (i % 4),
+        offset: 18 + i * 31,
+        color: '#e8c53a',
+        kind: 'taxi' as const,
+      })),
+    ],
+    [taxiCount],
+  )
   useFrame((state) => {
     const tNow = state.clock.elapsedTime
-    AMBIENT_CARS.forEach((car, i) => {
+    cars.forEach((car, i) => {
       const g = refs.current[i]
       if (!g) return
       const span = 190
@@ -211,7 +227,7 @@ function AmbientTraffic() {
   })
   return (
     <>
-      {AMBIENT_CARS.map((car, i) => (
+      {cars.map((car, i) => (
         <group key={i} ref={(el) => void (refs.current[i] = el)}>
           <CarMesh color={car.color} kind={car.kind} />
         </group>

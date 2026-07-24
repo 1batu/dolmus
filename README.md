@@ -53,9 +53,9 @@ npm run dev
 ## Roadmap
 
 ### Yeni iş kolları (gelir çeşitliliği)
-1. **🚙 VIP transfer (Uber tarzı)** — orta oyun: transfer aracı al, uygulama çağrıları otomatik gelir; özel servis altyapısının sürekli hali, yüksek marj
-2. **🚌 Servis kontratları** — okul/personel servisi: aylık sabit gelirli kontratlar, sabah-akşam iki sefer, garantili nakit akışı
-3. **🚕 Taksi işletmesi** — geç oyun hedefi: İstanbul taksi plakası **₺11,5-12M** (Tem 2026 gerçek borsa fiyatı!), otonom çalışıp günlük hasılat getirir ya da kiraya verilir (~₺60-70k/ay pasif); oyunun "ilk milyonlar"dan sonraki büyük dağı
+1. ~~**🖤 VIP transfer (Uber tarzı)**~~ ✅ — siyah minivan (₺900k, senetli olur): çağrı bazlı 3-40 km transferler, peron beklemez, gece de çalışır
+2. ~~**📑 Servis kontratları**~~ ✅ — okul/fabrika/otel/plaza: 30 günlük kontrat, her gün 07:00 ve 17:00 seferi (kaçarsa itibar cezası), sefer başına günlük ödemenin yarısı akşam yatar
+3. ~~**🚕 Taksi işletmesi**~~ ✅ — plaka ₺11,5M (Tem 2026 gerçek borsa!): kirada ₺2.200/gün pasif ya da taksi al (₺750k) + işlet (₺6-12k/gün, sahnede sarı taksin dolaşır); maks 3 plaka
 
 ### Retention (araştırma temelli)
 4. **Offline kazanç** — kapalıyken birikim + üst limit ("kaçırma hissi" geri getirir; idle janrının 1 numaralı retention mekaniği)

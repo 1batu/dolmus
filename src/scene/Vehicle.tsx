@@ -28,8 +28,8 @@ function plateMaterial(plate: string): THREE.MeshBasicMaterial {
     ctx.textAlign = 'center'
     ctx.fillText('TR', 17, 44)
     ctx.fillStyle = '#111111'
-    ctx.font = 'bold 38px monospace'
-    ctx.fillText(plate, 145, 46)
+    ctx.font = plate.length > 9 ? 'bold 29px monospace' : 'bold 38px monospace'
+    ctx.fillText(plate, 145, plate.length > 9 ? 42 : 46)
     const tex = new THREE.CanvasTexture(canvas)
     tex.anisotropy = 4
     m = new THREE.MeshBasicMaterial({ map: tex })
@@ -147,11 +147,63 @@ export function MinibusMesh({
   )
 }
 
+// VIP transfer aracı: siyah minivan — alçak tavan, eğimli kaput, film cam
+export function VitoMesh({ plate }: { plate?: string }) {
+  const black = mat('#191c20', 0.25, { metal: 0.35 })
+  return (
+    <group>
+      {/* Kabin gövdesi (arka 2/3) */}
+      <mesh geometry={rbox(1.62, 0.9, 2.7, 0.22)} material={black} position={[0, 0.82, -0.45]} castShadow />
+      {/* Kaput: öne alçalan burun */}
+      <mesh geometry={rbox(1.56, 0.5, 1.1, 0.16)} material={black} position={[0, 0.6, 1.25]} castShadow />
+      {/* Kaput-kabin geçişi: keskin rake'li ön cam */}
+      <mesh geometry={rbox(1.44, 0.72, 0.08, 0.04)} material={mat('#0c1116', 0.12)} position={[0, 0.98, 0.98]} rotation={[-0.5, 0, 0]} />
+      {/* Etek */}
+      <mesh geometry={rbox(1.66, 0.22, 3.5, 0.1)} material={mat('#101215', 0.5)} position={[0, 0.36, 0.1]} />
+      {/* Film cam bandı (yalnız kabinde) */}
+      <mesh geometry={rbox(1.64, 0.3, 2.2, 0.06)} material={mat('#0c1116', 0.12)} position={[0, 1.02, -0.55]} />
+      {/* Krom ızgara + farlar */}
+      <mesh geometry={rbox(0.74, 0.1, 0.06, 0.03)} material={mat('#c8ccd1', 0.3, { metal: 0.7 })} position={[0, 0.6, 1.81]} />
+      {[-0.54, 0.54].map((x) => (
+        <mesh
+          key={`h${x}`}
+          geometry={rbox(0.32, 0.11, 0.07, 0.04)}
+          material={mat('#eef4ff', 0.2, { emissive: '#dbe8ff', emissiveIntensity: 0.6 })}
+          position={[x, 0.6, 1.8]}
+        />
+      ))}
+      {[-0.56, 0.56].map((x) => (
+        <mesh
+          key={`t${x}`}
+          geometry={rbox(0.2, 0.24, 0.06, 0.03)}
+          material={mat('#c93a3a', 0.4, { emissive: '#c93a3a', emissiveIntensity: 0.4 })}
+          position={[x, 0.72, -1.81]}
+        />
+      ))}
+      {/* Krom yan çıta */}
+      {[-0.82, 0.82].map((x) => (
+        <mesh key={`s${x}`} geometry={rbox(0.03, 0.045, 3.2, 0.01)} material={mat('#c8ccd1', 0.3, { metal: 0.7 })} position={[x, 0.56, -0.1]} />
+      ))}
+      {plate && (
+        <>
+          <mesh geometry={plateGeo} material={plateMaterial(plate)} position={[0, 0.42, 1.83]} />
+          <mesh geometry={plateGeo} material={plateMaterial(plate)} position={[0, 0.42, -1.83]} rotation={[0, Math.PI, 0]} />
+        </>
+      )}
+      <Wheel x={-0.74} z={1.15} r={0.28} />
+      <Wheel x={0.74} z={1.15} r={0.28} />
+      <Wheel x={-0.74} z={-1.15} r={0.28} />
+      <Wheel x={0.74} z={-1.15} r={0.28} />
+    </group>
+  )
+}
+
 // Store'daki aracı sahnede sürer; seferdeyken (ekran dışı) gizlenir
 export function Vehicle({ vehicleId }: { vehicleId: number }) {
   const group = useRef<THREE.Group>(null)
   const old = useGame((s) => s.vehicles.find((v) => v.id === vehicleId)?.old ?? false)
   const plate = useGame((s) => s.vehicles.find((v) => v.id === vehicleId)?.plate ?? '')
+  const kind = useGame((s) => s.vehicles.find((v) => v.id === vehicleId)?.kind ?? 'dolmus')
 
   useFrame(() => {
     const v = useGame.getState().vehicles.find((veh) => veh.id === vehicleId)
@@ -175,8 +227,21 @@ export function Vehicle({ vehicleId }: { vehicleId: number }) {
   })
 
   return (
-    <group ref={group}>
-      <MinibusMesh body={old ? '#ece5d4' : undefined} plate={plate || undefined} />
+    <group
+      ref={group}
+      onClick={(e) => {
+        e.stopPropagation()
+        const s = useGame.getState()
+        s.selectVehicle(s.selectedVehicle === vehicleId ? null : vehicleId)
+      }}
+      onPointerOver={() => (document.body.style.cursor = 'pointer')}
+      onPointerOut={() => (document.body.style.cursor = 'default')}
+    >
+      {kind === 'vito' ? (
+        <VitoMesh plate={plate || undefined} />
+      ) : (
+        <MinibusMesh body={old ? '#ece5d4' : undefined} plate={plate || undefined} />
+      )}
     </group>
   )
 }
