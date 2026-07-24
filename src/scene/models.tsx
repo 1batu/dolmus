@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import { ContactShadow, facadeTex } from './textures'
 
 // Geometri/materyal önbelleği: aynı parça her mesh'te yeniden üretilmez.
 // Tüm modeller prosedürel — asset yok, modern görünüm yuvarlatılmış hatlardan gelir.
@@ -57,6 +58,17 @@ export function mat(
   return m
 }
 
+// Cephe malzemesi: renk × sıva dokusu (renk başına önbellekli)
+const facadeCache = new Map<string, THREE.MeshStandardMaterial>()
+export function facadeMat(color: string): THREE.MeshStandardMaterial {
+  let m = facadeCache.get(color)
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color, map: facadeTex, roughness: 0.85 })
+    facadeCache.set(color, m)
+  }
+  return m
+}
+
 export function glassMat(): THREE.Material {
   const key = 'glass'
   let m = matCache.get(key)
@@ -96,6 +108,7 @@ export function CarMesh({
   const cabinZ = kind === 'pickup' ? 0.55 : kind === 'hatch' ? -0.25 : 0
   return (
     <group>
+      <ContactShadow w={2.1} d={3.6} />
       <mesh geometry={rbox(1.5, 0.52, 3.0, 0.18)} material={mat(color, 0.35)} position={[0, 0.52, 0]} castShadow />
       <mesh
         geometry={rbox(1.3, 0.46, kind === 'pickup' ? 1.15 : 1.55, 0.16)}
@@ -211,10 +224,11 @@ export function Apartment({
   const H = baseH + floors * floorH
   const cols = Math.max(2, Math.floor(w / 2.4))
   const colXs = Array.from({ length: cols }, (_, i) => -w / 2 + (w / (cols + 1)) * (i + 1) + w / (2 * (cols + 1)))
+  const bodyMat = facadeMat(color)
   return (
     <group>
       {/* Gövde */}
-      <mesh geometry={rbox(w, H, 7, 0.08)} material={mat(color, 0.75)} position={[0, H / 2, 0]} castShadow />
+      <mesh geometry={rbox(w, H, 7, 0.08)} material={bodyMat} position={[0, H / 2, 0]} castShadow />
       {/* Çatı parapeti + teras */}
       <mesh geometry={rbox(w + 0.3, 0.35, 7.3, 0.06)} material={mat('#8c8579', 0.8)} position={[0, H + 0.12, 0]} />
       <mesh geometry={rbox(1.2, 0.7, 1.2, 0.06)} material={mat('#b3b8bd', 0.7)} position={[w / 4, H + 0.6, -1]} />

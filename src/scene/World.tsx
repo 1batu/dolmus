@@ -5,6 +5,7 @@ import { LAYOUT, spotPos } from '../game/paths'
 import { clockOf } from '../game/config'
 import { useGame } from '../game/store'
 import { RivalBus, Vehicle } from './Vehicle'
+import { asphaltTex, concreteTex, grassTex } from './textures'
 import {
   Apartment,
   CarMesh,
@@ -115,6 +116,9 @@ function DayNight() {
     if (hemi.current) hemi.current.intensity = 0.12 + 0.38 * f
     sky.lerpColors(NIGHT_SKY, DAY_SKY, f)
     scene.background = sky
+    // Uzaklık sisi: sahneye derinlik katar, gökyüzüyle aynı tona akar
+    if (!scene.fog) scene.fog = new THREE.Fog(sky, 130, 320)
+    ;(scene.fog as THREE.Fog).color.copy(sky)
   })
 
   return (
@@ -144,7 +148,7 @@ function Road() {
     <group>
       <mesh position={[0, 0.02, LAYOUT.roadZ]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[190, LAYOUT.roadHalf * 2]} />
-        <meshStandardMaterial color="#565b62" />
+        <meshStandardMaterial map={asphaltTex} roughness={0.95} />
       </mesh>
       {/* Kenar çizgileri */}
       {[-LAYOUT.roadHalf + 0.25, LAYOUT.roadHalf - 0.25].map((oz) => (
@@ -527,13 +531,13 @@ export function World() {
       {/* Zemin */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[190, 140]} />
-        <meshStandardMaterial color="#94c47d" />
+        <meshStandardMaterial map={grassTex} roughness={1} />
       </mesh>
 
       {/* Terminal betonu */}
       <mesh position={[6, 0.01, 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[62, 21]} />
-        <meshStandardMaterial color="#b9bcb4" />
+        <meshStandardMaterial map={concreteTex} roughness={0.9} />
       </mesh>
       {/* Giriş (batı) ve çıkış (doğu) yolları */}
       {[LAYOUT.gateInX, LAYOUT.gateOutX].map((x) => (

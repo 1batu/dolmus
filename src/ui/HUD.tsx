@@ -44,7 +44,8 @@ function Confetti({ token }: { token: number }) {
 const fmt = (n: number) => n.toLocaleString('tr-TR')
 
 // Koyu cam panel: gündüz de gece de okunur
-const GLASS = 'rounded-2xl border border-white/10 bg-neutral-900/70 shadow-lg backdrop-blur-md'
+const GLASS =
+  'rounded-2xl border border-white/10 bg-gradient-to-b from-neutral-900/85 to-neutral-950/70 shadow-xl shadow-black/40 backdrop-blur-xl ring-1 ring-inset ring-white/5'
 
 function Stat({ icon, label, value, accent = 'text-white' }: { icon: string; label: string; value: string; accent?: string }) {
   return (
@@ -98,18 +99,25 @@ function PriceButton({ label, enabled, onClick }: { label: string; enabled: bool
       onClick={onClick}
       disabled={!enabled}
       className={`w-full rounded-lg px-2 py-2 text-[11px] font-extrabold tabular-nums transition active:scale-[0.98]
-        ${enabled ? 'cursor-pointer bg-emerald-600 text-white shadow hover:bg-emerald-500' : 'bg-white/5 text-white/30'}`}
+        ${
+          enabled
+            ? 'cursor-pointer bg-gradient-to-b from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-950/50 ring-1 ring-inset ring-white/20 hover:from-emerald-400 hover:to-emerald-500'
+            : 'bg-white/5 text-white/30'
+        }`}
     >
       {label}
     </button>
   )
 }
 
-// Gerçek plaka görünümü: mavi TR bandı + beyaz zemin + siyah koyu punto
+// Gerçek plaka görünümü: mavi TR bandı + emaye beyaz zemin + vida başları
 function PlateBadge({ plate, small = false }: { plate: string; small?: boolean }) {
   return (
-    <div className="inline-flex items-stretch overflow-hidden rounded-[4px] border border-neutral-500 bg-white shadow-md">
-      <span className={`flex flex-col items-center justify-center bg-blue-700 leading-none ${small ? 'px-0.5' : 'px-1'}`}>
+    <div
+      className="relative inline-flex items-stretch overflow-hidden rounded-[4px] border border-neutral-500 bg-gradient-to-b from-white to-neutral-200 shadow-md"
+      style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 3px rgba(0,0,0,0.5)' }}
+    >
+      <span className={`flex flex-col items-center justify-center bg-gradient-to-b from-blue-600 to-blue-800 leading-none ${small ? 'px-0.5' : 'px-1'}`}>
         {!small && <span className="text-[6px]">🇹🇷</span>}
         <span className={`${small ? 'text-[6px]' : 'text-[7px]'} font-black text-white`}>TR</span>
       </span>
@@ -121,9 +129,13 @@ function PlateBadge({ plate, small = false }: { plate: string; small?: boolean }
               : 'px-1.5 text-[11px] tracking-[0.08em]'
             : 'px-2.5 py-0.5 text-[13px] tracking-[0.12em]'
         }`}
+        style={{ textShadow: '0 1px 0 rgba(255,255,255,0.6)' }}
       >
         {plate}
       </span>
+      {/* Vida başları */}
+      <span className="absolute right-0.5 top-0.5 h-[3px] w-[3px] rounded-full bg-neutral-400 shadow-inner" />
+      <span className="absolute bottom-0.5 right-0.5 h-[3px] w-[3px] rounded-full bg-neutral-400 shadow-inner" />
     </div>
   )
 }
@@ -627,8 +639,8 @@ export function HUD() {
           </button>
         <button
           onClick={() => setBuildOpen((o) => !o)}
-          className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white shadow-lg transition active:scale-95
-            ${buildOpen ? 'bg-red-500' : 'bg-red-600 hover:bg-red-500'}`}
+          className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-red-950/50 ring-1 ring-inset ring-white/20 transition active:scale-95
+            ${buildOpen ? 'bg-gradient-to-b from-red-400 to-red-500' : 'bg-gradient-to-b from-red-500 to-red-600 hover:from-red-400 hover:to-red-500'}`}
         >
           🏗 {t.construction}
           {canBuySomething && !buildOpen && (
@@ -1007,7 +1019,7 @@ export function HUD() {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`px-3 py-1.5 text-xs font-bold tabular-nums text-emerald-300 ${GLASS}`}
+            className={`toast-in px-3 py-1.5 text-xs font-bold tabular-nums text-emerald-300 ${GLASS}`}
           >
             {toast.text}
           </div>

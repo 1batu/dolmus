@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { pointAt, spotPos } from '../game/paths'
 import { useGame } from '../game/store'
 import { rbox, mat, Wheel } from './models'
+import { ContactShadow } from './textures'
 
 const BODY = '#f7f6f1'
 const STRIPE = '#2160c4'
@@ -52,6 +53,7 @@ export function MinibusMesh({
 }) {
   return (
     <group>
+      <ContactShadow w={2.5} d={4.6} />
       {/* Ana gövde */}
       <mesh geometry={rbox(1.7, 1.15, 3.75, 0.16)} material={mat(body, 0.35)} position={[0, 0.95, 0]} castShadow />
       {/* Etek + tamponlar */}
@@ -152,6 +154,7 @@ export function VitoMesh({ plate }: { plate?: string }) {
   const black = mat('#191c20', 0.25, { metal: 0.35 })
   return (
     <group>
+      <ContactShadow w={2.4} d={4.2} />
       {/* Kabin gövdesi (arka 2/3) */}
       <mesh geometry={rbox(1.62, 0.9, 2.7, 0.22)} material={black} position={[0, 0.82, -0.45]} castShadow />
       {/* Kaput: öne alçalan burun */}
