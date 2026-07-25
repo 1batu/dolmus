@@ -74,9 +74,9 @@ function NightLights() {
           color="#ffdfa3"
         />
       ))}
-      {/* Projektör direkleri */}
-      {[14, 30].map((x) => (
-        <group key={x} position={[x, 0, -2]}>
+      {/* Projektör direkleri: park sıralarının iki ucunda, manevra alanı dışında */}
+      {[0.8, 46].map((x) => (
+        <group key={x} position={[x, 0, -3.8]}>
           <mesh geometry={cyl(0.09, 0.13, 6.4, 10)} material={mat('#5d646b', 0.6, { metal: 0.3 })} position={[0, 3.2, 0]} castShadow />
           <mesh
             geometry={rbox(0.7, 0.3, 0.45, 0.06)}
@@ -252,8 +252,10 @@ const AMBIENT_CARS: Array<{
   { lane: LAYOUT.laneFarZ, dir: -1, speed: 15, offset: -55, color: '#9a7fd6', kind: 'sedan' },
   { lane: LAYOUT.laneNearZ, dir: 1, speed: 13, offset: 85, color: '#e8c53a', kind: 'taxi' },
   // Arka sokak: yavaş mahalle trafiği
-  { lane: -11.4, dir: 1, speed: 7, offset: 25, color: '#8a9aa8', kind: 'sedan' },
-  { lane: -13.6, dir: -1, speed: 6, offset: -40, color: '#c98a3a', kind: 'hatch' },
+  // Arka sokak 7 birim geride: şeritler yol ortasında akar, kaldırım kenarındaki
+  // park halindeki araçlara değmez
+  { lane: -18.65, dir: 1, speed: 7, offset: 25, color: '#8a9aa8', kind: 'sedan' },
+  { lane: -20.35, dir: -1, speed: 6, offset: -40, color: '#c98a3a', kind: 'hatch' },
 ]
 
 function AmbientTraffic() {
@@ -297,6 +299,47 @@ function AmbientTraffic() {
 }
 
 // Park yeri: beyaz çizgili cep + tekerlek takozu
+// Türkçe tabela: canvas doku, ışıksız materyal — gece de okunur
+const signCache = new Map<string, THREE.MeshBasicMaterial>()
+function signMaterial(text: string, bg: string, fg = '#ffffff'): THREE.MeshBasicMaterial {
+  const key = `${text}|${bg}|${fg}`
+  let m = signCache.get(key)
+  if (!m) {
+    const canvas = document.createElement('canvas')
+    canvas.width = 512
+    canvas.height = 112
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = bg
+    ctx.fillRect(0, 0, 512, 112)
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'
+    ctx.lineWidth = 6
+    ctx.strokeRect(8, 8, 496, 96)
+    ctx.fillStyle = fg
+    let size = 58
+    ctx.font = `900 ${size}px system-ui, sans-serif`
+    while (ctx.measureText(text).width > 450 && size > 20) {
+      size -= 4
+      ctx.font = `900 ${size}px system-ui, sans-serif`
+    }
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, 256, 60)
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.anisotropy = 4
+    m = new THREE.MeshBasicMaterial({ map: tex })
+    signCache.set(key, m)
+  }
+  return m
+}
+
+function Sign({ text, bg, w = 2.2, h = 0.48, pos, fg }: { text: string; bg: string; w?: number; h?: number; pos: [number, number, number]; fg?: string }) {
+  return (
+    <mesh position={pos} material={signMaterial(text, bg, fg)}>
+      <planeGeometry args={[w, h]} />
+    </mesh>
+  )
+}
+
 function ParkingSpot({ index }: { index: number }) {
   const [x, z] = spotPos(index)
   const w = 3.2
@@ -433,7 +476,7 @@ function TerminalBuildings() {
   return (
     <>
       {buildings.bufe && (
-        <group position={[-6, 0, -5.2]}>
+        <group position={[-12, 0, -13]}>
           {/* Büfe: kepenkli satış penceresi + tente */}
           <mesh geometry={rbox(3.2, 2.5, 2.4, 0.08)} material={mat('#e0c9a0', 0.7)} position={[0, 1.25, 0]} castShadow />
           <mesh geometry={rbox(3.6, 0.24, 2.8, 0.06)} material={mat('#7a5a3a', 0.8)} position={[0, 2.6, 0]} />
@@ -446,21 +489,21 @@ function TerminalBuildings() {
             rotation={[0.3, 0, 0]}
             castShadow
           />
-          <mesh geometry={rbox(2.2, 0.45, 0.14, 0.04)} material={mat('#d9a03a', 0.4, { emissive: '#d9a03a', emissiveIntensity: 0.25 })} position={[0, 2.9, 1.1]} />
+          <Sign text="BÜFE" bg="#d9a03a" w={2.2} h={0.45} pos={[0, 2.9, 1.12]} />
         </group>
       )}
       {buildings.cayOcagi && (
-        <group position={[-15, 0, -5.2]}>
+        <group position={[-19, 0, -13]}>
           {/* Çay ocağı: küçük kulübe + baca */}
           <mesh geometry={rbox(2.3, 2.2, 2.0, 0.08)} material={mat('#b56b4a', 0.7)} position={[0, 1.1, 0]} castShadow />
           <mesh geometry={rbox(2.7, 0.2, 2.4, 0.06)} material={mat('#6f4a33', 0.8)} position={[0, 2.3, 0]} />
           <mesh geometry={cyl(0.12, 0.12, 0.9, 8)} material={mat('#4a4f55', 0.7)} position={[0.7, 2.8, -0.5]} />
           <mesh geometry={rbox(1.0, 0.9, 0.12, 0.04)} material={mat('#2f3b46', 0.3)} position={[-0.3, 1.25, 1.01]} />
-          <mesh geometry={rbox(1.6, 0.38, 0.14, 0.04)} material={mat('#c94f4f', 0.4, { emissive: '#c94f4f', emissiveIntensity: 0.25 })} position={[0, 2.55, 0.95]} />
+          <Sign text="ÇAY OCAĞI" bg="#c94f4f" w={1.8} h={0.4} pos={[0, 2.55, 0.97]} />
         </group>
       )}
       {buildings.tamirhane && (
-        <group position={[26, 0, -5.6]}>
+        <group position={[22, 0, -13.2]}>
           {/* Tamirhane: geniş garaj + sürgülü kapı */}
           <mesh geometry={rbox(6.4, 3.4, 4.2, 0.1)} material={mat('#9aa1a8', 0.75)} position={[0, 1.7, 0]} castShadow />
           <mesh geometry={rbox(7.0, 0.3, 4.6, 0.08)} material={mat('#5d646b', 0.8)} position={[0, 3.5, 0]} />
@@ -469,17 +512,97 @@ function TerminalBuildings() {
             <mesh key={y} geometry={rbox(4.1, 0.05, 0.16, 0.02)} material={mat('#565d64', 0.6)} position={[-0.6, y, 2.12]} />
           ))}
           <mesh geometry={rbox(1.2, 1.0, 0.12, 0.04)} material={mat('#8fb8d4', 0.25)} position={[2.4, 1.6, 2.11]} />
-          <mesh geometry={rbox(3.0, 0.5, 0.16, 0.05)} material={mat('#2160c4', 0.4, { emissive: '#2160c4', emissiveIntensity: 0.25 })} position={[0, 3.85, 1.9]} />
+          <Sign text="TAMİRHANE" bg="#2160c4" w={3.0} h={0.5} pos={[0, 3.85, 1.98]} />
+        </group>
+      )}
+      {buildings.sarj && (
+        <group position={[-4, 0, -13]}>
+          {/* Şarj istasyonu: beton zemin + iki şarj ünitesi + saçak */}
+          <mesh geometry={rbox(3.6, 0.12, 2.6, 0.04)} material={mat('#b3b8bd', 0.8)} position={[0, 0.06, 0]} receiveShadow />
+          {[-1.0, 1.0].map((x) => (
+            <group key={x} position={[x, 0, -0.5]}>
+              <mesh geometry={rbox(0.5, 1.5, 0.34, 0.08)} material={mat('#eef1f4', 0.45)} position={[0, 0.85, 0]} castShadow />
+              <mesh geometry={rbox(0.36, 0.4, 0.06, 0.03)} material={mat('#17b8a6', 0.3, { emissive: '#17b8a6', emissiveIntensity: 0.8 })} position={[0, 1.15, 0.18]} />
+              <mesh geometry={rbox(0.1, 0.16, 0.08, 0.03)} material={mat('#2a2f35', 0.7)} position={[0.18, 0.7, 0.16]} />
+              {/* Kablo */}
+              <mesh geometry={cyl(0.03, 0.03, 0.6, 6)} material={mat('#22262b', 0.8)} position={[0.24, 0.45, 0.2]} rotation={[0.4, 0, 0.3]} />
+            </group>
+          ))}
+          <mesh geometry={rbox(3.4, 0.1, 2.0, 0.04)} material={mat('#eef1f4', 0.5)} position={[0, 2.35, -0.3]} castShadow />
+          {[-1.5, 1.5].map((x) => (
+            <mesh key={x} geometry={cyl(0.06, 0.06, 2.3, 8)} material={mat('#8f969e', 0.5, { metal: 0.4 })} position={[x, 1.15, -1.1]} />
+          ))}
+          <Sign text="ŞARJ İSTASYONU" bg="#0d9488" w={2.4} h={0.42} pos={[0, 2.2, 0.74]} />
+        </group>
+      )}
+      {buildings.solar && (
+        <group position={[3, 0, -13]}>
+          {/* Güneş paneli dizisi + depo bataryası */}
+          {[-1.3, 0.1, 1.5].map((x) => (
+            <group key={x} position={[x, 0, 0]}>
+              <mesh geometry={cyl(0.05, 0.05, 0.8, 6)} material={mat('#6f767e', 0.6, { metal: 0.4 })} position={[0, 0.4, 0]} />
+              <mesh geometry={rbox(1.25, 0.06, 1.7, 0.02)} material={mat('#1d3a6b', 0.25, { metal: 0.5 })} position={[0, 0.85, 0]} rotation={[-0.5, 0, 0]} castShadow />
+            </group>
+          ))}
+          <mesh geometry={rbox(0.9, 0.9, 0.6, 0.06)} material={mat('#e8eaed', 0.5)} position={[2.7, 0.45, 0]} castShadow />
+          <Sign text="GÜNEŞ ENERJİSİ" bg="#2e9e5b" w={0.86} h={0.24} pos={[2.7, 0.62, 0.32]} />
+        </group>
+      )}
+      {buildings.yakitTanki && (
+        <group position={[-26, 0, -13]}>
+          {/* Akaryakıt tankı: yatay silindir + sehpalar + boru + dolum noktası */}
+          {[-1.1, 1.1].map((x) => (
+            <mesh key={x} geometry={rbox(0.5, 0.6, 1.5, 0.05)} material={mat('#9aa1a8', 0.8)} position={[x, 0.3, 0]} />
+          ))}
+          <mesh geometry={cyl(0.95, 0.95, 4.2, 20)} material={mat('#cfd4d9', 0.4, { metal: 0.5 })} position={[0, 1.35, 0]} rotation={[0, 0, Math.PI / 2]} castShadow />
+          {/* Kapak + emniyet vanası */}
+          <mesh geometry={cyl(0.3, 0.3, 0.3, 12)} material={mat('#d23f3f', 0.5)} position={[0, 2.35, 0]} />
+          <mesh geometry={cyl(0.06, 0.06, 1.2, 8)} material={mat('#6f767e', 0.6, { metal: 0.4 })} position={[1.6, 0.6, 0.9]} rotation={[0.5, 0, 0]} />
+          {/* Uyarı şeridi + tabela */}
+          <mesh geometry={rbox(4.0, 0.14, 0.05, 0.02)} material={mat('#d9a03a', 0.5)} position={[0, 0.9, 1.02]} />
+          <Sign text="MOTORİN" bg="#d23f3f" w={2.4} h={0.5} pos={[0, 1.5, 1.0]} />
         </group>
       )}
     </>
   )
 }
 
+// Rent-a-car: ofis kulübesi + sıra sıra kiralık sedanlar (filo büyüdükçe dolar)
+function RentACarLot() {
+  const rentalOffice = useGame((s) => s.rentalOffice)
+  const rentalCars = useGame((s) => s.rentalCars)
+  if (!rentalOffice) return null
+  const colors = ['#d9dde2', '#8d9aa8', '#b84a4a', '#3c4c60']
+  const shown = Math.min(rentalCars, 4)
+  return (
+    <group position={[11, 0, -13.2]}>
+      {/* Otopark zemini */}
+      <mesh geometry={rbox(5.6, 0.1, 3.4, 0.03)} material={mat('#8f959b', 0.85)} position={[0, 0.05, 0]} receiveShadow />
+      {/* Ofis kulübesi */}
+      <group position={[-2.1, 0, -0.6]}>
+        <mesh geometry={rbox(1.5, 1.9, 1.5, 0.06)} material={mat('#e8eaed', 0.55)} position={[0, 0.95, 0]} castShadow />
+        <mesh geometry={rbox(1.7, 0.14, 1.7, 0.04)} material={mat('#3c4c60', 0.7)} position={[0, 1.95, 0]} />
+        <mesh geometry={rbox(0.9, 0.7, 0.08, 0.03)} material={glassMat()} position={[0, 1.2, 0.76]} />
+      </group>
+      {/* Tabela */}
+      <mesh geometry={cyl(0.05, 0.05, 2.6, 8)} material={mat('#6f767e', 0.6, { metal: 0.4 })} position={[-2.1, 1.3, 1.2]} />
+      <mesh geometry={rbox(2.1, 0.56, 0.12, 0.05)} material={mat('#0f766e', 0.5)} position={[-2.1, 2.5, 1.2]} />
+      <Sign text="OTO KİRALAMA" bg="#0d9488" w={2.0} h={0.5} pos={[-2.1, 2.5, 1.27]} />
+      {/* Kiralık araçlar */}
+      {Array.from({ length: shown }, (_, i) => (
+        <group key={i} position={[-0.6 + i * 1.15, 0, 0.2]} rotation={[0, -0.12 + (i % 2) * 0.1, 0]} scale={0.72}>
+          <CarMesh color={colors[i % colors.length]} kind="sedan" />
+        </group>
+      ))}
+    </group>
+  )
+}
+
 // Yazıhane: terminal ofisi — saçaklı çatı, kapı, çerçeveli pencere, klima
 function Office() {
   return (
-    <group position={[-22, 0, 0]}>
+    // Giriş kapısının hemen yanı: gelen araç önce yazıhanenin önünden geçer
+    <group position={[-29.5, 0, 9]}>
       <mesh geometry={rbox(4.6, 2.9, 3.6, 0.1)} material={mat('#ece3d2', 0.7)} position={[0, 1.45, 0]} castShadow />
       {/* Çatı */}
       <mesh geometry={rbox(5.3, 0.28, 4.3, 0.08)} material={mat('#5a4634', 0.8)} position={[0, 3.0, 0]} castShadow />
@@ -491,7 +614,7 @@ function Office() {
       <mesh geometry={rbox(1.3, 0.85, 0.1, 0.03)} material={mat('#8fb8d4', 0.2)} position={[0.95, 1.55, 1.84]} />
       {/* Tabela bandı */}
       <mesh geometry={rbox(3.6, 0.6, 0.14, 0.05)} material={mat('#2160c4', 0.4, { emissive: '#2160c4', emissiveIntensity: 0.2 })} position={[0, 3.45, 1.7]} />
-      <mesh geometry={rbox(2.6, 0.16, 0.15, 0.04)} material={mat('#f4f2ec', 0.4)} position={[0, 3.45, 1.72]} />
+      <Sign text="YAZIHANE" bg="#2160c4" w={3.2} h={0.52} pos={[0, 3.45, 1.78]} />
       {/* Klima */}
       <mesh geometry={rbox(0.9, 0.5, 0.35, 0.05)} material={mat('#c9cdd2', 0.5)} position={[-2.35, 2.2, 0.6]} />
       {/* Basamak */}
@@ -501,11 +624,11 @@ function Office() {
 }
 
 const BLOB_TREES: Array<[number, number, number]> = [
-  [-32, -8, 1.1], [-28, 12, 0.9], [34, -8, 1.2], [40, 6, 1.0], [22, -10, 0.85], [-45, 14, 1.15],
+  [-42, -8, 1.1], [-42, 13, 0.9], [52, -6, 1.2], [52, 8, 1.0], [-46, -3, 0.85], [-45, 14, 1.15],
   [-62, 26.5, 0.8], [-14, 26.5, 0.85], [34, 26.5, 0.8], [66, 26.5, 0.9],
 ]
 const PINE_TREES: Array<[number, number, number]> = [
-  [-52, -4, 1.2], [46, -14, 0.9], [-38, -14, 1.0], [58, -6, 1.1],
+  [-52, -4, 1.2], [50, -15.5, 0.9], [-40, -18, 1.0], [58, -6, 1.1],
 ]
 const LAMPS: Array<[number, boolean]> = [
   [-60, false], [-30, true], [12, false], [40, true], [70, false],
@@ -526,11 +649,12 @@ const APARTMENTS = [
 
 // Arka sokakta park etmiş araçlar
 const PARKED_CARS: Array<{ x: number; z: number; rot: number; color: string; kind: 'sedan' | 'hatch' | 'pickup' | 'taxi' }> = [
-  { x: -42, z: -10.9, rot: Math.PI / 2, color: '#b0b6bd', kind: 'sedan' },
-  { x: -12, z: -10.9, rot: Math.PI / 2, color: '#7a4a3a', kind: 'hatch' },
-  { x: 6, z: -14.1, rot: -Math.PI / 2, color: '#4a6b8a', kind: 'sedan' },
-  { x: 34, z: -10.9, rot: Math.PI / 2, color: '#e8c53a', kind: 'taxi' },
-  { x: 52, z: -14.1, rot: -Math.PI / 2, color: '#5a7a52', kind: 'pickup' },
+  // Kaldırım kenarına yanaşık: seyir şeritlerinden uzak
+  { x: -42, z: -10.15, rot: Math.PI / 2, color: '#b0b6bd', kind: 'sedan' },
+  { x: -12, z: -10.15, rot: Math.PI / 2, color: '#7a4a3a', kind: 'hatch' },
+  { x: 6, z: -15.0, rot: -Math.PI / 2, color: '#4a6b8a', kind: 'sedan' },
+  { x: 34, z: -10.15, rot: Math.PI / 2, color: '#e8c53a', kind: 'taxi' },
+  { x: 52, z: -15.0, rot: -Math.PI / 2, color: '#5a7a52', kind: 'pickup' },
 ]
 
 // Mahalle sokağı: asfalt + iki taraflı kaldırım + ara sokak
@@ -591,9 +715,9 @@ export function World() {
         <meshStandardMaterial map={grassTex} roughness={1} />
       </mesh>
 
-      {/* Terminal betonu */}
-      <mesh position={[6, 0.01, 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[62, 21]} />
+      {/* Terminal betonu: iki park sırası + güneydeki tesis şeridini kapsar */}
+      <mesh position={[6, 0.01, -1.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[80, 28]} />
         <meshStandardMaterial map={concreteTex} roughness={0.9} />
       </mesh>
       {/* Giriş (batı) ve çıkış (doğu) yolları */}
@@ -605,32 +729,63 @@ export function World() {
       ))}
       {/* Kapılar: portal + yön plakası (yeşil giriş, kırmızı çıkış) */}
       {[
-        { x: LAYOUT.gateInX, plate: '#3f9d4f' },
-        { x: LAYOUT.gateOutX, plate: '#d23f3f' },
+        { x: LAYOUT.gateInX, plate: '#3f9d4f', label: 'GİRİŞ' },
+        { x: LAYOUT.gateOutX, plate: '#d23f3f', label: 'ÇIKIŞ' },
       ].map((gate) => (
         <group key={gate.x} position={[gate.x, 0, 12.2]}>
           {[-2.9, 2.9].map((ox) => (
             <mesh key={ox} geometry={rbox(0.28, 3.4, 0.28, 0.06)} material={mat('#8f969e', 0.5, { metal: 0.3 })} position={[ox, 1.7, 0]} castShadow />
           ))}
           <mesh geometry={rbox(6.4, 0.5, 0.32, 0.08)} material={mat('#2160c4', 0.45)} position={[0, 3.55, 0]} castShadow />
-          <mesh
-            geometry={rbox(1.1, 0.34, 0.36, 0.05)}
-            material={mat(gate.plate, 0.4, { emissive: gate.plate, emissiveIntensity: 0.35 })}
-            position={[0, 3.55, 0]}
-          />
+          <Sign text={gate.label} bg={gate.plate} w={1.3} h={0.38} pos={[0, 3.55, 0.19]} />
         </group>
       ))}
 
       <Road />
-      <BackStreet />
+      {/* Mahalle, genişleyen terminale yer açmak için 7 birim geride */}
+      <group position={[0, 0, -7]}>
+        <BackStreet />
+      </group>
       <AmbientTraffic />
       <Peron />
       <Office />
       <FuelPump />
       <TerminalBuildings />
+      <RentACarLot />
 
       {Array.from({ length: spots }, (_, i) => (
         <ParkingSpot key={i} index={i} />
+      ))}
+
+      {/* Servis yolu işaretleri: kesikli orta çizgi + doğu yönü okları (çıkış o tarafta) */}
+      {Array.from({ length: 22 }, (_, i) => (
+        <mesh key={`al${i}`} position={[-21 + i * 3, 0.03, LAYOUT.aisleZ]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[1.5, 0.16]} />
+          <meshStandardMaterial color="#e8e4d8" />
+        </mesh>
+      ))}
+      {[-8, 10, 28].map((x) => (
+        <mesh key={`ar${x}`} position={[x, 0.035, LAYOUT.aisleZ - 1.6]} rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
+          <circleGeometry args={[0.55, 3]} />
+          <meshStandardMaterial color="#e8e4d8" />
+        </mesh>
+      ))}
+      {/* Yaya geçidi: peron çıkışından park alanına */}
+      {Array.from({ length: 6 }, (_, i) => (
+        <mesh key={`zb${i}`} position={[-16.5, 0.03, 5.8 + i * 0.9]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[1.6, 0.45]} />
+          <meshStandardMaterial color="#e8e4d8" />
+        </mesh>
+      ))}
+      {/* Park sırası tabelaları */}
+      {[
+        { z: 0, label: 'PARK A' },
+        { z: -7.6, label: 'PARK B' },
+      ].map((row) => (
+        <group key={row.label} position={[0.8, 0, row.z]}>
+          <mesh geometry={cyl(0.05, 0.05, 2.0, 8)} material={mat('#6f767e', 0.6, { metal: 0.4 })} position={[0, 1.0, 0]} />
+          <Sign text={row.label} bg="#2e7d4f" w={1.3} h={0.4} pos={[0.03, 2.1, 0]} />
+        </group>
       ))}
 
       {BLOB_TREES.map(([x, z, s], i) => (
@@ -651,19 +806,19 @@ export function World() {
 
       {/* Mahalle silueti: terminal arkası apartman sırası */}
       {APARTMENTS.map((a) => (
-        <group key={a.x} position={[a.x, 0, a.z]}>
+        <group key={a.x} position={[a.x, 0, a.z - 7]}>
           <Apartment w={a.w} floors={a.floors} color={a.color} awning={a.awning} seed={a.seed} />
         </group>
       ))}
 
       {/* Terminal arka çiti */}
-      <mesh geometry={rbox(63, 0.72, 0.2, 0.04)} material={mat('#c9ccc4', 0.8)} position={[6, 0.36, -8.4]} />
-      {Array.from({ length: 11 }, (_, i) => (
+      <mesh geometry={rbox(80, 0.72, 0.2, 0.04)} material={mat('#c9ccc4', 0.8)} position={[6, 0.36, -15.5]} />
+      {Array.from({ length: 14 }, (_, i) => (
         <mesh
           key={`fp${i}`}
           geometry={rbox(0.28, 1.0, 0.28, 0.05)}
           material={mat('#aeb2ab', 0.8)}
-          position={[-24 + i * 6.2, 0.5, -8.4]}
+          position={[-33 + i * 6.0, 0.5, -15.5]}
         />
       ))}
 

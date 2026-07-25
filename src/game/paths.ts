@@ -12,13 +12,21 @@ export const LAYOUT = {
   laneNearZ: 18.25, // +x yönü akan şerit (bizim araçlar bunu kullanır)
   laneFarZ: 21.75, // -x yönü akan şerit (ambiyans trafiği)
   offX: 90, // ekran dışı kabul edilen mesafe
-  spotRowZ: 0, // park sırası
-  spotStartX: 8,
-  spotGapX: 3.6,
+  spotRowZ: 0, // ilk park sırası
+  spotStartX: 4,
+  spotGapX: 4.2, // cep aralığı — otobüs genişliği + manevra payı
+  spotsPerRow: 10, // sıra başına cep
+  spotRowGapZ: 7.6, // sıralar arası mesafe (körüklü otobüs sığar)
+  spotRowOffsetX: 2.1, // arka sıra yarım cep kayar: çıkışta öndekilerin arasından geçilir
 }
 
 export function spotPos(i: number): P2 {
-  return [LAYOUT.spotStartX + i * LAYOUT.spotGapX, LAYOUT.spotRowZ]
+  const row = Math.floor(i / LAYOUT.spotsPerRow)
+  const col = i % LAYOUT.spotsPerRow
+  return [
+    LAYOUT.spotStartX + col * LAYOUT.spotGapX + (row % 2) * LAYOUT.spotRowOffsetX,
+    LAYOUT.spotRowZ - row * LAYOUT.spotRowGapZ,
+  ]
 }
 
 // Park yerinden perona

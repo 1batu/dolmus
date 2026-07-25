@@ -40,6 +40,7 @@ export const CONFIG = {
   dayLength: 300,
   clockStartHour: 6,
   nightEndHour: 6, // 00:00-06:00 arası sadece nöbetçi çalışır
+  nightTimeScale: 2, // gece simülasyon 2 kat hızlı akar — sabah çabuk gelir
   wageHour: 20, // yevmiyeler akşam bu saatte ödenir
 
   // Personel & yatırım
@@ -83,7 +84,7 @@ export const CONFIG = {
   loanMarkupRate: 0.15, // vade farkı
   loanTermDays: 30, // taksit süresi (gün)
   spotBaseCost: 30000, // park cebi devri, her cepte katlanır
-  maxSpots: 8,
+  maxSpots: 20, // iki sıra × 10 cep — otobüs filosuna yer var
   startMoney: 150000,
   startSpots: 2,
 
@@ -148,6 +149,25 @@ export const CONFIG = {
   vitoWearBase: 1.5, // % + km başına yıpranma
   vitoWearPerKm: 0.05,
 
+  // Otobüs sınıfı hat araçları: özel halk otobüsü ruhu — büyük kasa, büyük ciro, büyük masraf
+  busCost: 5500000, // ₺ solo otobüs (12 m, Otokar Kent sınıfı 2. el)
+  busCostStep: 600000, // her ilave otobüste artış
+  articCost: 9500000, // ₺ körüklü otobüs (18 m)
+  articCostStep: 900000,
+  ebusCost: 12500000, // ₺ elektrikli otobüs — şarj istasyonu şart
+  ebusCostStep: 1000000,
+
+  // Elektrik & akaryakıt tesisleri
+  sarjCost: 850000, // şarj istasyonu — elektrikli otobüsün ön şartı
+  elektrikPriceFactor: 0.3, // ₺/kWh eşleniği = motorin fiyatı × bu (elektrik çok daha ucuz)
+  solarCost: 1600000, // güneş paneli + depo bataryası
+  solarChargeFactor: 0.35, // güneşle depolanan enerji: şarj maliyeti çarpanı
+  yakitTankiCost: 750000, // terminal akaryakıt tankı
+  yakitTankiDiscount: 0.9, // kendi araçların pompa fiyatı çarpanı (toptan mazot)
+  yakitTankiSaleLMin: 40, // dışarıya saatlik satış bandı (L) — hattın diğer esnafı tanktan alır
+  yakitTankiSaleLMax: 120,
+  yakitTankiMarginPerL: 9, // ₺/L kâr marjı
+
   // Servis kontratları: okul/personel — sabah-akşam iki sefer, günlük sabit gelir
   contractSlots: 2, // aynı anda azami kontrat
   contractOfferMin: 60, // yeni teklif aralığı (sn)
@@ -171,6 +191,16 @@ export const CONFIG = {
   taxiCarCost: 750000, // sarı taksi aracı
   taxiOperateMin: 6000, // kendi işletmede günlük net bandı (₺)
   taxiOperateMax: 12000,
+
+  // Araç kiralama (rent-a-car): ofis kur, filo al — her akşam doluluk oranınca kira yatar
+  kiralamaOfisCost: 500000, // ₺ ofis + otopark alanı
+  rentalCarCost: 1100000, // ₺ sıfır sedan (filo alım fiyatı)
+  rentalCarStep: 100000, // her ilave araçta artış
+  rentalCarMax: 8,
+  rentalDailyMin: 2500, // günlük kira bandı (₺, 2026: ekonomik sedan ₺2.500-4.500)
+  rentalDailyMax: 4500,
+  rentalOccBase: 0.55, // doluluk tabanı — itibar yükseldikçe artar
+  rentalOccPerRep: 0.06, // yıldız başına doluluk artışı
 
   // Offline kazanç: kapalıyken terminal düşük verimle çalışır
   offlineCapSec: 4 * 3600, // azami birikim süresi (gerçek sn)
@@ -205,8 +235,8 @@ export const CONFIG = {
   prestigeRepBonus: 0.2, // seviye başına başlangıç itibarı
 
   // Ekonomi haberleri: motorin/tarife canlı değişir (state'te tutulur)
-  newsIntervalMin: 450, // sn (~1,5 oyun günü)
-  newsIntervalMax: 900,
+  newsIntervalMin: 180, // sn (~her oyun günü bir haber)
+  newsIntervalMax: 400,
   fuelPriceMin: 60, // ₺/L bandı
   fuelPriceMax: 130,
   fareMin: 43, // indi-bindi bandı
@@ -232,7 +262,41 @@ export const CONFIG = {
   // Şoför pazarı: her gün 2 aday (yıldızı belli, ücreti yıldıza göre)
   marketHirePerSkill: 3500,
 
+  // Banka: vadeli mevduat + kurumsal kredi (senetin medeni rakibi)
+  depositTerms: [7, 15, 30], // vade seçenekleri (gün)
+  depositDailyRates: [0.008, 0.012, 0.016], // vadeye göre günlük basit faiz
+  depositMin: 10000, // asgari mevduat ₺
+  bankLoanMarkup: 0.08, // taban vade farkı (kredi skoru kötüyse artar)
+  bankLoanScorePenalty: 0.06, // (100-skor)/100 × bu kadar ek vade farkı
+  bankLoanTermDays: 45,
+  bankMinRep: 3.5, // kredi için asgari itibar
+  bankLimitFactor: 10, // limit = son 7 gün ort. günlük gelir × bu
+  creditScoreStart: 70, // 0-100
+  creditScoreMissPenalty: 8, // ödeme günü kasa eksideyse
+  creditScoreGoodDay: 1, // temiz ödeme günü başına
+  creditScoreMin: 30, // altında banka kredi vermez
+
   toastLifetime: 3, // sn
+}
+
+// Araç sınıfı özellikleri: koltuk, depo, tüketim, masraf — hepsi kasaya göre ölçeklenir.
+// ebus deposu kWh cinsindendir; birim fiyatı elektrikPriceFactor belirler.
+export type VehicleSpec = {
+  seats: number
+  tank: number // L (ebus: kWh)
+  fuelPerTrip: number // sefer başına tüketim (L / kWh)
+  wearPerTrip: number // sefer başına yıpranma (%)
+  repairMult: number // bakım maliyeti çarpanı
+  boardMult: number // biniş süresi çarpanı (kapı sayısı etkisi)
+  enRouteMult: number // hat boyu indi-bindi çarpanı
+  repMult: number // sefer başına itibar çarpanı (elektrikli çevreci)
+}
+export const VEHICLE_SPECS: Record<string, VehicleSpec> = {
+  dolmus: { seats: 14, tank: 80, fuelPerTrip: 6, wearPerTrip: 4, repairMult: 1, boardMult: 1, enRouteMult: 1, repMult: 1 },
+  vito: { seats: 6, tank: 80, fuelPerTrip: 6, wearPerTrip: 4, repairMult: 1, boardMult: 1, enRouteMult: 1, repMult: 1 },
+  bus: { seats: 27, tank: 200, fuelPerTrip: 14, wearPerTrip: 4, repairMult: 1.8, boardMult: 1, enRouteMult: 1.7, repMult: 1 },
+  artic: { seats: 42, tank: 300, fuelPerTrip: 19, wearPerTrip: 4.5, repairMult: 2.4, boardMult: 0.8, enRouteMult: 2.3, repMult: 1 },
+  ebus: { seats: 30, tank: 250, fuelPerTrip: 15, wearPerTrip: 3.5, repairMult: 1.3, boardMult: 0.9, enRouteMult: 1.8, repMult: 2 },
 }
 
 // Şoförlü araç sayısına göre kuyruk kapasitesi

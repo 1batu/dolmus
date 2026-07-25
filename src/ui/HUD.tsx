@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useGame, BUILDING_COSTS, capacityOf, valuationOf, getTodayStats, type BuildingKind } from '../game/store'
-import { CONFIG, clockOf, queueCapOf } from '../game/config'
+import { useGame, BANKS, BUILDING_COSTS, bankLimitOf, capacityOf, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
+import { CONFIG, VEHICLE_SPECS, clockOf, queueCapOf } from '../game/config'
 import {
   AlertTriangle,
+  Landmark,
+  PiggyBank,
   ArrowUp,
   Banknote,
   BarChart3,
@@ -25,12 +27,16 @@ import {
   CarTaxiFront,
   Coffee,
   Cog,
+  BusFront,
+  CarFront,
   CupSoda,
+  Droplets,
   FileSignature,
   FileText,
   Flame,
   Fuel,
   Handshake,
+  KeyRound,
   HardHat,
   Hammer,
   Map as MapIcon,
@@ -41,11 +47,13 @@ import {
   Ticket,
   Users,
   UserRound,
+  PlugZap,
   Volume2,
   VolumeX,
   Wallet,
   Wrench,
   X,
+  Zap,
 } from 'lucide-react'
 import { isMuted, toggleMute } from '../game/sound'
 import { t } from '../i18n'
@@ -56,6 +64,9 @@ const BUILDING_ICONS: Record<BuildingKind, ReactNode> = {
   tamirhane: <Wrench className="h-7 w-7 text-sky-300" />,
   otoPompa: <Fuel className="h-7 w-7 text-emerald-300" />,
   otoBakim: <Cog className="h-7 w-7 text-violet-300" />,
+  sarj: <PlugZap className="h-7 w-7 text-cyan-300" />,
+  solar: <Sun className="h-7 w-7 text-yellow-300" />,
+  yakitTanki: <Droplets className="h-7 w-7 text-amber-300" />,
   hat2: <MapIcon className="h-7 w-7 text-yellow-300" />,
 }
 
@@ -220,6 +231,7 @@ function OwnShareControls({
   share,
   valuation,
   money,
+  partners,
   onSell,
   onBuyBack,
 }: {
@@ -227,6 +239,7 @@ function OwnShareControls({
   share: number
   valuation: number
   money: number
+  partners: Array<{ name: string; pct: number }>
   onSell: (id: number, pct: number) => void
   onBuyBack: (id: number, pct: number) => void
 }) {
@@ -240,6 +253,15 @@ function OwnShareControls({
       {share < 100 && (
         <div className="mt-1.5 rounded-lg bg-indigo-400/15 px-1.5 py-1 text-center text-[10px] font-bold text-indigo-300">
           {t.partneredBadge(100 - share)}
+        </div>
+      )}
+      {partners.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {partners.map((pt, i) => (
+            <span key={i} className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-white/60">
+              {pt.name} · %{pt.pct}
+            </span>
+          ))}
         </div>
       )}
       <div className="mt-1.5 flex items-center gap-1.5">
@@ -424,8 +446,16 @@ export function HUD() {
   const toasts = useGame((s) => s.toasts)
   const vehicleCount = useGame((s) => s.vehicles.length)
   const vitoCount = useGame((s) => s.vehicles.filter((v) => v.kind === 'vito').length)
+  const busCount = useGame((s) => s.vehicles.filter((v) => v.kind === 'bus').length)
+  const articCount = useGame((s) => s.vehicles.filter((v) => v.kind === 'artic').length)
+  const ebusCount = useGame((s) => s.vehicles.filter((v) => v.kind === 'ebus').length)
+  const rentalOffice = useGame((s) => s.rentalOffice)
+  const rentalCars = useGame((s) => s.rentalCars)
   const buyVehicle = useGame((s) => s.buyVehicle)
   const buyVito = useGame((s) => s.buyVito)
+  const buyBus = useGame((s) => s.buyBus)
+  const buyRentalOffice = useGame((s) => s.buyRentalOffice)
+  const buyRentalCar = useGame((s) => s.buyRentalCar)
   const buySpot = useGame((s) => s.buySpot)
   const hireDriver = useGame((s) => s.hireDriver)
   const refuel = useGame((s) => s.refuel)
@@ -465,17 +495,22 @@ export function HUD() {
             ? v.kind === 'vito'
               ? 'vipCall'
               : 'charter'
-            : v.state === 'parked' && v.fuel < CONFIG.fuelPerTrip
+            : v.state === 'parked' && v.fuel < specOf(v.kind).fuelPerTrip
               ? 'noFuel'
               : v.state === 'parked' && v.wear >= 100
                 ? 'wornOut'
                 : v.state
-        return `${v.id}|${v.plate}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}|${v.share}|${valuationOf(v, s.vehicles.length, s.rep)}|${v.pendingRefuel ? 1 : 0}|${v.pendingRepair ? 1 : 0}|${v.kind}|${v.hasDriver ? v.driverName : ''}|${v.driverSkill}|${Math.round(v.driverMoral)}`
+        return `${v.id}|${v.plate}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}|${v.share}|${valuationOf(v, s.vehicles.length, s.rep)}|${v.pendingRefuel ? 1 : 0}|${v.pendingRepair ? 1 : 0}|${v.kind}|${v.hasDriver ? v.driverName : ''}|${v.driverSkill}|${Math.round(v.driverMoral)}|${v.partners.map((pt) => `${pt.name}~${pt.pct}`).join(';')}`
       })
       .join(','),
   )
   const debtsKey = useGame((s) =>
-    s.debts.map((d) => `${d.id}|${d.plate ?? `Minibüs ${d.no}`}|${d.remaining}|${d.daily}`).join(','),
+    s.debts
+      .map(
+        (d) =>
+          `${d.id}|${d.bank ? (t.bankNames[d.bankId ?? ''] ?? 'Banka') : (d.plate ?? `Minibüs ${d.no}`)}|${d.remaining}|${d.daily}|${d.bank ? 1 : 0}`,
+      )
+      .join(','),
   )
   const payInstallment = useGame((s) => s.payInstallment)
   const payOffDebt = useGame((s) => s.payOffDebt)
@@ -491,8 +526,24 @@ export function HUD() {
   const sellShare = useGame((s) => s.sellShare)
   const buyBackShare = useGame((s) => s.buyBackShare)
   const [buildOpen, setBuildOpen] = useState(false)
-  const [buildTab, setBuildTab] = useState<'arac' | 'personel' | 'tesis' | 'kontrat' | 'taksi' | 'devren' | 'stats' | 'prestij'>('arac')
+  const [buildTab, setBuildTab] = useState<'arac' | 'personel' | 'tesis' | 'kontrat' | 'taksi' | 'kiralama' | 'devren' | 'stats' | 'prestij'>('arac')
   const streak = useGame((s) => s.streak)
+  const creditScore = useGame((s) => Math.round(s.creditScore))
+  const depositsKey = useGame((s) =>
+    s.deposits.map((d) => `${d.id}|${d.bankId}|${d.amount}|${d.daysLeft}|${d.rate}|${d.term}`).join(','),
+  )
+  const bankUsedKey = useGame((s) =>
+    BANKS.map((b) =>
+      s.debts.reduce((sum, d) => sum + (d.bank && d.bankId === b.id ? d.remaining : 0), 0),
+    ).join(','),
+  )
+  const openDeposit = useGame((s) => s.openDeposit)
+  const breakDeposit = useGame((s) => s.breakDeposit)
+  const takeBankLoan = useGame((s) => s.takeBankLoan)
+  const [bankOpen, setBankOpen] = useState(false)
+  const [bankIdx, setBankIdx] = useState(0)
+  const [depositPct, setDepositPct] = useState(50)
+  const [loanPct, setLoanPct] = useState(50)
   const driverMarket = useGame((s) => s.driverMarket)
   const hireFromMarket = useGame((s) => s.hireFromMarket)
   const cayMolasi = useGame((s) => s.cayMolasi)
@@ -599,7 +650,7 @@ export function HUD() {
           </div>
           <div className="mt-2 flex flex-col gap-2">
             {debtsKey.split(',').map((entry) => {
-              const [idStr, label, remainingStr, dailyStr] = entry.split('|')
+              const [idStr, label, remainingStr, dailyStr, bankFlag] = entry.split('|')
               const id = Number(idStr)
               const remaining = Number(remainingStr)
               const daily = Number(dailyStr)
@@ -609,7 +660,7 @@ export function HUD() {
                 <div key={id} className="rounded-xl bg-white/5 p-2">
                   <div className="flex items-baseline justify-between">
                     <span className="text-[12px] font-extrabold text-white">
-                      {t.debtItem(label)}
+                      {bankFlag === '1' ? t.bankLoanItem(label) : t.debtItem(label)}
                     </span>
                     <span className="text-[11px] font-bold tabular-nums text-red-300">
                       ₺{fmt(remaining)} · {t.perDay(daily)}
@@ -698,6 +749,13 @@ export function HUD() {
           >
             {mutedUi ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
           </button>
+          <button
+            onClick={() => setBankOpen((o) => !o)}
+            className={`pointer-events-auto flex cursor-pointer items-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-emerald-950/50 ring-1 ring-inset ring-white/20 transition active:scale-95
+              ${bankOpen ? 'bg-gradient-to-b from-emerald-400 to-emerald-500' : 'bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500'}`}
+          >
+            <Landmark className="h-4 w-4" /> {t.tabBank}
+          </button>
         <button
           onClick={() => setBuildOpen((o) => !o)}
           className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-red-950/50 ring-1 ring-inset ring-white/20 transition active:scale-95
@@ -710,6 +768,149 @@ export function HUD() {
         </button>
         </div>
       </div>
+
+
+      {/* Banka modalı: İnşaat'tan bağımsız */}
+      {bankOpen && (
+        <div className="pointer-events-auto fixed inset-0 z-10 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setBankOpen(false)} />
+          <div className={`relative flex max-h-[82dvh] w-[700px] max-w-[94vw] flex-col overflow-hidden ${GLASS}`}>
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <span className="flex items-center gap-2 text-sm font-black text-white">
+                <span className="h-4 w-1 rounded-full bg-emerald-500" /> <Landmark className="h-4 w-4" /> {t.tabBank}
+              </span>
+              <button
+                onClick={() => setBankOpen(false)}
+                className="cursor-pointer rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-white/70 transition hover:bg-white/20"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4">
+{(() => {
+                const bank = BANKS[bankIdx]
+                const limit = bankLimitOf(statsHistory, bank.limitFactor)
+                const used = Number(bankUsedKey.split(',')[bankIdx] ?? 0)
+                const avail = Math.max(0, limit - used)
+                const repOk = rep >= bank.minRep
+                const scoreOk = creditScore >= bank.minScore
+                const depositAmt = Math.max(
+                  CONFIG.depositMin,
+                  Math.floor((money * depositPct) / 100 / 1000) * 1000,
+                )
+                const canDeposit = money >= CONFIG.depositMin && depositAmt <= money
+                const loanAmt = Math.floor((avail * loanPct) / 100 / 1000) * 1000
+                return (
+                  <div className="col-span-2 flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
+                        {t.creditScoreLabel}
+                      </span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className={`h-full rounded-full ${creditScore >= 60 ? 'bg-emerald-500' : creditScore >= CONFIG.creditScoreMin ? 'bg-amber-500' : 'bg-red-500'}`}
+                          style={{ width: `${creditScore}%` }}
+                        />
+                      </div>
+                      <span className="text-[11px] font-black tabular-nums text-white">{creditScore}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {BANKS.map((b, i) => (
+                        <button
+                          key={b.id}
+                          onClick={() => setBankIdx(i)}
+                          className={`flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-extrabold transition
+                            ${bankIdx === i ? 'bg-white text-neutral-900' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}
+                        >
+                          <Landmark className="h-3 w-3" /> {t.bankNames[b.id]}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="text-[10px] font-bold text-white/45">{t.bankDescs[bank.id]}</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <ModalCard
+                        icon={<PiggyBank className="h-7 w-7 text-emerald-300" />}
+                        title={t.depositTitle}
+                        badge={`₺${fmt(depositAmt)}`}
+                        badgeClass="bg-emerald-400/15 text-emerald-300"
+                        desc={t.depositDesc}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <ShareSlider value={depositPct} min={10} max={100} onChange={setDepositPct} />
+                          <span className="w-8 text-right text-[10px] font-bold tabular-nums text-white/50">%{depositPct}</span>
+                        </div>
+                        {CONFIG.depositTerms.map((term, ti) => {
+                          const rate = CONFIG.depositDailyRates[ti] * bank.depositMult
+                          const payout = Math.round(depositAmt * (1 + rate * term))
+                          return (
+                            <PriceButton
+                              key={term}
+                              label={t.depositTermBtn(term, (rate * 100).toFixed(1), fmt(payout))}
+                              enabled={canDeposit}
+                              onClick={() => openDeposit(bankIdx, depositAmt, ti)}
+                            />
+                          )
+                        })}
+                      </ModalCard>
+                      <ModalCard
+                        icon={<Landmark className="h-7 w-7 text-sky-300" />}
+                        title={t.loanTitle}
+                        badge={t.loanLimit(fmt(used), fmt(limit))}
+                        badgeClass="bg-sky-400/15 text-sky-300"
+                        desc={t.loanDesc(CONFIG.bankLoanTermDays)}
+                      >
+                        {!repOk && (
+                          <div className="rounded-lg bg-red-400/10 px-1.5 py-1 text-center text-[10px] font-bold text-red-300">
+                            {t.loanNeedRep(bank.minRep)}
+                          </div>
+                        )}
+                        {!scoreOk && (
+                          <div className="rounded-lg bg-red-400/10 px-1.5 py-1 text-center text-[10px] font-bold text-red-300">
+                            {t.loanNeedScore(bank.minScore)}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          <ShareSlider value={loanPct} min={10} max={100} onChange={setLoanPct} />
+                          <span className="w-8 text-right text-[10px] font-bold tabular-nums text-white/50">%{loanPct}</span>
+                        </div>
+                        <PriceButton
+                          label={`${t.loanTake} ₺${fmt(loanAmt)}`}
+                          enabled={repOk && scoreOk && loanAmt > 0}
+                          onClick={() => takeBankLoan(bankIdx, loanAmt)}
+                        />
+                      </ModalCard>
+                    </div>
+                    {depositsKey && (
+                      <div className="flex flex-col gap-1.5">
+                        {depositsKey.split(',').map((entry) => {
+                          const [idStr, bankId, amountStr, daysStr, rateStr, termStr] = entry.split('|')
+                          const payout = Math.round(Number(amountStr) * (1 + Number(rateStr) * Number(termStr)))
+                          return (
+                            <div key={idStr} className="flex items-center gap-2 rounded-xl bg-white/5 px-2 py-1.5">
+                              <PiggyBank className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                              <span className="flex-1 text-[11px] font-bold text-white/70">
+                                {t.depositActive(t.bankNames[bankId] ?? bankId, Number(daysStr))}
+                              </span>
+                              <span className="text-[11px] font-extrabold tabular-nums text-emerald-300">
+                                ₺{fmt(Number(amountStr))} → ₺{fmt(payout)}
+                              </span>
+                              <MiniButton
+                                label={t.depositBreak}
+                                enabled
+                                onClick={() => breakDeposit(Number(idStr))}
+                              />
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* İnşaat & Yatırım modalı: sekmeli, kart grid'li */}
       {buildOpen && (
@@ -738,6 +939,7 @@ export function HUD() {
                   ['tesis', <><Building2 className="h-3.5 w-3.5" /> {t.sectionFacilities}</>],
                   ['kontrat', <><FileText className="h-3.5 w-3.5" /> {t.tabContracts}</>],
                   ['taksi', <><CarTaxiFront className="h-3.5 w-3.5" /> {t.tabTaxi}</>],
+                  ['kiralama', <><KeyRound className="h-3.5 w-3.5" /> {t.tabRental}</>],
                   ['devren', <><Handshake className="h-3.5 w-3.5" /> {t.devren}</>],
                   ['stats', <><BarChart3 className="h-3.5 w-3.5" /> {t.tabStats}</>],
                   ['prestij', <><Star className="h-3.5 w-3.5" /> {t.tabPrestige}</>],
@@ -805,6 +1007,55 @@ export function HUD() {
                   />
                 </ModalCard>
               )}
+              {buildTab === 'arac' &&
+                (
+                  [
+                    {
+                      kind: 'bus' as BusKind,
+                      icon: <BusFront className="h-7 w-7 text-orange-300" />,
+                      title: t.buyBus,
+                      desc: t.busDesc,
+                      price: CONFIG.busCost + CONFIG.busCostStep * busCount,
+                      locked: false,
+                    },
+                    {
+                      kind: 'artic' as BusKind,
+                      icon: <Bus className="h-7 w-7 text-rose-300" />,
+                      title: t.buyArtic,
+                      desc: t.articDesc,
+                      price: CONFIG.articCost + CONFIG.articCostStep * articCount,
+                      locked: false,
+                    },
+                    {
+                      kind: 'ebus' as BusKind,
+                      icon: <Zap className="h-7 w-7 text-lime-300" />,
+                      title: t.buyEbus,
+                      desc: buildings.sarj ? t.ebusDesc : `${t.ebusDesc} — ${t.needSarj}`,
+                      price: CONFIG.ebusCost + CONFIG.ebusCostStep * ebusCount,
+                      locked: !buildings.sarj,
+                    },
+                  ]
+                ).map((b) => (
+                  <ModalCard
+                    key={b.kind}
+                    icon={b.icon}
+                    title={b.title}
+                    badge={t.seatsBadge(VEHICLE_SPECS[b.kind].seats)}
+                    badgeClass="bg-orange-400/15 text-orange-300"
+                    desc={b.desc}
+                  >
+                    <PriceButton
+                      label={<><Banknote className="h-3.5 w-3.5" /> {t.payCash} ₺{fmt(b.price)}</>}
+                      enabled={!b.locked && money >= b.price && hasFreeSpot}
+                      onClick={() => buyBus(b.kind, 'cash')}
+                    />
+                    <PriceButton
+                      label={<><ScrollText className="h-3.5 w-3.5" /> {t.payLoan} ₺{fmt(Math.ceil(b.price * CONFIG.loanDownRate))}</>}
+                      enabled={!b.locked && money >= Math.ceil(b.price * CONFIG.loanDownRate) && hasFreeSpot}
+                      onClick={() => buyBus(b.kind, 'loan')}
+                    />
+                  </ModalCard>
+                ))}
               {buildTab === 'personel' && (
                 <>
                   <ModalCard
@@ -994,6 +1245,44 @@ export function HUD() {
                         </ModalCard>
                       )
                     })}
+                </>
+              )}
+              {buildTab === 'kiralama' && (
+                <>
+                  <ModalCard
+                    icon={<KeyRound className="h-7 w-7 text-teal-300" />}
+                    title={t.rentalOfficeTitle}
+                    badge={rentalOffice ? `✓ ${t.built}` : undefined}
+                    badgeClass="bg-emerald-400/15 text-emerald-300"
+                    desc={t.rentalOfficeDesc}
+                  >
+                    <PriceButton
+                      label={rentalOffice ? `✓ ${t.built}` : `₺${fmt(CONFIG.kiralamaOfisCost)}`}
+                      enabled={!rentalOffice && money >= CONFIG.kiralamaOfisCost}
+                      onClick={buyRentalOffice}
+                    />
+                  </ModalCard>
+                  <ModalCard
+                    icon={<CarFront className="h-7 w-7 text-teal-300" />}
+                    title={t.rentalCarTitle}
+                    badge={t.rentalCount(rentalCars, CONFIG.rentalCarMax)}
+                    badgeClass="bg-teal-400/15 text-teal-300"
+                    desc={rentalOffice ? t.rentalCarDesc : `${t.rentalCarDesc} — ${t.rentalNeedOffice}`}
+                  >
+                    <PriceButton
+                      label={
+                        rentalCars >= CONFIG.rentalCarMax
+                          ? t.maxed
+                          : `₺${fmt(CONFIG.rentalCarCost + CONFIG.rentalCarStep * rentalCars)}`
+                      }
+                      enabled={
+                        rentalOffice &&
+                        rentalCars < CONFIG.rentalCarMax &&
+                        money >= CONFIG.rentalCarCost + CONFIG.rentalCarStep * rentalCars
+                      }
+                      onClick={buyRentalCar}
+                    />
+                  </ModalCard>
                 </>
               )}
               {buildTab === 'stats' && (() => {
@@ -1249,7 +1538,7 @@ export function HUD() {
 
       {/* Seçili araç detayı */}
       {selectedEntry && (() => {
-        const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr, kindStr, driverName, driverSkillStr, moralStr] = selectedEntry.split('|')
+        const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr, kindStr, driverName, driverSkillStr, moralStr, partnersStr] = selectedEntry.split('|')
         const id = Number(idStr)
         const fuel = Number(fuelStr)
         const wear = Number(wearStr)
@@ -1262,12 +1551,15 @@ export function HUD() {
         const pendF = pendFStr === '1'
         const pendR = pendRStr === '1'
         const isVito = kindStr === 'vito'
-        const fuelPct = (fuel / CONFIG.fuelCapacity) * 100
+        const spec = VEHICLE_SPECS[kindStr] ?? VEHICLE_SPECS.dolmus
+        const fuelPct = (fuel / spec.tank) * 100
         const stateText = t.state[state as keyof typeof t.state]
         const warn = state === 'noDriver' || state === 'noFuel' || state === 'wornOut'
-        const refuelPrice = Math.ceil((CONFIG.fuelCapacity - fuel) * fuelPrice)
+        // Birim fiyat: elektrikli şarj / tanklı toptan mazot indirimi dahil
+        const unitPrice = fuelUnitPrice(kindStr as VehicleKind, fuelPrice, buildings)
+        const refuelPrice = Math.ceil((spec.tank - fuel) * unitPrice)
         const repairPrice = Math.ceil(
-          wear * CONFIG.repairCostPerUnit * (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
+          wear * CONFIG.repairCostPerUnit * spec.repairMult * (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
         )
         // Fiilen parkta mı? (pseudo-durumlar da parkta bekleyen aracı temsil eder)
         const isParked = state === 'parked' || state === 'noFuel' || state === 'wornOut'
@@ -1328,7 +1620,7 @@ export function HUD() {
               )
             })()}
             <div className="mt-1.5 flex flex-col gap-1">
-              <Bar icon={<Fuel className="h-3 w-3" />} pct={fuelPct} from="from-amber-500" to="to-yellow-400" low={fuel < CONFIG.fuelPerTrip} />
+              <Bar icon={<Fuel className="h-3 w-3" />} pct={fuelPct} from="from-amber-500" to="to-yellow-400" low={fuel < spec.fuelPerTrip} />
               <Bar icon={<Wrench className="h-3 w-3" />} pct={100 - wear} from="from-emerald-500" to="to-green-400" low={wear >= 100} />
             </div>
             <div className="mt-2 flex gap-1.5">
@@ -1357,6 +1649,13 @@ export function HUD() {
               share={share}
               valuation={valuation}
               money={money}
+              partners={(partnersStr ?? '')
+                .split(';')
+                .filter(Boolean)
+                .map((p) => {
+                  const [name, pct] = p.split('~')
+                  return { name, pct: Number(pct) }
+                })}
               onSell={sellShare}
               onBuyBack={buyBackShare}
             />
@@ -1370,7 +1669,7 @@ export function HUD() {
               ) : (
                 <>
                   <span className="flex-1 rounded-lg bg-indigo-400/15 px-1.5 py-1.5 text-center text-[10px] font-bold text-indigo-300">
-                    {t.kahya} {t.kahyaLevel(kahya)} · {t.kahyaEffect(cap - CONFIG.seatCount)}
+                    {t.kahya} {t.kahyaLevel(kahya)} · {t.kahyaEffect(cap - spec.seats)}
                   </span>
                   {kahya < CONFIG.kahyaMaxLevel && (
                     <MiniButton

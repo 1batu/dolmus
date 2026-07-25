@@ -21,6 +21,13 @@ Idle/tycoon game about running a Turkish dolmuş (shared minibus) terminal. Web-
 | ⛽ Pompa & planlı bakım | "Doldur" basınca araç fiilen terminaldeki pompaya sürer. Araç seferdeyken basılırsa ⏳ planlanır, parka dönünce uygulanır |
 | 📈 Filo talebi | Şoförlü araç başına: yolcu gelişi +%25, kuyruk kapasitesi +6, hat indi-bindisi +%10 |
 | 🗂 Kompakt filo kartları | Alt şeritte plaka + durum + barlar; tıklayınca tek kart genişleyip tüm yönetimi açar |
+| 🏦 Bankacılık | Ayrı Banka butonu/modali. 3 banka (Esnaf/DolmuşBank/Boğaziçi): farklı şart, faiz, limit. Vadeli mevduat (7/15/30 gün), kredi skoru (temiz gün +1, ekside -8), skorlu kurumsal kredi. 3 gün üst üste ödenmezse **haciz**: en değerli araç alacaklıya gider. Gün içinde elle ödenen taksit o akşam otomatiğe girmez |
+| 🚌 Otobüs sınıfı | Solo (27 koltuk, ₺5,5M), körüklü (42 koltuk, 3 kapı, ₺9,5M), elektrikli (30 koltuk, ₺12,5M — şarj istasyonu şart, şarj motorinin ~%30'u, itibar 2 kat). "34 O" plakası, hat hasılatı çarpanlı, bakım/tüketim kasayla ölçekli |
+| ⚡ Enerji & akaryakıt tesisleri | Şarj istasyonu (e-otobüs ön şartı), güneş paneli+depo (şarj %65 daha ucuz), akaryakıt tankı (kendi filo %10 indirimli doldurur + hattın esnafına saatlik mazot satışı kârı) |
+| 🔑 Araç kiralama | Rent-a-car ofisi + 8 araca kadar filo; her akşam itibara bağlı dolulukla günlük kira (₺2.500-4.500/araç). Sahnede tabelalı ofis + dizili sedanlar |
+| 🅿️ Büyük terminal | 2 sıra × 10 = 20 park cebi (arka sıra yarım cep kaymalı — çıkışta çarpışma yok), tesisler güney şeridinde, binalarda Türkçe canvas tabelalar (BÜFE, TAMİRHANE, GİRİŞ/ÇIKIŞ...) |
+| ⏩ Gece hızlanma | 00:00-06:00 arası simülasyon 2× hızlı akar — sabah çabuk gelir |
+| 🚨 Araç üstü rozetler | Yakıt %25 altına düşünce pompa, yıpranma %75'i geçince anahtar rozeti aracın üstünde süzülür (kritikte kırmızı) — lucide glyph'leri canvas sprite olarak |
 | 💾 Save/load | 2,5 sn'de bir localStorage; `SAVE_VERSION` + `SAVE_ACCEPTS` ile geriye uyumlu şema; iki aşamalı Sıfırla (İnşaat modalında) |
 
 ## Stack
@@ -76,7 +83,12 @@ npm run dev
 18. ~~**Mobil/PWA**~~ ✅ — manifest + ikon + landscape, dokunmatik uyumlu HUD
 19. ~~**Lucide ikonları**~~ ✅ — emoji chrome'u modern ikon setine geçti
 
+20. ~~**Bankacılık**~~ ✅ — 3 banka, mevduat, kredi skoru, kurumsal kredi, haciz, isimli ortaklar (45 isim)
+21. ~~**Otobüs sınıfı**~~ ✅ — solo/körüklü/elektrikli + şarj istasyonu, güneş paneli, akaryakıt tankı
+22. ~~**Araç kiralama**~~ ✅ — rent-a-car ofisi + günlük kiralık filo
+23. ~~**Terminal büyümesi**~~ ✅ — 20 park cebi (2 sıra), Türkçe tabelalar, gece 2× hız, araç üstü uyarı rozetleri, renkli rakip minibüsler
+
 ### Kalan
-20. **Yayın** — Vercel deploy → oynanabilir link; sonrasında Capacitor ile mağaza
-21. **Onboarding** — ilk oyuncu rehberi
-22. **Skor kartı paylaşımı** — tek tuşla şık görsel üret, sosyal medyaya at
+24. **Yayın** — Vercel deploy → oynanabilir link; sonrasında Capacitor ile mağaza
+25. **Onboarding** — ilk oyuncu rehberi
+26. **Skor kartı paylaşımı** — tek tuşla şık görsel üret, sosyal medyaya at
