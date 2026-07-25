@@ -9,8 +9,8 @@ export const CONFIG = {
   // Gelir
   farePerPassenger: 43, // ₺, indi-bindi (0-4 km tarifesi)
   nightFareMultiplier: 1.5, // gece tarifesi (00:00-06:00)
-  enRouteFaresMin: 30, // hat boyunca inen-binen ek yolcu (dönüşte kasaya girer)
-  enRouteFaresMax: 60, // gerçek günlük ciroyu (₺13-15k/araç) yakalayan ana kalem
+  enRouteFaresMin: 38, // hat boyunca inen-binen ek yolcu (dönüşte kasaya girer)
+  enRouteFaresMax: 72, // İstanbul yoğunluğu: gerçek günlük ciroyu yakalayan ana kalem
   kahyaEnRouteBonus: 0.15, // kahya seviyesi başına durak dışı indi-bindi artışı
 
   // Yakıt (litre bazlı)
@@ -31,8 +31,8 @@ export const CONFIG = {
   spawnIntervalMax: 2.0,
   nightSpawnFactor: 4, // gece yolcu aralığı çarpanı (00:00-06:00)
   maxQueue: 20,
-  // Filo etkisi: hat büyüdükçe talep büyür (şoförlü araç başına)
-  fleetSpawnBonus: 0.25, // yolcu geliş hızı artışı (+%25/araç)
+  // Filo etkisi: hat büyüdükçe talep büyür (talep ağırlığı başına — otobüs > minibüs)
+  fleetSpawnBonus: 0.2, // yolcu geliş hızı artışı (+%20/ağırlık birimi)
   fleetQueueBonus: 6, // kuyruk kapasitesi artışı (+6/araç)
   fleetEnRouteBonus: 0.1, // hat boyu indi-bindi artışı (+%10/araç)
 
@@ -85,7 +85,10 @@ export const CONFIG = {
   loanTermDays: 30, // taksit süresi (gün)
   spotBaseCost: 30000, // park cebi devri, her cepte katlanır
   maxSpots: 20, // iki sıra × 10 cep — otobüs filosuna yer var
-  startMoney: 150000,
+  // Ek peron durakları: aynı anda birden çok araç yolcu alır (kuyruk hızlı erir)
+  peronMax: 3,
+  peronCosts: [2500000, 7500000], // 2. ve 3. peronun bedeli
+  startMoney: 100000000, // TEST: normali 150000 — yayından önce geri al!
   startSpots: 2,
 
   // İtibar (0-5 ⭐): yüksek itibar durağa daha çok yolcu çeker
@@ -168,14 +171,16 @@ export const CONFIG = {
   yakitTankiSaleLMax: 120,
   yakitTankiMarginPerL: 9, // ₺/L kâr marjı
 
-  // Servis kontratları: okul/personel — sabah-akşam iki sefer, günlük sabit gelir
+  // Servis kontratları: okul/personel — sabah-akşam iki sefer, günlük sabit gelir.
+  // Tem 2026 tarifesi: okul servisi ₺4.456/öğrenci-ay (0-1 km), personel ₺2.513/kişi-ay
+  // taban — dolu bir araç aylık ₺135-285k kontrat cirosu yapar
   contractSlots: 2, // aynı anda azami kontrat
   contractOfferMin: 60, // yeni teklif aralığı (sn)
   contractOfferMax: 140,
-  contractOfferLifetime: 60, // teklifin geçerlilik süresi (sn)
+  contractOfferLifetime: 90, // teklifin geçerlilik süresi (sn)
   contractDays: 30, // kontrat süresi (gün)
-  contractDailyMin: 3000, // günlük ödeme bandı (₺) — aylık ₺90-180k
-  contractDailyMax: 6000,
+  contractDailyMin: 4500, // günlük ödeme bandı (₺)
+  contractDailyMax: 9500,
   contractMorningHour: 7, // sabah seferi penceresi başlangıcı
   contractEveningHour: 17, // akşam seferi
   contractGraceHours: 2, // pencere içinde araç çıkmazsa sefer kaçar
@@ -184,23 +189,41 @@ export const CONFIG = {
   contractWear: 3, // sefer yıpranması (%)
   contractMissRep: 0.1, // kaçan sefer itibar cezası
 
-  // Taksi işletmesi: plaka Tem 2026 İstanbul borsası — geç oyun hedefi
+  // Taksi işletmesi: plaka Tem 2026 İstanbul borsası — geç oyun hedefi.
+  // Taksimetre (20 Tem 2026): açılış ₺71,94 · km ₺47,92 · indi-bindi ₺230
   taxiPlateCost: 11500000, // ₺ (gerçek: ₺11,5-12M)
   taxiPlateMax: 3,
   taxiRentDaily: 2200, // kiradaki plakanın günlük getirisi (~₺66k/ay)
   taxiCarCost: 750000, // sarı taksi aracı
-  taxiOperateMin: 6000, // kendi işletmede günlük net bandı (₺)
-  taxiOperateMax: 12000,
+  taxiOperateMin: 6500, // gündüz vardiyası günlük net bandı (₺, yeni tarifeyle)
+  taxiOperateMax: 13000,
+  // Gece vardiyası: ikinci şoför tut, taksi 24 saat döner — gece hasılatı düşükçe
+  taxiNightMin: 4500,
+  taxiNightMax: 9000,
+  taxiNightWage: 2500, // gece şoförü yevmiyesi
 
   // Araç kiralama (rent-a-car): ofis kur, filo al — her akşam doluluk oranınca kira yatar
   kiralamaOfisCost: 500000, // ₺ ofis + otopark alanı
   rentalCarCost: 1100000, // ₺ sıfır sedan (filo alım fiyatı)
   rentalCarStep: 100000, // her ilave araçta artış
-  rentalCarMax: 8,
+  rentalCarMax: 15, // yazıhane arkasındaki otopark kapasitesi
   rentalDailyMin: 2500, // günlük kira bandı (₺, 2026: ekonomik sedan ₺2.500-4.500)
   rentalDailyMax: 4500,
   rentalOccBase: 0.55, // doluluk tabanı — itibar yükseldikçe artar
   rentalOccPerRep: 0.06, // yıldız başına doluluk artışı
+  // Kiralık araçlar gerçek araçtır: yakıt yakar, yıpranır, bakım ister
+  rentalTank: 60, // benzinli sedan deposu (L)
+  rentalFuelPerDayMin: 12, // kiralanan günde yakılan yakıt (L)
+  rentalFuelPerDayMax: 22,
+  rentalWearPerDayMin: 4, // kiralanan günde yıpranma (%)
+  rentalWearPerDayMax: 8,
+  rentalRepairPerUnit: 60, // ₺/puan — tam bakım ≈ ₺6.000
+  rentalMinFuel: 15, // altında araç kiraya verilemez (depo doldur)
+  // Teminat: kiralamada müşteriden alınır; teslimde yıpranma bedeli kesilir,
+  // kalanı 3-4 gün sonra iade edilir. Yakıt full-to-full: müşteri doldurup verir.
+  rentalDeposit: 15000, // ₺
+  rentalRefundDaysMin: 3,
+  rentalRefundDaysMax: 4,
 
   // Offline kazanç: kapalıyken terminal düşük verimle çalışır
   offlineCapSec: 4 * 3600, // azami birikim süresi (gerçek sn)
@@ -263,14 +286,18 @@ export const CONFIG = {
   marketHirePerSkill: 3500,
 
   // Banka: vadeli mevduat + kurumsal kredi (senetin medeni rakibi)
+  // Tem 2026 gerçek piyasa: TCMB politika faizi %37, mevduat yıllık %35-46,
+  // ihtiyaç kredisi aylık %2,8-5,5 (ort. %3,7). Oyun günü kısa olduğu için
+  // oranlar ~×3 tempo çarpanıyla ölçekli; bankalar arası makas gerçek piyasayla aynı.
   depositTerms: [7, 15, 30], // vade seçenekleri (gün)
-  depositDailyRates: [0.008, 0.012, 0.016], // vadeye göre günlük basit faiz
+  depositDailyRates: [0.0025, 0.0032, 0.004], // günlük basit faiz — 30 günde ~%12 (gerçek: %3,5)
   depositMin: 10000, // asgari mevduat ₺
-  bankLoanMarkup: 0.08, // taban vade farkı (kredi skoru kötüyse artar)
-  bankLoanScorePenalty: 0.06, // (100-skor)/100 × bu kadar ek vade farkı
+  bankLoanMarkup: 0.055, // taban vade farkı ≈ aylık %3,7 (Tem 2026 ihtiyaç kredisi ortalaması)
+  bankLoanScorePenalty: 0.06, // (100-skor)/100 × bu kadar ek vade farkı — kötü skor %5,5/ay bandına iter
   bankLoanTermDays: 45,
   bankMinRep: 3.5, // kredi için asgari itibar
   bankLimitFactor: 10, // limit = son 7 gün ort. günlük gelir × bu
+  bankAssetFactor: 0.5, // hipotek: filo değerinin bu kadarı limite eklenir
   creditScoreStart: 70, // 0-100
   creditScoreMissPenalty: 8, // ödeme günü kasa eksideyse
   creditScoreGoodDay: 1, // temiz ödeme günü başına
@@ -290,13 +317,14 @@ export type VehicleSpec = {
   boardMult: number // biniş süresi çarpanı (kapı sayısı etkisi)
   enRouteMult: number // hat boyu indi-bindi çarpanı
   repMult: number // sefer başına itibar çarpanı (elektrikli çevreci)
+  demandWeight: number // talep katkısı: otobüs durağa minibüsten çok yolcu çeker
 }
 export const VEHICLE_SPECS: Record<string, VehicleSpec> = {
-  dolmus: { seats: 14, tank: 80, fuelPerTrip: 6, wearPerTrip: 4, repairMult: 1, boardMult: 1, enRouteMult: 1, repMult: 1 },
-  vito: { seats: 6, tank: 80, fuelPerTrip: 6, wearPerTrip: 4, repairMult: 1, boardMult: 1, enRouteMult: 1, repMult: 1 },
-  bus: { seats: 27, tank: 200, fuelPerTrip: 14, wearPerTrip: 4, repairMult: 1.8, boardMult: 1, enRouteMult: 1.7, repMult: 1 },
-  artic: { seats: 42, tank: 300, fuelPerTrip: 19, wearPerTrip: 4.5, repairMult: 2.4, boardMult: 0.8, enRouteMult: 2.3, repMult: 1 },
-  ebus: { seats: 30, tank: 250, fuelPerTrip: 15, wearPerTrip: 3.5, repairMult: 1.3, boardMult: 0.9, enRouteMult: 1.8, repMult: 2 },
+  dolmus: { seats: 14, tank: 80, fuelPerTrip: 6, wearPerTrip: 4, repairMult: 1, boardMult: 1, enRouteMult: 1, repMult: 1, demandWeight: 1 },
+  vito: { seats: 6, tank: 80, fuelPerTrip: 6, wearPerTrip: 4, repairMult: 1, boardMult: 1, enRouteMult: 1, repMult: 1, demandWeight: 0 },
+  bus: { seats: 27, tank: 200, fuelPerTrip: 14, wearPerTrip: 4, repairMult: 1.8, boardMult: 1, enRouteMult: 1.7, repMult: 1, demandWeight: 1.8 },
+  artic: { seats: 42, tank: 300, fuelPerTrip: 19, wearPerTrip: 4.5, repairMult: 2.4, boardMult: 0.8, enRouteMult: 2.3, repMult: 1, demandWeight: 2.6 },
+  ebus: { seats: 30, tank: 250, fuelPerTrip: 15, wearPerTrip: 3.5, repairMult: 1.3, boardMult: 0.9, enRouteMult: 1.8, repMult: 2, demandWeight: 2 },
 }
 
 // Şoförlü araç sayısına göre kuyruk kapasitesi

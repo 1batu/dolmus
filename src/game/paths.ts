@@ -29,9 +29,28 @@ export function spotPos(i: number): P2 {
   ]
 }
 
-// Park yerinden perona
-export function toPeronPath(spot: P2): P2[] {
-  return [spot, [spot[0], LAYOUT.aisleZ], [LAYOUT.peronX, LAYOUT.aisleZ]]
+// Peron durakları: 1. ana peron (güney platform), 2-3. kuzey cebindeki ek
+// duraklar — satın alındıkça açılır, aynı anda birden çok araç yolcu alır.
+// Kuzey cebi (z 10) servis yolunun dışında: bekleyen araç trafiği kapatmaz.
+export const PERON_STOPS: P2[] = [
+  [LAYOUT.peronX, LAYOUT.aisleZ],
+  [-2, 10],
+  [8, 10],
+]
+
+// Park yerinden perona (peron seçmeli)
+export function toPeronPath(spot: P2, peronIdx = 0): P2[] {
+  const stop = PERON_STOPS[peronIdx] ?? PERON_STOPS[0]
+  if (peronIdx === 0) return [spot, [spot[0], LAYOUT.aisleZ], stop]
+  // Kuzey cebine: servis yolundan cebe kırar, son metrede düzleşip platforma
+  // paralel yanaşır (çapraz durmasın)
+  return [
+    spot,
+    [spot[0], LAYOUT.aisleZ],
+    [stop[0] - 5.5, LAYOUT.aisleZ],
+    [stop[0] - 2.5, stop[1]],
+    stop,
+  ]
 }
 
 // Perondan doğu kapısına, sağa dönüp ekran dışına (sefer başlangıcı)
@@ -41,6 +60,31 @@ export const departPath: P2[] = [
   [LAYOUT.gateOutX, LAYOUT.laneNearZ],
   [LAYOUT.offX, LAYOUT.laneNearZ],
 ]
+
+export function departPathOf(peronIdx: number): P2[] {
+  if (peronIdx <= 0) return departPath
+  const stop = PERON_STOPS[peronIdx] ?? PERON_STOPS[0]
+  return [
+    stop,
+    [stop[0] + 2.5, stop[1]],
+    [stop[0] + 5.5, LAYOUT.aisleZ],
+    [LAYOUT.gateOutX, LAYOUT.aisleZ],
+    [LAYOUT.gateOutX, LAYOUT.laneNearZ],
+    [LAYOUT.offX, LAYOUT.laneNearZ],
+  ]
+}
+
+// Parktan doğrudan sefere (özel servis/VIP/kontrat): cebinden çıkar,
+// servis yolundan doğu kapısına sürer — ışınlanma yok
+export function spotDepartPath(spot: P2): P2[] {
+  return [
+    spot,
+    [spot[0], LAYOUT.aisleZ],
+    [LAYOUT.gateOutX, LAYOUT.aisleZ],
+    [LAYOUT.gateOutX, LAYOUT.laneNearZ],
+    [LAYOUT.offX, LAYOUT.laneNearZ],
+  ]
+}
 
 // Seferden dönüş: batı kapısından girip park yerine
 export function returnPath(spot: P2): P2[] {
@@ -62,6 +106,30 @@ export function toPumpPath(spot: P2): P2[] {
 
 export function fromPumpPath(spot: P2): P2[] {
   return [PUMP_STOP, [PUMP_STOP[0], LAYOUT.aisleZ], [spot[0], LAYOUT.aisleZ], spot]
+}
+
+// Şarj istasyonu (tesis şeridinde): elektrikli araçlar pompaya değil buraya sürer.
+// x=-4 dikey koridoru park ceplerinin batısında kalır — parktakilere çarpmaz.
+export const CHARGE_STOP: P2 = [-4, -11]
+
+export function toChargePath(spot: P2): P2[] {
+  return [spot, [spot[0], LAYOUT.aisleZ], [CHARGE_STOP[0], LAYOUT.aisleZ], CHARGE_STOP]
+}
+
+export function fromChargePath(spot: P2): P2[] {
+  return [CHARGE_STOP, [CHARGE_STOP[0], LAYOUT.aisleZ], [spot[0], LAYOUT.aisleZ], spot]
+}
+
+// Tamirhane servis alanı: ağır arızalı araç doğu koridorundan (x=47, tüm park
+// ceplerinin dışından) inip tamirhanenin yanındaki servis parkına çekilir
+export const REPAIR_STOP: P2 = [28.5, -13]
+
+export function toRepairPath(spot: P2): P2[] {
+  return [spot, [spot[0], LAYOUT.aisleZ], [47, LAYOUT.aisleZ], [47, REPAIR_STOP[1]], REPAIR_STOP]
+}
+
+export function fromRepairPath(spot: P2): P2[] {
+  return [REPAIR_STOP, [47, REPAIR_STOP[1]], [47, LAYOUT.aisleZ], [spot[0], LAYOUT.aisleZ], spot]
 }
 
 export function pathLength(path: P2[]): number {

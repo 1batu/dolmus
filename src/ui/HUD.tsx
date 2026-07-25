@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useGame, BANKS, BUILDING_COSTS, bankLimitOf, capacityOf, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
+import { useGame, BANKS, BUILDING_COSTS, bankLimitOf, capacityOf, fleetAssetValue, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
 import { CONFIG, VEHICLE_SPECS, clockOf, queueCapOf } from '../game/config'
 import {
   AlertTriangle,
@@ -345,6 +345,7 @@ const STATE_STYLE: Record<string, string> = {
   noDriver: 'bg-red-400/15 text-red-300',
   noFuel: 'bg-red-400/15 text-red-300',
   wornOut: 'bg-red-400/15 text-red-300',
+  inRepair: 'bg-orange-400/15 text-orange-300',
 }
 
 // Dock çipindeki durum noktası renkleri
@@ -363,6 +364,7 @@ const DOT_STYLE: Record<string, string> = {
   noDriver: 'bg-red-500 animate-pulse',
   noFuel: 'bg-red-500 animate-pulse',
   wornOut: 'bg-red-500 animate-pulse',
+  inRepair: 'bg-orange-500 animate-pulse',
 }
 
 function Bar({ icon, pct, from, to, low }: { icon: ReactNode; pct: number; from: string; to: string; low: boolean }) {
@@ -380,16 +382,187 @@ function Bar({ icon, pct, from, to, low }: { icon: ReactNode; pct: number; from:
   )
 }
 
-function MiniButton({ label, enabled, onClick }: { label: ReactNode; enabled: boolean; onClick: () => void }) {
+function MiniButton({ label, enabled, onClick, active = false }: { label: ReactNode; enabled: boolean; onClick: () => void; active?: boolean }) {
   return (
     <button
       onClick={onClick}
       disabled={!enabled}
       className={`pointer-events-auto flex flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[10px] font-bold tabular-nums transition active:scale-95
-        ${enabled ? 'cursor-pointer bg-white/15 text-white hover:bg-white/25' : 'bg-white/5 text-white/25'}`}
+        ${active ? 'cursor-pointer bg-indigo-400/30 text-indigo-200 ring-1 ring-inset ring-indigo-300/40' : enabled ? 'cursor-pointer bg-white/15 text-white hover:bg-white/25' : 'bg-white/5 text-white/25'}`}
     >
       {label}
     </button>
+  )
+}
+
+// Araç detay gövdesi: hem sol alttaki yüzen panelde (3D tıklama) hem Filo
+// modalının içinde kullanılır — tüm veri/aksiyonlar store'dan çekilir
+function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string; onClose: () => void; floating?: boolean }) {
+  const money = useGame((s) => s.money)
+  const buildings = useGame((s) => s.buildings)
+  const fuelPrice = useGame((s) => s.fuelPrice)
+  const pumpBusy = useGame((s) =>
+    s.vehicles.some((v) => v.state === 'toPump' || v.state === 'fueling'),
+  )
+  const refuel = useGame((s) => s.refuel)
+  const repair = useGame((s) => s.repair)
+  const toggleNightShift = useGame((s) => s.toggleNightShift)
+  const cayMolasi = useGame((s) => s.cayMolasi)
+  const sellShare = useGame((s) => s.sellShare)
+  const buyBackShare = useGame((s) => s.buyBackShare)
+  const hireKahya = useGame((s) => s.hireKahya)
+  const upgradeKahya = useGame((s) => s.upgradeKahya)
+
+  const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr, kindStr, driverName, driverSkillStr, moralStr, partnersStr] = entry.split('|')
+  const id = Number(idStr)
+  const fuel = Number(fuelStr)
+  const wear = Number(wearStr)
+  const night = nightStr === '1'
+  const kahya = Number(kahyaStr)
+  const cap = Number(capStr)
+  const isOld = oldStr === '1'
+  const share = Number(shareStr)
+  const valuation = Number(valuationStr)
+  const pendF = pendFStr === '1'
+  const pendR = pendRStr === '1'
+  const isVito = kindStr === 'vito'
+  const spec = VEHICLE_SPECS[kindStr] ?? VEHICLE_SPECS.dolmus
+  const fuelPct = (fuel / spec.tank) * 100
+  const stateText = t.state[state as keyof typeof t.state]
+  const warn = state === 'noDriver' || state === 'noFuel' || state === 'wornOut'
+  // Birim fiyat: elektrikli şarj / tanklı toptan mazot indirimi dahil
+  const unitPrice = fuelUnitPrice(kindStr as VehicleKind, fuelPrice, buildings)
+  const refuelPrice = Math.ceil((spec.tank - fuel) * unitPrice)
+  const repairPrice = Math.ceil(
+    wear * CONFIG.repairCostPerUnit * spec.repairMult * (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
+  )
+  // Fiilen parkta mı? (pseudo-durumlar da parkta bekleyen aracı temsil eder)
+  const isParked = state === 'parked' || state === 'noFuel' || state === 'wornOut'
+  return (
+    <div
+      className={
+        floating
+          ? `pointer-events-auto absolute bottom-14 left-4 w-64 p-3 ${GLASS}`
+          : 'w-64 shrink-0 self-start rounded-xl bg-white/5 p-3 ring-1 ring-inset ring-white/10'
+      }
+    >
+      <div className="relative flex items-center justify-center">
+        <PlateBadge plate={plate} small />
+        <span className="absolute left-0 flex items-center gap-0.5">
+          {isOld && <span title={t.oldBus}><History className="h-3 w-3 text-amber-400/80" /></span>}
+          {(pendF || pendR) && <span title={t.planned}><Hourglass className="h-3 w-3 text-white/60" /></span>}
+        </span>
+        <button
+          onClick={onClose}
+          className="absolute right-0 cursor-pointer rounded-md bg-white/10 px-1.5 text-[10px] font-bold text-white/60 transition hover:bg-white/20"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <span
+          className={`flex-1 rounded-full px-2 py-0.5 text-center text-[10px] font-extrabold tabular-nums ${STATE_STYLE[state] ?? 'bg-white/10 text-white/60'}`}
+        >
+          {warn && <AlertTriangle className="mr-0.5 inline h-2.5 w-2.5" />}
+          {stateText}
+          {!warn && !isVito && ` · ${t.seats(Number(count), cap)}`}
+        </span>
+        {!isVito && (
+          <button
+            onClick={() => toggleNightShift(id)}
+            title={t.nightShift}
+            className={`pointer-events-auto cursor-pointer rounded-lg px-1.5 py-0.5 text-[11px] transition active:scale-95
+              ${night ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]' : 'bg-white/10 opacity-40 hover:opacity-100'}`}
+          >
+            <Moon className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+      {driverName && (() => {
+        const moral = Number(moralStr)
+        return (
+          <div className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-white/5 px-1.5 py-1">
+            <span className="flex-1 text-[10px] font-bold text-white/60">
+              {t.driverRow(driverName, Number(driverSkillStr))}
+            </span>
+            <span className={`text-[9px] font-bold tabular-nums ${moral < CONFIG.moralLowThreshold ? 'text-red-300' : 'text-white/40'}`}>
+              %{moral}
+            </span>
+            <button
+              onClick={() => cayMolasi(id)}
+              disabled={moral >= 100 || money < CONFIG.cayMolasiCost}
+              title={t.cayMolasi}
+              className={`pointer-events-auto flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold transition active:scale-95
+                ${moral < 100 && money >= CONFIG.cayMolasiCost ? 'cursor-pointer bg-orange-400/20 text-orange-300 hover:bg-orange-400/30' : 'bg-white/5 text-white/25'}`}
+            >
+              <Coffee className="h-3 w-3" /> ₺{fmt(CONFIG.cayMolasiCost)}
+            </button>
+          </div>
+        )
+      })()}
+      <div className="mt-1.5 flex flex-col gap-1">
+        <Bar icon={<Fuel className="h-3 w-3" />} pct={fuelPct} from="from-amber-500" to="to-yellow-400" low={fuel < spec.fuelPerTrip} />
+        <Bar icon={<Wrench className="h-3 w-3" />} pct={100 - wear} from="from-emerald-500" to="to-green-400" low={wear >= 100} />
+      </div>
+      <div className="mt-2 flex gap-1.5">
+        <MiniButton
+          label={<><Fuel className="h-3 w-3" />{pendF ? ` ${t.planned}` : ` ${t.refuel} ₺${fmt(refuelPrice)}`}</>}
+          enabled={
+            !pendF &&
+            refuelPrice > 0 &&
+            state !== 'noDriver' &&
+            (isParked ? money >= refuelPrice && !pumpBusy : true)
+          }
+          onClick={() => refuel(id)}
+        />
+        <MiniButton
+          label={<><Wrench className="h-3 w-3" />{pendR ? ` ${t.planned}` : ` ${t.repair} ₺${fmt(repairPrice)}`}</>}
+          enabled={
+            !pendR &&
+            repairPrice > 0 &&
+            (isParked || state === 'noDriver' ? money >= repairPrice : true)
+          }
+          onClick={() => repair(id)}
+        />
+      </div>
+      <OwnShareControls
+        vehicleId={id}
+        share={share}
+        valuation={valuation}
+        money={money}
+        partners={(partnersStr ?? '')
+          .split(';')
+          .filter(Boolean)
+          .map((p) => {
+            const [name, pct] = p.split('~')
+            return { name, pct: Number(pct) }
+          })}
+        onSell={sellShare}
+        onBuyBack={buyBackShare}
+      />
+      <div className={`mt-1.5 items-center gap-1.5 ${isVito ? 'hidden' : 'flex'}`}>
+        {kahya === 0 ? (
+          <MiniButton
+            label={<><HardHat className="h-3 w-3" /> {t.hireKahya} ₺{fmt(CONFIG.kahyaHireCost)}</>}
+            enabled={state !== 'noDriver' && money >= CONFIG.kahyaHireCost}
+            onClick={() => hireKahya(id)}
+          />
+        ) : (
+          <>
+            <span className="flex-1 rounded-lg bg-indigo-400/15 px-1.5 py-1.5 text-center text-[10px] font-bold text-indigo-300">
+              {t.kahya} {t.kahyaLevel(kahya)} · {t.kahyaEffect(cap - spec.seats)}
+            </span>
+            {kahya < CONFIG.kahyaMaxLevel && (
+              <MiniButton
+                label={<><ArrowUp className="h-3 w-3" /> {t.upgrade} ₺{fmt(CONFIG.kahyaUpgradeCosts[kahya - 1])}</>}
+                enabled={money >= CONFIG.kahyaUpgradeCosts[kahya - 1]}
+                onClick={() => upgradeKahya(id)}
+              />
+            )}
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -438,8 +611,14 @@ export function HUD() {
   const money = useGame((s) => s.money)
   const totalDebt = useGame((s) => s.debts.reduce((sum, d) => sum + d.remaining, 0))
   const queue = useGame((s) => s.queue)
+  // Talep araç sınıfına göre ağırlıklı: otobüs minibüsten çok yolcu çeker
   const queueCap = useGame((s) =>
-    queueCapOf(Math.max(1, s.vehicles.filter((v) => v.hasDriver).length)),
+    queueCapOf(
+      Math.max(
+        1,
+        s.vehicles.reduce((sum, v) => sum + (v.hasDriver ? specOf(v.kind).demandWeight : 0), 0),
+      ),
+    ),
   )
   const drivers = useGame((s) => s.drivers)
   const spots = useGame((s) => s.spots)
@@ -450,23 +629,31 @@ export function HUD() {
   const articCount = useGame((s) => s.vehicles.filter((v) => v.kind === 'artic').length)
   const ebusCount = useGame((s) => s.vehicles.filter((v) => v.kind === 'ebus').length)
   const rentalOffice = useGame((s) => s.rentalOffice)
-  const rentalCars = useGame((s) => s.rentalCars)
+  // Kiralık filo: değer eşitliği için string anahtar (frame başı re-render yok)
+  const rentalsKey = useGame((s) =>
+    s.rentals
+      .map(
+        (r) =>
+          `${r.id}|${r.plate}|${Math.round(r.fuel)}|${Math.round(r.wear)}|${r.rentDaysLeft}|${r.corporate ? 1 : 0}|${r.rentDaily}|${r.refundIn}`,
+      )
+      .join(','),
+  )
+  const rentalCars = rentalsKey ? rentalsKey.split(',').length : 0
+  const refuelRental = useGame((s) => s.refuelRental)
+  const repairRental = useGame((s) => s.repairRental)
+  const sellRental = useGame((s) => s.sellRental)
   const buyVehicle = useGame((s) => s.buyVehicle)
   const buyVito = useGame((s) => s.buyVito)
   const buyBus = useGame((s) => s.buyBus)
   const buyRentalOffice = useGame((s) => s.buyRentalOffice)
   const buyRentalCar = useGame((s) => s.buyRentalCar)
+  const perons = useGame((s) => s.perons)
+  const buyPeron = useGame((s) => s.buyPeron)
   const buySpot = useGame((s) => s.buySpot)
   const hireDriver = useGame((s) => s.hireDriver)
-  const refuel = useGame((s) => s.refuel)
-  const repair = useGame((s) => s.repair)
   const reset = useGame((s) => s.reset)
-  const toggleNightShift = useGame((s) => s.toggleNightShift)
   const buildings = useGame((s) => s.buildings)
   const buyBuilding = useGame((s) => s.buyBuilding)
-  const pumpBusy = useGame((s) =>
-    s.vehicles.some((v) => v.state === 'toPump' || v.state === 'fueling'),
-  )
   const charterKey = useGame((s) =>
     s.charter
       ? `${s.charter.id}|${s.charter.kind}|${s.charter.km}|${s.charter.payout}|${Math.ceil(s.charter.expiresAt - s.time)}`
@@ -489,7 +676,9 @@ export function HUD() {
   const fleetKey = useGame((s) =>
     s.vehicles
       .map((v) => {
-        const state = !v.hasDriver
+        const state = v.brokenUntilDay > 0 && clockOf(s.time).day < v.brokenUntilDay
+          ? 'inRepair'
+          : !v.hasDriver
           ? 'noDriver'
           : v.charterPayout > 0 && v.state !== 'parked'
             ? v.kind === 'vito'
@@ -508,14 +697,12 @@ export function HUD() {
     s.debts
       .map(
         (d) =>
-          `${d.id}|${d.bank ? (t.bankNames[d.bankId ?? ''] ?? 'Banka') : (d.plate ?? `Minibüs ${d.no}`)}|${d.remaining}|${d.daily}|${d.bank ? 1 : 0}`,
+          `${d.id}|${d.bank ? (t.bankNames[d.bankId ?? ''] ?? 'Banka') : (d.plate ?? `Minibüs ${d.no}`)}|${d.remaining}|${d.daily}|${d.bank ? 1 : 0}|${d.every ?? 1}`,
       )
       .join(','),
   )
   const payInstallment = useGame((s) => s.payInstallment)
   const payOffDebt = useGame((s) => s.payOffDebt)
-  const hireKahya = useGame((s) => s.hireKahya)
-  const upgradeKahya = useGame((s) => s.upgradeKahya)
   const [debtsOpen, setDebtsOpen] = useState(false)
   const rivalsKey = useGame((s) =>
     s.rivals.map((r) => `${r.id}|${r.no}|${r.wear}|${r.playerShare}|${r.plate}`).join(','),
@@ -523,8 +710,6 @@ export function HUD() {
   const buyRival = useGame((s) => s.buyRival)
   const buyRivalShare = useGame((s) => s.buyRivalShare)
   const sellRivalShare = useGame((s) => s.sellRivalShare)
-  const sellShare = useGame((s) => s.sellShare)
-  const buyBackShare = useGame((s) => s.buyBackShare)
   const [buildOpen, setBuildOpen] = useState(false)
   const [buildTab, setBuildTab] = useState<'arac' | 'personel' | 'tesis' | 'kontrat' | 'taksi' | 'kiralama' | 'devren' | 'stats' | 'prestij'>('arac')
   const streak = useGame((s) => s.streak)
@@ -541,19 +726,34 @@ export function HUD() {
   const breakDeposit = useGame((s) => s.breakDeposit)
   const takeBankLoan = useGame((s) => s.takeBankLoan)
   const [bankOpen, setBankOpen] = useState(false)
+  const [filoOpen, setFiloOpen] = useState(false)
+  const [filoTab, setFiloTab] = useState<'hat' | 'taksi' | 'kiralama'>('hat')
+  // 3D sahnede araca tıklanınca detay Filo modalında açılır (ayrı panel yok)
+  const selectedVehicleId = useGame((s) => s.selectedVehicle)
+  useEffect(() => {
+    if (selectedVehicleId != null) {
+      setFiloOpen(true)
+      setFiloTab('hat')
+    }
+  }, [selectedVehicleId])
   const [bankIdx, setBankIdx] = useState(0)
   const [depositPct, setDepositPct] = useState(50)
   const [loanPct, setLoanPct] = useState(50)
   const driverMarket = useGame((s) => s.driverMarket)
   const hireFromMarket = useGame((s) => s.hireFromMarket)
-  const cayMolasi = useGame((s) => s.cayMolasi)
   const statsHistory = useGame((s) => s.statsHistory)
+  // Hipotek: banka limitine eklenen filo değeri (hisse ağırlıklı)
+  const assetValue = useGame((s) => fleetAssetValue(s.vehicles, s.rep))
+  const restructureDebt = useGame((s) => s.restructureDebt)
   const taxisKey = useGame((s) =>
-    s.taxis.map((tx) => `${tx.id}|${tx.plate}|${tx.mode}|${tx.hasCar ? 1 : 0}`).join(','),
+    s.taxis
+      .map((tx) => `${tx.id}|${tx.plate}|${tx.mode}|${tx.hasCar ? 1 : 0}|${tx.nightShift ? 1 : 0}`)
+      .join(','),
   )
   const buyTaxiPlate = useGame((s) => s.buyTaxiPlate)
   const buyTaxiCar = useGame((s) => s.buyTaxiCar)
   const setTaxiMode = useGame((s) => s.setTaxiMode)
+  const toggleTaxiNightShift = useGame((s) => s.toggleTaxiNightShift)
   const fuelPrice = useGame((s) => s.fuelPrice)
   const fareNow = useGame((s) => s.fare)
   const offlineEarned = useGame((s) => s.offlineEarned)
@@ -588,6 +788,13 @@ export function HUD() {
   const selectedVehicle = useGame((s) => s.selectedVehicle)
   const selectVehicle = useGame((s) => s.selectVehicle)
 
+  // Filo butonundaki uyarı noktası: ilgi bekleyen araç var mı
+  const fleetWarn = fleetKey
+    ? fleetKey.split(',').some((e) => {
+        const st = e.split('|')[2]
+        return st === 'noDriver' || st === 'noFuel' || st === 'wornOut'
+      })
+    : false
   const selectedEntry =
     selectedVehicle != null
       ? fleetKey.split(',').find((e) => Number(e.split('|')[0]) === selectedVehicle)
@@ -641,19 +848,27 @@ export function HUD() {
 
       {/* Senet paneli: taksit öde / erken kapat */}
       {debtsOpen && debtsKey && (
-        <div className={`absolute left-[320px] top-[72px] w-80 p-3 ${GLASS}`}>
+        <div className={`pointer-events-auto absolute left-[320px] top-[72px] flex max-h-[72dvh] w-80 flex-col p-3 ${GLASS}`}>
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
               <ScrollText className="mr-1 inline h-3 w-3" /> {t.debtsTitle}
             </span>
             <span className="text-[9px] font-bold text-emerald-300/70">{t.payoffNote}</span>
           </div>
-          <div className="mt-2 flex flex-col gap-2">
+          {/* Toplam + adet: liste uzayınca genel resim kaybolmasın */}
+          <div className="mt-1.5 flex items-baseline justify-between rounded-lg bg-red-400/10 px-2 py-1">
+            <span className="text-[10px] font-bold text-red-200/80">
+              {t.debtsCount(debtsKey.split(',').length)}
+            </span>
+            <span className="text-[11px] font-extrabold tabular-nums text-red-300">₺{fmt(totalDebt)}</span>
+          </div>
+          <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
             {debtsKey.split(',').map((entry) => {
-              const [idStr, label, remainingStr, dailyStr, bankFlag] = entry.split('|')
+              const [idStr, label, remainingStr, dailyStr, bankFlag, everyStr] = entry.split('|')
               const id = Number(idStr)
               const remaining = Number(remainingStr)
               const daily = Number(dailyStr)
+              const every = Number(everyStr || 1)
               const installment = Math.min(daily, remaining)
               const payoff = Math.ceil(remaining * CONFIG.payoffDiscount)
               return (
@@ -663,7 +878,8 @@ export function HUD() {
                       {bankFlag === '1' ? t.bankLoanItem(label) : t.debtItem(label)}
                     </span>
                     <span className="text-[11px] font-bold tabular-nums text-red-300">
-                      ₺{fmt(remaining)} · {t.perDay(daily)}
+                      ₺{fmt(remaining)} ·{' '}
+                      {every === 1 ? t.perDay(daily) : every === 7 ? t.perWeek(daily) : t.perMonth(daily)}
                     </span>
                   </div>
                   <div className="mt-1.5 flex gap-1.5">
@@ -678,6 +894,21 @@ export function HUD() {
                       onClick={() => payOffDebt(id)}
                     />
                   </div>
+                  {/* Yapılandırma: taksit yükü ağırsa haftalık/aylık plana geç */}
+                  {every === 1 && (
+                    <div className="mt-1.5 flex gap-1.5">
+                      <MiniButton
+                        label={t.restructureWeekly}
+                        enabled
+                        onClick={() => restructureDebt(id, 'weekly')}
+                      />
+                      <MiniButton
+                        label={t.restructureMonthly}
+                        enabled
+                        onClick={() => restructureDebt(id, 'monthly')}
+                      />
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -750,6 +981,16 @@ export function HUD() {
             {mutedUi ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
           </button>
           <button
+            onClick={() => setFiloOpen((o) => !o)}
+            className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-sky-950/50 ring-1 ring-inset ring-white/20 transition active:scale-95
+              ${filoOpen ? 'bg-gradient-to-b from-sky-400 to-sky-500' : 'bg-gradient-to-b from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500'}`}
+          >
+            <Bus className="h-4 w-4" /> {t.fleetBtn}
+            {fleetWarn && !filoOpen && (
+              <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-amber-400 shadow" />
+            )}
+          </button>
+          <button
             onClick={() => setBankOpen((o) => !o)}
             className={`pointer-events-auto flex cursor-pointer items-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-emerald-950/50 ring-1 ring-inset ring-white/20 transition active:scale-95
               ${bankOpen ? 'bg-gradient-to-b from-emerald-400 to-emerald-500' : 'bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500'}`}
@@ -789,7 +1030,7 @@ export function HUD() {
             <div className="overflow-y-auto p-4">
 {(() => {
                 const bank = BANKS[bankIdx]
-                const limit = bankLimitOf(statsHistory, bank.limitFactor)
+                const limit = bankLimitOf(statsHistory, bank.limitFactor, assetValue)
                 const used = Number(bankUsedKey.split(',')[bankIdx] ?? 0)
                 const avail = Math.max(0, limit - used)
                 const repOk = rep >= bank.minRep
@@ -1084,6 +1325,23 @@ export function HUD() {
                       onClick={buySpot}
                     />
                   </ModalCard>
+                  <ModalCard
+                    icon={<Users className="h-7 w-7 text-sky-300" />}
+                    title={t.buyPeron}
+                    badge={`${perons}/${CONFIG.peronMax}`}
+                    badgeClass="bg-sky-400/15 text-sky-300"
+                    desc={t.peronDesc}
+                  >
+                    <PriceButton
+                      label={
+                        perons >= CONFIG.peronMax
+                          ? t.maxed
+                          : `₺${fmt(CONFIG.peronCosts[perons - 1])}`
+                      }
+                      enabled={perons < CONFIG.peronMax && money >= (CONFIG.peronCosts[perons - 1] ?? Infinity)}
+                      onClick={buyPeron}
+                    />
+                  </ModalCard>
                   {driverMarket.map((cand, i) => (
                     <ModalCard
                       key={`${cand.name}-${i}`}
@@ -1201,24 +1459,35 @@ export function HUD() {
                   </ModalCard>
                   {taxisKey &&
                     taxisKey.split(',').map((entry) => {
-                      const [idStr, taxiPlate, mode, hasCarStr] = entry.split('|')
+                      const [idStr, taxiPlate, mode, hasCarStr, nightStr] = entry.split('|')
                       const id = Number(idStr)
                       const hasCar = hasCarStr === '1'
                       const operating = mode === 'operate'
+                      const taxiNight = nightStr === '1'
                       return (
                         <ModalCard
                           key={id}
                           icon={<CarTaxiFront className="h-7 w-7 text-yellow-300" />}
                           title={taxiPlate}
-                          badge={operating ? t.taxiOperateMode : t.taxiRentMode}
+                          badge={
+                            operating
+                              ? taxiNight
+                                ? t.taxiNightBadge
+                                : t.taxiOperateMode
+                              : t.taxiRentMode
+                          }
                           badgeClass={
                             operating
-                              ? 'bg-yellow-400/15 text-yellow-300'
+                              ? taxiNight
+                                ? 'bg-indigo-400/15 text-indigo-300'
+                                : 'bg-yellow-400/15 text-yellow-300'
                               : 'bg-emerald-400/15 text-emerald-300'
                           }
                           desc={
                             operating
-                              ? t.taxiOperateNote(CONFIG.taxiOperateMin, CONFIG.taxiOperateMax)
+                              ? taxiNight
+                                ? t.taxiNightNote(CONFIG.taxiNightMin, CONFIG.taxiNightMax, CONFIG.taxiNightWage)
+                                : t.taxiOperateNote(CONFIG.taxiOperateMin, CONFIG.taxiOperateMax)
                               : t.taxiRentNote(CONFIG.taxiRentDaily)
                           }
                         >
@@ -1234,6 +1503,14 @@ export function HUD() {
                                 enabled={!operating}
                                 onClick={() => setTaxiMode(id, 'operate')}
                               />
+                              {operating && (
+                                <MiniButton
+                                  label={<><Moon className="h-3 w-3" /> {t.taxiNightShift}</>}
+                                  enabled
+                                  active={taxiNight}
+                                  onClick={() => toggleTaxiNightShift(id)}
+                                />
+                              )}
                             </div>
                           ) : (
                             <PriceButton
@@ -1283,6 +1560,76 @@ export function HUD() {
                       onClick={buyRentalCar}
                     />
                   </ModalCard>
+                  {rentalsKey &&
+                    rentalsKey.split(',').map((entry) => {
+                      const [idStr, rPlate, fuelStr, wearStr, daysStr, corpStr, dailyStr] = entry.split('|')
+                      const id = Number(idStr)
+                      const rFuel = Number(fuelStr)
+                      const rWear = Number(wearStr)
+                      const days = Number(daysStr)
+                      const corp = corpStr === '1'
+                      const out = rFuel < CONFIG.rentalMinFuel || rWear >= 100
+                      const refuelPrice = Math.ceil(
+                        (CONFIG.rentalTank - rFuel) *
+                          fuelPrice *
+                          (buildings.yakitTanki ? CONFIG.yakitTankiDiscount : 1),
+                      )
+                      const repairPrice = Math.ceil(
+                        rWear *
+                          CONFIG.rentalRepairPerUnit *
+                          (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
+                      )
+                      return (
+                        <ModalCard
+                          key={id}
+                          icon={<CarFront className="h-7 w-7 text-teal-300" />}
+                          title={rPlate}
+                          badge={
+                            days > 0
+                              ? corp
+                                ? t.rentalStatusCorp(days)
+                                : t.rentalStatusRented(days)
+                              : out
+                                ? t.rentalStatusOut
+                                : t.rentalStatusIdle
+                          }
+                          badgeClass={
+                            days > 0
+                              ? corp
+                                ? 'bg-violet-400/15 text-violet-300'
+                                : 'bg-teal-400/15 text-teal-300'
+                              : out
+                                ? 'bg-red-400/15 text-red-300'
+                                : 'bg-white/10 text-white/60'
+                          }
+                          desc={
+                            days > 0
+                              ? `${t.rentalCondition(Math.round((rFuel / CONFIG.rentalTank) * 100), rWear)} · ₺${fmt(Number(dailyStr))}/${t.perDayShort}`
+                              : t.rentalCondition(Math.round((rFuel / CONFIG.rentalTank) * 100), rWear)
+                          }
+                        >
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex gap-1.5">
+                              <PriceButton
+                                label={<><Fuel className="h-3.5 w-3.5" /> {t.refuel} ₺{fmt(refuelPrice)}</>}
+                                enabled={refuelPrice > 0 && money >= refuelPrice}
+                                onClick={() => refuelRental(id)}
+                              />
+                              <PriceButton
+                                label={<><Wrench className="h-3.5 w-3.5" /> {t.repair} ₺{fmt(repairPrice)}</>}
+                                enabled={repairPrice > 0 && money >= repairPrice}
+                                onClick={() => repairRental(id)}
+                              />
+                            </div>
+                            <MiniButton
+                              label={`${t.sellRental} ₺${fmt(Math.round(CONFIG.rentalCarCost * Math.max(0.4, 1 - rWear / 180)))}`}
+                              enabled={days === 0}
+                              onClick={() => sellRental(id)}
+                            />
+                          </div>
+                        </ModalCard>
+                      )
+                    })}
                 </>
               )}
               {buildTab === 'stats' && (() => {
@@ -1516,174 +1863,171 @@ export function HUD() {
         )
       })()}
 
-      {/* Filo dock: minik plaka çipleri — araca ya da çipe tıklayınca detay açılır */}
-      <div className="pointer-events-auto absolute bottom-3 left-4 right-4 flex items-center gap-1.5 overflow-x-auto pb-1">
-        {fleetKey.split(',').map((entry) => {
-          const [idStr, plate, state] = entry.split('|')
-          const id = Number(idStr)
-          const selected = selectedVehicle === id
-          return (
-            <button
-              key={id}
-              onClick={() => selectVehicle(selected ? null : id)}
-              className={`flex shrink-0 cursor-pointer items-center gap-1.5 px-1.5 py-1 transition ${GLASS}
-                ${selected ? 'border-white/40 bg-neutral-800/90' : 'hover:border-white/25'}`}
-            >
-              <PlateBadge plate={plate} small />
-              <span className={`h-2 w-2 shrink-0 rounded-full ${DOT_STYLE[state] ?? 'bg-white/40'}`} />
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Seçili araç detayı */}
-      {selectedEntry && (() => {
-        const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr, kindStr, driverName, driverSkillStr, moralStr, partnersStr] = selectedEntry.split('|')
-        const id = Number(idStr)
-        const fuel = Number(fuelStr)
-        const wear = Number(wearStr)
-        const night = nightStr === '1'
-        const kahya = Number(kahyaStr)
-        const cap = Number(capStr)
-        const isOld = oldStr === '1'
-        const share = Number(shareStr)
-        const valuation = Number(valuationStr)
-        const pendF = pendFStr === '1'
-        const pendR = pendRStr === '1'
-        const isVito = kindStr === 'vito'
-        const spec = VEHICLE_SPECS[kindStr] ?? VEHICLE_SPECS.dolmus
-        const fuelPct = (fuel / spec.tank) * 100
-        const stateText = t.state[state as keyof typeof t.state]
-        const warn = state === 'noDriver' || state === 'noFuel' || state === 'wornOut'
-        // Birim fiyat: elektrikli şarj / tanklı toptan mazot indirimi dahil
-        const unitPrice = fuelUnitPrice(kindStr as VehicleKind, fuelPrice, buildings)
-        const refuelPrice = Math.ceil((spec.tank - fuel) * unitPrice)
-        const repairPrice = Math.ceil(
-          wear * CONFIG.repairCostPerUnit * spec.repairMult * (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
-        )
-        // Fiilen parkta mı? (pseudo-durumlar da parkta bekleyen aracı temsil eder)
-        const isParked = state === 'parked' || state === 'noFuel' || state === 'wornOut'
-        return (
-          <div className={`pointer-events-auto absolute bottom-14 left-4 w-64 p-3 ${GLASS}`}>
-            <div className="relative flex items-center justify-center">
-              <PlateBadge plate={plate} small />
-              <span className="absolute left-0 flex items-center gap-0.5">
-                {isOld && <span title={t.oldBus}><History className="h-3 w-3 text-amber-400/80" /></span>}
-                {(pendF || pendR) && <span title={t.planned}><Hourglass className="h-3 w-3 text-white/60" /></span>}
+      {/* Filo modalı: tüm araçlar tek yerde — hat araçları, taksiler, kiralıklar.
+          Hat aracına tıklayınca modal kapanır, detay paneli açılır */}
+      {filoOpen && (
+        <div className="pointer-events-auto fixed inset-0 z-10 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => {
+              setFiloOpen(false)
+              selectVehicle(null)
+            }}
+          />
+          <div className={`relative flex max-h-[82dvh] w-[780px] max-w-[94vw] flex-col overflow-hidden ${GLASS}`}>
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <span className="flex items-center gap-2 text-sm font-black text-white">
+                <span className="h-4 w-1 rounded-full bg-sky-500" /> <Bus className="h-4 w-4" /> {t.fleetTitle}
               </span>
               <button
-                onClick={() => selectVehicle(null)}
-                className="absolute right-0 cursor-pointer rounded-md bg-white/10 px-1.5 text-[10px] font-bold text-white/60 transition hover:bg-white/20"
+                onClick={() => {
+                  setFiloOpen(false)
+                  selectVehicle(null)
+                }}
+                className="cursor-pointer rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-white/70 transition hover:bg-white/20"
               >
-                <X className="h-3 w-3" />
+                <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <span
-                className={`flex-1 rounded-full px-2 py-0.5 text-center text-[10px] font-extrabold tabular-nums ${STATE_STYLE[state] ?? 'bg-white/10 text-white/60'}`}
-              >
-                {warn && <AlertTriangle className="mr-0.5 inline h-2.5 w-2.5" />}
-                {stateText}
-                {!warn && !isVito && ` · ${t.seats(Number(count), cap)}`}
-              </span>
-              {!isVito && (
+            {/* Sekmeler */}
+            <div className="flex flex-wrap gap-1.5 px-4 pt-3">
+              {(
+                [
+                  ['hat', <><Bus className="h-3.5 w-3.5" /> {t.fleetSectionHat}</>],
+                  ['taksi', <><CarTaxiFront className="h-3.5 w-3.5" /> {t.tabTaxi}</>],
+                  ['kiralama', <><KeyRound className="h-3.5 w-3.5" /> {t.tabRental}</>],
+                ] as const
+              ).map(([key, label]) => (
                 <button
-                  onClick={() => toggleNightShift(id)}
-                  title={t.nightShift}
-                  className={`pointer-events-auto cursor-pointer rounded-lg px-1.5 py-0.5 text-[11px] transition active:scale-95
-                    ${night ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]' : 'bg-white/10 opacity-40 hover:opacity-100'}`}
+                  key={key}
+                  onClick={() => setFiloTab(key)}
+                  className={`flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-extrabold transition
+                    ${filoTab === key ? 'bg-white text-neutral-900' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}
                 >
-                  <Moon className="h-3.5 w-3.5" />
+                  {label}
                 </button>
-              )}
+              ))}
             </div>
-            {driverName && (() => {
-              const moral = Number(moralStr)
-              return (
-                <div className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-white/5 px-1.5 py-1">
-                  <span className="flex-1 text-[10px] font-bold text-white/60">
-                    {t.driverRow(driverName, Number(driverSkillStr))}
-                  </span>
-                  <span className={`text-[9px] font-bold tabular-nums ${moral < CONFIG.moralLowThreshold ? 'text-red-300' : 'text-white/40'}`}>
-                    %{moral}
-                  </span>
-                  <button
-                    onClick={() => cayMolasi(id)}
-                    disabled={moral >= 100 || money < CONFIG.cayMolasiCost}
-                    title={t.cayMolasi}
-                    className={`pointer-events-auto flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold transition active:scale-95
-                      ${moral < 100 && money >= CONFIG.cayMolasiCost ? 'cursor-pointer bg-orange-400/20 text-orange-300 hover:bg-orange-400/30' : 'bg-white/5 text-white/25'}`}
-                  >
-                    <Coffee className="h-3 w-3" /> ₺{fmt(CONFIG.cayMolasiCost)}
-                  </button>
-                </div>
-              )
-            })()}
-            <div className="mt-1.5 flex flex-col gap-1">
-              <Bar icon={<Fuel className="h-3 w-3" />} pct={fuelPct} from="from-amber-500" to="to-yellow-400" low={fuel < spec.fuelPerTrip} />
-              <Bar icon={<Wrench className="h-3 w-3" />} pct={100 - wear} from="from-emerald-500" to="to-green-400" low={wear >= 100} />
-            </div>
-            <div className="mt-2 flex gap-1.5">
-              <MiniButton
-                label={<><Fuel className="h-3 w-3" />{pendF ? ` ${t.planned}` : ` ${t.refuel} ₺${fmt(refuelPrice)}`}</>}
-                enabled={
-                  !pendF &&
-                  refuelPrice > 0 &&
-                  state !== 'noDriver' &&
-                  (isParked ? money >= refuelPrice && !pumpBusy : true)
-                }
-                onClick={() => refuel(id)}
-              />
-              <MiniButton
-                label={<><Wrench className="h-3 w-3" />{pendR ? ` ${t.planned}` : ` ${t.repair} ₺${fmt(repairPrice)}`}</>}
-                enabled={
-                  !pendR &&
-                  repairPrice > 0 &&
-                  (isParked || state === 'noDriver' ? money >= repairPrice : true)
-                }
-                onClick={() => repair(id)}
-              />
-            </div>
-            <OwnShareControls
-              vehicleId={id}
-              share={share}
-              valuation={valuation}
-              money={money}
-              partners={(partnersStr ?? '')
-                .split(';')
-                .filter(Boolean)
-                .map((p) => {
-                  const [name, pct] = p.split('~')
-                  return { name, pct: Number(pct) }
-                })}
-              onSell={sellShare}
-              onBuyBack={buyBackShare}
-            />
-            <div className={`mt-1.5 items-center gap-1.5 ${isVito ? 'hidden' : 'flex'}`}>
-              {kahya === 0 ? (
-                <MiniButton
-                  label={<><HardHat className="h-3 w-3" /> {t.hireKahya} ₺{fmt(CONFIG.kahyaHireCost)}</>}
-                  enabled={state !== 'noDriver' && money >= CONFIG.kahyaHireCost}
-                  onClick={() => hireKahya(id)}
-                />
-              ) : (
+            <div className="flex gap-3 overflow-hidden p-4">
+              {filoTab === 'hat' && (
                 <>
-                  <span className="flex-1 rounded-lg bg-indigo-400/15 px-1.5 py-1.5 text-center text-[10px] font-bold text-indigo-300">
-                    {t.kahya} {t.kahyaLevel(kahya)} · {t.kahyaEffect(cap - spec.seats)}
-                  </span>
-                  {kahya < CONFIG.kahyaMaxLevel && (
-                    <MiniButton
-                      label={<><ArrowUp className="h-3 w-3" /> {t.upgrade} ₺{fmt(CONFIG.kahyaUpgradeCosts[kahya - 1])}</>}
-                      enabled={money >= CONFIG.kahyaUpgradeCosts[kahya - 1]}
-                      onClick={() => upgradeKahya(id)}
-                    />
+                  {/* Araç listesi: tıklayınca detay sağda aynı panelde açılır */}
+                  <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto">
+                    {!fleetKey && <div className="text-xs text-white/40">{t.fleetEmpty}</div>}
+                    {fleetKey &&
+                      fleetKey.split(',').map((entry) => {
+                        const [idStr, vPlate, vState, , vFuelStr, vWearStr, , , , , , , , , vKindStr, vDriver] = entry.split('|')
+                        const id = Number(idStr)
+                        const vSpec = VEHICLE_SPECS[vKindStr] ?? VEHICLE_SPECS.dolmus
+                        const selected = selectedVehicle === id
+                        return (
+                          <button
+                            key={id}
+                            onClick={() => selectVehicle(selected ? null : id)}
+                            className={`flex cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left transition
+                              ${selected ? 'bg-white/15 ring-1 ring-inset ring-white/25' : 'bg-white/5 hover:bg-white/10'}`}
+                          >
+                            <PlateBadge plate={vPlate} small />
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${DOT_STYLE[vState] ?? 'bg-white/40'}`} />
+                            <span className="w-14 shrink-0 text-[10px] font-bold text-white/60">{t.kindNames[vKindStr] ?? ''}</span>
+                            <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-white/80">
+                              {vDriver || t.state.noDriver}
+                            </span>
+                            <span className="shrink-0 text-[10px] font-bold tabular-nums text-amber-300/90">
+                              <Fuel className="mr-0.5 inline h-3 w-3" />%{Math.round((Number(vFuelStr) / vSpec.tank) * 100)}
+                            </span>
+                            <span className="shrink-0 text-[10px] font-bold tabular-nums text-sky-300/90">
+                              <Wrench className="mr-0.5 inline h-3 w-3" />%{vWearStr}
+                            </span>
+                            <span className="shrink-0 text-[10px] font-bold text-white/50">{t.state[vState as keyof typeof t.state]}</span>
+                          </button>
+                        )
+                      })}
+                  </div>
+                  {/* Seçili aracın detayı: aynı modalın içinde */}
+                  {selectedEntry ? (
+                    <div className="overflow-y-auto">
+                      <VehicleDetailBody entry={selectedEntry} onClose={() => selectVehicle(null)} />
+                    </div>
+                  ) : (
+                    fleetKey && (
+                      <div className="flex w-64 shrink-0 items-center justify-center rounded-xl bg-white/[0.03] p-3 text-center text-[11px] font-bold text-white/30 ring-1 ring-inset ring-white/5">
+                        {t.fleetPickHint}
+                      </div>
+                    )
                   )}
                 </>
               )}
+              {filoTab === 'taksi' && (
+                <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto">
+                  {!taxisKey && <div className="text-xs text-white/40">{t.fleetEmpty}</div>}
+                  {taxisKey &&
+                    taxisKey.split(',').map((entry) => {
+                      const [idStr, txPlate, txMode, txHasCar, txNight] = entry.split('|')
+                      const operating = txMode === 'operate'
+                      return (
+                        <div key={idStr} className="flex items-center gap-2.5 rounded-xl bg-white/5 px-2.5 py-1.5">
+                          <PlateBadge plate={txPlate} small />
+                          <span className="w-14 shrink-0 text-[10px] font-bold text-white/60">{t.kindNames.taxi}</span>
+                          <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-white/80">
+                            {txHasCar === '1'
+                              ? operating
+                                ? txNight === '1'
+                                  ? t.taxiNightBadge
+                                  : t.taxiOperateMode
+                                : t.taxiRentMode
+                              : t.taxiRentMode}
+                          </span>
+                          <span className="shrink-0 text-[10px] font-bold text-white/50">
+                            {operating && txHasCar === '1'
+                              ? t.taxiOperateNote(CONFIG.taxiOperateMin, CONFIG.taxiOperateMax)
+                              : t.taxiRentNote(CONFIG.taxiRentDaily)}
+                          </span>
+                        </div>
+                      )
+                    })}
+                </div>
+              )}
+              {filoTab === 'kiralama' && (
+                <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto">
+                  {!rentalsKey && <div className="text-xs text-white/40">{t.fleetEmpty}</div>}
+                  {rentalsKey &&
+                    rentalsKey.split(',').map((entry) => {
+                      const [idStr, rPlate, rFuelStr, rWearStr, rDaysStr, rCorpStr, , rRefundStr] = entry.split('|')
+                      const rDays = Number(rDaysStr)
+                      const rRefund = Number(rRefundStr)
+                      const rOut = Number(rFuelStr) < CONFIG.rentalMinFuel || Number(rWearStr) >= 100
+                      return (
+                        <div key={idStr} className="flex items-center gap-2.5 rounded-xl bg-white/5 px-2.5 py-1.5">
+                          <PlateBadge plate={rPlate} small />
+                          <span className="w-14 shrink-0 text-[10px] font-bold text-white/60">{t.kindNames.rental}</span>
+                          <span
+                            className={`min-w-0 flex-1 truncate text-[11px] font-bold ${
+                              rDays > 0 ? 'text-teal-300' : rOut ? 'text-red-300' : 'text-white/60'
+                            }`}
+                          >
+                            {rDays > 0
+                              ? rCorpStr === '1'
+                                ? t.rentalStatusCorp(rDays)
+                                : t.rentalStatusRented(rDays)
+                              : rOut
+                                ? t.rentalStatusOut
+                                : t.rentalStatusIdle}
+                            {rDays <= 0 && rRefund > 0 && ` · ${t.rentalRefundNote(rRefund)}`}
+                          </span>
+                          <span className="shrink-0 text-[10px] font-bold tabular-nums text-white/50">
+                            {t.rentalCondition(Math.round((Number(rFuelStr) / CONFIG.rentalTank) * 100), Number(rWearStr))}
+                          </span>
+                        </div>
+                      )
+                    })}
+                </div>
+              )}
             </div>
           </div>
-        )
-      })()}
+        </div>
+      )}
+
     </div>
   )
 }

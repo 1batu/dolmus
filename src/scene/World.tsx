@@ -1,10 +1,10 @@
 import { useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { LAYOUT, spotPos } from '../game/paths'
-import { clockOf } from '../game/config'
+import { LAYOUT, PERON_STOPS, spotPos } from '../game/paths'
+import { CONFIG, clockOf } from '../game/config'
 import { useGame } from '../game/store'
-import { RivalBus, Vehicle } from './Vehicle'
+import { RivalBus, Vehicle, plateGeo, plateMaterial } from './Vehicle'
 import { asphaltTex, concreteTex, grassTex } from './textures'
 import {
   Apartment,
@@ -49,9 +49,9 @@ function dayFactor(hour: number): number {
 const NIGHT_LIGHTS: Array<{ pos: [number, number, number]; intensity: number; distance: number }> = [
   { pos: [-12, 3.0, 4], intensity: 60, distance: 18 }, // peron saçak altı
   { pos: [-0.5, 3.2, 4.5], intensity: 50, distance: 15 }, // pompa saçağı
-  { pos: [-22, 3.2, 2.2], intensity: 25, distance: 12 }, // yazıhane önü
-  { pos: [14, 6.2, -1], intensity: 140, distance: 34 }, // saha projektörü 1
-  { pos: [30, 6.2, -1], intensity: 140, distance: 34 }, // saha projektörü 2
+  { pos: [-29.5, 3.2, 11.2], intensity: 25, distance: 12 }, // yazıhane önü (giriş yanı)
+  { pos: [0.8, 6.2, -3.8], intensity: 140, distance: 34 }, // saha projektörü 1 (park batı ucu)
+  { pos: [46, 6.2, -3.8], intensity: 140, distance: 34 }, // saha projektörü 2 (park doğu ucu)
 ]
 
 function NightLights() {
@@ -260,27 +260,57 @@ const AMBIENT_CARS: Array<{
 
 function AmbientTraffic() {
   const refs = useRef<Array<THREE.Group | null>>([])
-  // İşletilen her taksi sahnedeki trafiğe sarı taksi olarak katılır
-  const taxiCount = useGame((s) => s.taxis.filter((tx) => tx.mode === 'operate' && tx.hasCar).length)
+  // İşletilen her taksi sahnedeki trafiğe sarı taksi olarak katılır.
+  // 'd' = gündüzcü (gece durakta dinlenir), 'n' = gece vardiyalı (24 saat yolda)
+  const taxiShiftKey = useGame((s) =>
+    s.taxis
+      .filter((tx) => tx.mode === 'operate' && tx.hasCar)
+      .map((tx) => (tx.nightShift ? 'n' : 'd'))
+      .join(''),
+  )
+  // Kiradaki rent-a-car araçları da müşterinin elinde şehirde dolaşır
+  const rentedCount = useGame((s) => s.rentals.filter((r) => r.rentDaysLeft > 0).length)
   const cars = useMemo(
     () => [
       ...AMBIENT_CARS,
-      ...Array.from({ length: taxiCount }, (_, i) => ({
+      ...taxiShiftKey.split('').filter(Boolean).map((shift, i) => ({
         lane: i % 2 === 0 ? LAYOUT.laneNearZ : LAYOUT.laneFarZ,
         dir: (i % 2 === 0 ? 1 : -1) as 1 | -1,
         speed: 11 + (i % 4),
         offset: 18 + i * 31,
         color: '#e8c53a',
         kind: 'taxi' as const,
+        resty: shift === 'd', // gündüzcü gece durakta dinlenir; vardiyalı 24 saat yolda
+        taxiIdx: i, // gündüz bekleme sırası TaxiStand ile aynı formülden hesaplanır
+      })),
+      ...Array.from({ length: rentedCount }, (_, i) => ({
+        lane: i % 2 === 0 ? LAYOUT.laneFarZ : LAYOUT.laneNearZ,
+        dir: (i % 2 === 0 ? -1 : 1) as 1 | -1,
+        speed: 10 + (i % 5),
+        offset: 7 + i * 23,
+        color: ['#d9dde2', '#8d9aa8', '#3c4c60'][i % 3],
+        kind: 'sedan' as const,
       })),
     ],
-    [taxiCount],
+    [taxiShiftKey, rentedCount],
   )
   useFrame((state) => {
     const tNow = state.clock.elapsedTime
+    const hour = clockOf(useGame.getState().time).hour
+    const night = hour < CONFIG.nightEndHour || hour >= 23
     cars.forEach((car, i) => {
       const g = refs.current[i]
       if (!g) return
+      // Duraktaki taksi trafikte görünmez: gündüzcü gece, sırası gelen gündüz bekler
+      const taxiIdx = (car as { taxiIdx?: number }).taxiIdx
+      const restingAtNight = night && (car as { resty?: boolean }).resty
+      const waitingByDay =
+        taxiIdx != null && !night && (Math.floor(hour) + taxiIdx * 3) % 7 === 0
+      if (restingAtNight || waitingByDay) {
+        g.visible = false
+        return
+      }
+      g.visible = true
       const span = 190
       const x = ((((car.offset + car.dir * car.speed * tNow) % span) + span * 1.5) % span) - 95
       g.position.set(x, 0, car.lane)
@@ -367,7 +397,8 @@ function ParkingSpot({ index }: { index: number }) {
 
 // Biniş peronu: çelik ayaklı modern saçak, cam arkalık, bank, kuyruk
 function Peron() {
-  const queue = useGame((s) => s.queue)
+  // Kuyruk peronlara bölünür: ana peron kendi payını gösterir, kalanı ek duraklarda
+  const queue = useGame((s) => Math.ceil(s.queue / Math.max(1, s.perons)))
   return (
     <group position={[LAYOUT.peronX, 0, 4]}>
       {/* Platform */}
@@ -567,33 +598,133 @@ function TerminalBuildings() {
   )
 }
 
-// Rent-a-car: ofis kulübesi + sıra sıra kiralık sedanlar (filo büyüdükçe dolar)
-function RentACarLot() {
-  const rentalOffice = useGame((s) => s.rentalOffice)
-  const rentalCars = useGame((s) => s.rentalCars)
-  if (!rentalOffice) return null
-  const colors = ['#d9dde2', '#8d9aa8', '#b84a4a', '#3c4c60']
-  const shown = Math.min(rentalCars, 4)
+// Taksi durağı: terminal girişinin yanında — işletilen taksiler gece burada
+// dinlenir, gündüz şehir trafiğine çıkar (AmbientTraffic)
+function TaxiStand() {
+  const ownedCabs = useGame((s) => s.taxis.filter((tx) => tx.hasCar).length)
+  // Gece (23-06) gündüzcü taksiler durakta; gece vardiyalılar yolda kalır.
+  // Gündüz de yolcu bulamayan taksi durakta bekler: her taksi ~7 saatte 1 saat,
+  // sıralı (i×3 kaydırma). Değer eşitliği: saat sınırında bir kez değişir
+  const restingCabs = useGame((s) => {
+    const h = clockOf(s.time).hour
+    const night = h < CONFIG.nightEndHour || h >= 23
+    const ops = s.taxis.filter((tx) => tx.mode === 'operate' && tx.hasCar)
+    if (night) return ops.filter((tx) => !tx.nightShift).length
+    const hh = Math.floor(h)
+    return ops.filter((_, i) => (hh + i * 3) % 7 === 0).length
+  })
+  if (ownedCabs === 0) return null
   return (
-    <group position={[11, 0, -13.2]}>
-      {/* Otopark zemini */}
-      <mesh geometry={rbox(5.6, 0.1, 3.4, 0.03)} material={mat('#8f959b', 0.85)} position={[0, 0.05, 0]} receiveShadow />
-      {/* Ofis kulübesi */}
-      <group position={[-2.1, 0, -0.6]}>
-        <mesh geometry={rbox(1.5, 1.9, 1.5, 0.06)} material={mat('#e8eaed', 0.55)} position={[0, 0.95, 0]} castShadow />
-        <mesh geometry={rbox(1.7, 0.14, 1.7, 0.04)} material={mat('#3c4c60', 0.7)} position={[0, 1.95, 0]} />
-        <mesh geometry={rbox(0.9, 0.7, 0.08, 0.03)} material={glassMat()} position={[0, 1.2, 0.76]} />
-      </group>
+    <group position={[-13, 0, 14.9]}>
+      {/* Cep zemini */}
+      <mesh geometry={rbox(7.6, 0.08, 3.0, 0.03)} material={mat('#8f959b', 0.85)} position={[0, 0.04, 0]} receiveShadow />
       {/* Tabela */}
-      <mesh geometry={cyl(0.05, 0.05, 2.6, 8)} material={mat('#6f767e', 0.6, { metal: 0.4 })} position={[-2.1, 1.3, 1.2]} />
-      <mesh geometry={rbox(2.1, 0.56, 0.12, 0.05)} material={mat('#0f766e', 0.5)} position={[-2.1, 2.5, 1.2]} />
-      <Sign text="OTO KİRALAMA" bg="#0d9488" w={2.0} h={0.5} pos={[-2.1, 2.5, 1.27]} />
-      {/* Kiralık araçlar */}
-      {Array.from({ length: shown }, (_, i) => (
-        <group key={i} position={[-0.6 + i * 1.15, 0, 0.2]} rotation={[0, -0.12 + (i % 2) * 0.1, 0]} scale={0.72}>
-          <CarMesh color={colors[i % colors.length]} kind="sedan" />
+      <mesh geometry={cyl(0.05, 0.05, 2.4, 8)} material={mat('#6f767e', 0.6, { metal: 0.4 })} position={[-3.4, 1.2, -1.2]} />
+      <mesh geometry={rbox(1.5, 0.5, 0.12, 0.05)} material={mat('#c9a227', 0.5)} position={[-3.4, 2.3, -1.2]} />
+      <Sign text="TAKSİ" bg="#e8b820" fg="#111111" w={1.4} h={0.44} pos={[-3.4, 2.3, -1.13]} />
+      {/* Gece dinlenen taksiler */}
+      {Array.from({ length: Math.min(restingCabs, 3) }, (_, i) => (
+        <group key={i} position={[-1.6 + i * 2.3, 0, 0.2]} rotation={[0, Math.PI / 2 + (i % 2) * 0.08, 0]} scale={0.8}>
+          <CarMesh color="#e8c53a" kind="taxi" />
         </group>
       ))}
+    </group>
+  )
+}
+
+// Ek peron durakları (2. ve 3.): servis yolunun kuzey cebinde küçük saçaklı duraklar
+function ExtraPerons() {
+  const perons = useGame((s) => s.perons)
+  // Her ek durak kuyruğun kendi payını gösterir (azami 10 figür)
+  const perPeron = useGame((s) =>
+    Math.min(10, Math.floor(s.queue / Math.max(1, s.perons))),
+  )
+  if (perons <= 1) return null
+  return (
+    <>
+      {PERON_STOPS.slice(1, perons).map((stop, i) => (
+        <group key={i} position={[stop[0], 0, 12.1]}>
+          {/* Platform */}
+          <mesh geometry={rbox(6.0, 0.22, 1.6, 0.04)} material={mat('#c9cdd2', 0.8)} position={[0, 0.11, 0]} receiveShadow />
+          {/* Saçak + direkler */}
+          <mesh geometry={rbox(5.6, 0.1, 1.5, 0.04)} material={mat('#f4f2ec', 0.5)} position={[0, 2.5, 0]} castShadow />
+          {[-2.4, 2.4].map((ox) => (
+            <mesh key={ox} geometry={cyl(0.06, 0.06, 2.3, 8)} material={mat('#8f969e', 0.5, { metal: 0.4 })} position={[ox, 1.25, 0.4]} />
+          ))}
+          {/* Cam arkalık + bank */}
+          <mesh geometry={rbox(5.2, 0.9, 0.06, 0.03)} material={mat('#2f3b46', 0.25)} position={[0, 1.15, 0.65]} />
+          <mesh geometry={rbox(3.6, 0.08, 0.4, 0.03)} material={mat('#7a5a3a', 0.7)} position={[0, 0.55, 0.35]} />
+          {/* Durak tabelası */}
+          <Sign text={`PERON ${i + 2}`} bg="#2160c4" w={1.4} h={0.4} pos={[0, 2.75, -0.7]} />
+          {/* Cep çizgisi: araç yanaşma alanı */}
+          <mesh position={[0, 0.03, -2.1]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[6.4, 0.16]} />
+            <meshStandardMaterial color="#e8d44d" />
+          </mesh>
+          {/* Bu durağın bekleyen yolcuları */}
+          {Array.from({ length: perPeron }, (_, p) => (
+            <group
+              key={p}
+              position={[-2.3 + (p % 8) * 0.66 + (i % 2) * 0.2, 0.22, 0.05 - Math.floor(p / 8) * 0.55]}
+              rotation={[0, ((p + i) % 5) * 0.35 - 0.7, 0]}
+            >
+              <PassengerMesh color={PASSENGER_COLORS[(p + i * 3) % PASSENGER_COLORS.length]} variant={p + i * 7} />
+            </group>
+          ))}
+        </group>
+      ))}
+    </>
+  )
+}
+
+// Rent-a-car: yazıhanenin arkasındaki otopark — plakalı sedanlar, boştakiler
+// burada bekler, kiradakiler trafiğe karışır (AmbientTraffic)
+function RentACarLot() {
+  const rentalOffice = useGame((s) => s.rentalOffice)
+  // Boştaki araçların plaka listesi: sadece filo/kira durumu değişince re-render
+  const idleKey = useGame((s) =>
+    s.rentals.filter((r) => r.rentDaysLeft <= 0).map((r) => r.plate).join(','),
+  )
+  if (!rentalOffice) return null
+  const idlePlates = idleKey ? idleKey.split(',') : []
+  const colors = ['#d9dde2', '#8d9aa8', '#b84a4a', '#3c4c60', '#5a7a52']
+  return (
+    <group position={[-29.5, 0, -2.5]}>
+      {/* Otopark zemini + cep çizgileri (3 sıra × 5 araç) */}
+      <mesh geometry={rbox(9.0, 0.1, 8.2, 0.03)} material={mat('#8f959b', 0.85)} position={[0.4, 0.05, 0]} receiveShadow />
+      {Array.from({ length: 3 }, (_, row) =>
+        Array.from({ length: 6 }, (_, col) => (
+          <mesh
+            key={`ln${row}-${col}`}
+            position={[-2.6 + col * 1.45, 0.11, 2.6 - row * 2.7]}
+            rotation={[-Math.PI / 2, 0, 0]}
+          >
+            <planeGeometry args={[0.08, 2.3]} />
+            <meshStandardMaterial color="#f0ece0" />
+          </mesh>
+        )),
+      )}
+      {/* Tabela */}
+      <mesh geometry={cyl(0.05, 0.05, 2.6, 8)} material={mat('#6f767e', 0.6, { metal: 0.4 })} position={[4.4, 1.3, 3.6]} />
+      <mesh geometry={rbox(2.1, 0.56, 0.12, 0.05)} material={mat('#0f766e', 0.5)} position={[4.4, 2.5, 3.6]} />
+      <Sign text="OTO KİRALAMA" bg="#0d9488" w={2.0} h={0.5} pos={[4.4, 2.5, 3.67]} />
+      {/* Boştaki kiralık araçlar: plakalı, cep cebe dizili */}
+      {idlePlates.slice(0, 15).map((plate, i) => {
+        const row = Math.floor(i / 5)
+        const col = i % 5
+        return (
+          <group
+            key={plate}
+            position={[-1.9 + col * 1.45, 0, 2.6 - row * 2.7]}
+            rotation={[0, (i % 3) * 0.06 - 0.06, 0]}
+            scale={0.72}
+          >
+            <CarMesh color={colors[i % colors.length]} kind="sedan" />
+            <mesh geometry={plateGeo} material={plateMaterial(plate)} position={[0, 0.32, 1.55]} scale={0.8} />
+            <mesh geometry={plateGeo} material={plateMaterial(plate)} position={[0, 0.32, -1.55]} rotation={[0, Math.PI, 0]} scale={0.8} />
+          </group>
+        )
+      })}
     </group>
   )
 }
@@ -715,9 +846,9 @@ export function World() {
         <meshStandardMaterial map={grassTex} roughness={1} />
       </mesh>
 
-      {/* Terminal betonu: iki park sırası + güneydeki tesis şeridini kapsar */}
-      <mesh position={[6, 0.01, -1.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[80, 28]} />
+      {/* Terminal betonu: iki park sırası + tesis şeridi + doğu servis koridoru */}
+      <mesh position={[8, 0.01, -1.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[86, 28]} />
         <meshStandardMaterial map={concreteTex} roughness={0.9} />
       </mesh>
       {/* Giriş (batı) ve çıkış (doğu) yolları */}
@@ -742,6 +873,8 @@ export function World() {
       ))}
 
       <Road />
+      <ExtraPerons />
+      <TaxiStand />
       {/* Mahalle, genişleyen terminale yer açmak için 7 birim geride */}
       <group position={[0, 0, -7]}>
         <BackStreet />
@@ -812,15 +945,28 @@ export function World() {
       ))}
 
       {/* Terminal arka çiti */}
-      <mesh geometry={rbox(80, 0.72, 0.2, 0.04)} material={mat('#c9ccc4', 0.8)} position={[6, 0.36, -15.5]} />
-      {Array.from({ length: 14 }, (_, i) => (
+      <mesh geometry={rbox(86, 0.72, 0.2, 0.04)} material={mat('#c9ccc4', 0.8)} position={[8, 0.36, -15.5]} />
+      {Array.from({ length: 15 }, (_, i) => (
         <mesh
           key={`fp${i}`}
           geometry={rbox(0.28, 1.0, 0.28, 0.05)}
           material={mat('#aeb2ab', 0.8)}
-          position={[-33 + i * 6.0, 0.5, -15.5]}
+          position={[-34 + i * 6.0, 0.5, -15.5]}
         />
       ))}
+
+      {/* Tamirhane servis parkı: ağır arızalı araç burada tamir bekler */}
+      <group position={[28.5, 0, -13]}>
+        <mesh geometry={rbox(8.4, 0.08, 4.0, 0.03)} material={mat('#8f959b', 0.85)} position={[0, 0.04, 0]} receiveShadow />
+        {[-4.0, 4.0].map((ox) => (
+          <mesh key={ox} position={[ox, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[0.14, 3.8]} />
+            <meshStandardMaterial color="#e8d44d" />
+          </mesh>
+        ))}
+        <mesh geometry={cyl(0.05, 0.05, 2.2, 8)} material={mat('#6f767e', 0.6, { metal: 0.4 })} position={[0, 1.1, 2.3]} />
+        <Sign text="SERVİS ALANI" bg="#c9a227" fg="#111111" w={1.9} h={0.42} pos={[0, 2.1, 2.37]} />
+      </group>
 
       {vehicleIds.map((id) => (
         <Vehicle key={id} vehicleId={id} />

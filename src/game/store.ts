@@ -4,12 +4,18 @@ import {
   type P2,
   LAYOUT,
   departPath,
+  departPathOf,
+  fromChargePath,
   fromPumpPath,
+  fromRepairPath,
   pathLength,
   returnPath,
+  spotDepartPath,
   spotPos,
+  toChargePath,
   toPeronPath,
   toPumpPath,
+  toRepairPath,
 } from './paths'
 import { t } from '../i18n'
 import { sfx } from './sound'
@@ -24,6 +30,9 @@ export type VehicleState =
   | 'toPump'
   | 'fueling'
   | 'fromPump'
+  | 'toRepair'
+  | 'inRepair'
+  | 'fromRepair'
 
 // dolmus/bus/artic/ebus hat araçlarıdır (peron kullanır); vito çağrı bazlı çalışır
 export type VehicleKind = 'dolmus' | 'vito' | 'bus' | 'artic' | 'ebus'
@@ -78,6 +87,8 @@ export type Vehicle = {
   driverName: string // şoför profili (hasDriver ise anlamlı)
   driverSkill: number // 1-3 ⭐: biniş hızı + yakıt verimi
   driverMoral: number // 0-100: düşükse beceri işlemez, çay molası tazeler
+  peronIdx: number // yanaştığı peron durağı (0 = ana peron)
+  brokenUntilDay: number // ağır arıza: bu güne kadar tamirhanede (0 = sağlam)
 }
 
 // Servis kontratı: her gün sabah + akşam birer sefer, günlük sabit ödeme
@@ -93,8 +104,55 @@ export type Contract = {
 }
 export type ContractOffer = { id: number; kind: number; dailyPay: number; expiresAt: number }
 
-// Taksi işletmesi: plaka en büyük yatırım — kirada pasif, işletmede yüksek gelir
-export type Taxi = { id: number; plate: string; mode: 'rent' | 'operate'; hasCar: boolean }
+// Taksi işletmesi: plaka en büyük yatırım — kirada pasif, işletmede yüksek gelir.
+// nightShift: gece şoförü tutulur, taksi 24 saat çalışır (gece geliri - yevmiye)
+export type Taxi = {
+  id: number
+  plate: string
+  mode: 'rent' | 'operate'
+  hasCar: boolean
+  nightShift: boolean
+}
+
+// Kiralık araç: gerçek araç — yakıt yakar, yıpranır, kiradayken trafiğe karışır.
+// Sabah 06:00'da dolulukla kiraya çıkar, akşam 20:00'de kira yatar + masraf işler.
+// Uzun dönem: turist 3-7 gün, kurumsal müşteri 30 gün alır (indirimli ama garanti).
+export type Rental = {
+  id: number
+  plate: string
+  fuel: number
+  wear: number
+  rentDaysLeft: number // 0 = boşta; >0 müşteride kalan gün
+  rentDaily: number // anlaşılan günlük kira (₺)
+  corporate: boolean // 30 günlük kurumsal sözleşme
+  depositHeld: number // müşteriden alınan teminat (₺); 0 = yok
+  wearAtRent: number // kiraya çıkarkenki yıpranma — teslimde fark müşteriden kesilir
+  refundIn: number // teslimden sonra teminat iadesine kalan gün; 0 = bekleyen iade yok
+}
+
+function makeRental(): Rental {
+  const seri = Array.from(
+    { length: 3 },
+    () => PLATE_LETTERS[Math.floor(Math.random() * PLATE_LETTERS.length)],
+  ).join('')
+  return {
+    id: nextId++,
+    plate: `34 ${seri} ${100 + Math.floor(Math.random() * 900)}`,
+    fuel: CONFIG.rentalTank,
+    wear: 0,
+    rentDaysLeft: 0,
+    rentDaily: 0,
+    corporate: false,
+    depositHeld: 0,
+    wearAtRent: 0,
+    refundIn: 0,
+  }
+}
+
+// Kiraya verilebilir mi: deposu ve bakımı yeterli olmalı
+export function rentalServiceable(r: Rental): boolean {
+  return r.fuel >= CONFIG.rentalMinFuel && r.wear < 100
+}
 
 function makeContractOffer(time: number): ContractOffer {
   return {
@@ -207,10 +265,12 @@ export type Debt = {
   no: number
   plate?: string
   remaining: number
-  daily: number
+  daily: number // taksit tutarı (periyot başına)
   bank?: boolean
   bankId?: string
   paidDay?: number // bu gün elle taksit ödendiyse akşam otomatiği atlar
+  every?: number // taksit periyodu (gün): 1 = günlük, 7 = haftalık, 30 = aylık
+  nextPayDay?: number // sıradaki otomatik kesinti günü
 }
 
 // Günlük görev: her sabah 06:00'da yenilenir
@@ -260,7 +320,7 @@ export const MILESTONES: MilestoneDef[] = [
   },
   { id: 'ilkElektrikli', reward: 200000, cond: (s) => s.vehicles.some((v) => v.kind === 'ebus') },
   { id: 'ilkTaksi', reward: 500000, cond: (s) => s.taxis.length >= 1 },
-  { id: 'kiralama5', reward: 150000, cond: (s) => s.rentalCars >= 5 },
+  { id: 'kiralama5', reward: 150000, cond: (s) => s.rentals.length >= 5 },
   { id: 'itibar5', reward: 30000, cond: (s) => s.rep >= 5 },
   { id: 'gun30', reward: 20000, cond: (s) => s.day >= 30 },
 ]
@@ -284,7 +344,14 @@ function genPartner(): string {
 }
 
 // Şoför isimleri: işe alımda rastgele atanır
-const DRIVER_NAMES = ['Kemal', 'Cemal', 'Hasan', 'Rıza', 'Şevket', 'Metin', 'Orhan', 'Selim', 'Yaşar', 'İrfan', 'Dursun', 'Bahri']
+// 50 isimlik şoför havuzu — hepsi "X Usta" olarak görünür
+const DRIVER_NAMES = [
+  'Kemal', 'Cemal', 'Hasan', 'Rıza', 'Şevket', 'Metin', 'Orhan', 'Selim', 'Yaşar', 'İrfan',
+  'Dursun', 'Bahri', 'Muzaffer', 'Necati', 'Fikret', 'Hüsnü', 'Kadir', 'Ramazan', 'Şaban', 'İlyas',
+  'Nurettin', 'Sabri', 'Tahsin', 'Vedat', 'Zeki', 'Adem', 'Bekir', 'Cevdet', 'Ekrem', 'Fahri',
+  'Galip', 'Hamdi', 'İsmet', 'Kazım', 'Lütfü', 'Mahmut', 'Nail', 'Osman', 'Recep', 'Seyfi',
+  'Turan', 'Ulvi', 'Veysel', 'Yakup', 'Zülfü', 'Arif', 'Burhan', 'Cafer', 'Davut', 'Enver',
+]
 function genDriver(): { name: string; skill: number } {
   return {
     name: `${DRIVER_NAMES[Math.floor(Math.random() * DRIVER_NAMES.length)]} Usta`,
@@ -350,10 +417,12 @@ export type Bank = {
   limitFactor: number // ciro çarpanı
   depositMult: number // mevduat faiz çarpanı
 }
+// Tem 2026 piyasasına göre kademeli: pahalı banka aylık ~%5 bandı, ortalama %3,7,
+// en iyisi kampanyalı ~%2,8-3 bandı (45 günlük vade farkına çevrilmiş hali)
 export const BANKS: Bank[] = [
-  { id: 'esnaf', minRep: 2.5, minScore: 20, markup: 0.1, limitFactor: 6, depositMult: 0.8 },
-  { id: 'dolmusbank', minRep: 3.5, minScore: 40, markup: 0.08, limitFactor: 10, depositMult: 1.0 },
-  { id: 'bogazici', minRep: 4.2, minScore: 60, markup: 0.055, limitFactor: 14, depositMult: 1.3 },
+  { id: 'esnaf', minRep: 2.5, minScore: 20, markup: 0.075, limitFactor: 6, depositMult: 0.85 },
+  { id: 'dolmusbank', minRep: 3.5, minScore: 40, markup: 0.055, limitFactor: 10, depositMult: 1.0 },
+  { id: 'bogazici', minRep: 4.2, minScore: 60, markup: 0.042, limitFactor: 14, depositMult: 1.2 },
 ]
 
 // Vadeli mevduat: vade dolunca ana para + basit faiz kasaya döner
@@ -367,13 +436,26 @@ export type Deposit = {
 }
 
 // Banka kredi limiti: son 7 günün ortalama geliri × bankanın çarpanı
-export function bankLimitOf(history: DayStats[], factor: number): number {
+// Limit = gelir tabanı (son 7 gün ort. × banka çarpanı) + hipotek payı
+// (filo değerinin hisse ağırlıklı %50'si — araçlar/hisseler teminat gösterilir)
+export function bankLimitOf(history: DayStats[], factor: number, assetValue = 0): number {
   const week = history.slice(-7)
-  if (week.length === 0) return 0
   const avg =
-    week.reduce((sum, d) => sum + Object.values(d.income).reduce((a, b) => a + b, 0), 0) /
-    week.length
-  return Math.round((avg * factor) / 1000) * 1000
+    week.length === 0
+      ? 0
+      : week.reduce((sum, d) => sum + Object.values(d.income).reduce((a, b) => a + b, 0), 0) /
+        week.length
+  return Math.round((avg * factor + assetValue * CONFIG.bankAssetFactor) / 1000) * 1000
+}
+
+// Hipoteğe konu filo değeri: her aracın değerlemesi × oyuncunun hissesi
+export function fleetAssetValue(vehicles: Vehicle[], rep: number): number {
+  return Math.round(
+    vehicles.reduce(
+      (sum, v) => sum + (valuationOf(v, vehicles.length, rep) * v.share) / 100,
+      0,
+    ),
+  )
 }
 
 // Günlük istatistik biriktiricileri (kalıcı değil, gün dönümünde tarihe yazılır)
@@ -437,12 +519,13 @@ type SavedFields = Pick<
   | 'streak'
   | 'lastPlayDate'
   | 'rentalOffice'
-  | 'rentalCars'
+  | 'rentals'
+  | 'perons'
 >
 
 function persist(s: SavedFields) {
   try {
-    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, streak, lastPlayDate, rentalOffice, rentalCars } = s
+    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, streak, lastPlayDate, rentalOffice, rentals, perons } = s
     localStorage.setItem(
       SAVE_KEY,
       JSON.stringify({
@@ -480,7 +563,8 @@ function persist(s: SavedFields) {
         contracts,
         taxis,
         rentalOffice,
-        rentalCars,
+        rentals,
+        perons,
       }),
     )
   } catch {
@@ -564,6 +648,8 @@ function loadSave(): Partial<GameState> | null {
         driverName: v.driverName ?? (v.hasDriver ? genDriver().name : ''),
         driverSkill: v.driverSkill ?? 1 + Math.floor(Math.random() * 3),
         driverMoral: v.driverMoral ?? 100,
+        peronIdx: v.peronIdx ?? 0,
+        brokenUntilDay: v.brokenUntilDay ?? 0,
         partners:
           v.partners ?? (v.share != null && v.share < 100 ? [{ name: genPartner(), pct: 100 - v.share }] : []),
       })),
@@ -593,7 +679,9 @@ function loadSave(): Partial<GameState> | null {
         : [makeRival(7), makeRival(12)],
       rivalRespawn: d.rivalRespawn ?? 0,
       contracts: Array.isArray(d.contracts) ? d.contracts : [],
-      taxis: Array.isArray(d.taxis) ? d.taxis : [],
+      taxis: Array.isArray(d.taxis)
+        ? d.taxis.map((tx: Taxi) => ({ ...tx, nightShift: tx.nightShift ?? false }))
+        : [],
       milestonesDone: Array.isArray(d.milestonesDone) ? d.milestonesDone : [],
       prestige: Number.isFinite(d.prestige) ? d.prestige : 0,
       fuelPrice: Number.isFinite(d.fuelPrice) ? d.fuelPrice : CONFIG.refuelCostPerUnit,
@@ -603,7 +691,17 @@ function loadSave(): Partial<GameState> | null {
       creditScore: Number.isFinite(d.creditScore) ? d.creditScore : CONFIG.creditScoreStart,
       missedPayDays: Number.isFinite(d.missedPayDays) ? d.missedPayDays : 0,
       rentalOffice: d.rentalOffice ?? false,
-      rentalCars: Number.isFinite(d.rentalCars) ? d.rentalCars : 0,
+      perons: Number.isFinite(d.perons) ? d.perons : 1,
+      // Eski kayıt: sayı olarak tutulan filo, plakalı gerçek araçlara çevrilir
+      rentals: Array.isArray(d.rentals)
+        ? d.rentals.map((r: Partial<Rental>) => ({
+            ...makeRental(),
+            ...r,
+            rentDaysLeft: r.rentDaysLeft ?? 0,
+            rentDaily: r.rentDaily ?? 0,
+            corporate: r.corporate ?? false,
+          }))
+        : Array.from({ length: Number.isFinite(d.rentalCars) ? d.rentalCars : 0 }, makeRental),
       ...(() => {
         // Günlük seri: dün oynandıysa seri büyür (ödül ilk tick'te toast'lanır)
         const today = localDateStr()
@@ -664,6 +762,8 @@ function makeVehicle(
     contractRun: false,
     ...(hasDriver ? (({ name, skill }) => ({ driverName: name, driverSkill: skill }))(genDriver()) : { driverName: '', driverSkill: 1 }),
     driverMoral: 100,
+    peronIdx: 0,
+    brokenUntilDay: 0,
   }
 }
 
@@ -735,6 +835,7 @@ type GameState = {
   buyTaxiPlate: () => void
   buyTaxiCar: (taxiId: number) => void
   setTaxiMode: (taxiId: number, mode: 'rent' | 'operate') => void
+  toggleTaxiNightShift: (taxiId: number) => void
   buyBuilding: (kind: BuildingKind) => void
   buyRival: (rivalId: number) => void
   buyRivalShare: (rivalId: number, pct: number) => void
@@ -744,6 +845,7 @@ type GameState = {
   hireKahya: (vehicleId: number) => void
   upgradeKahya: (vehicleId: number) => void
   payInstallment: (debtId: number) => void
+  restructureDebt: (debtId: number, plan: 'weekly' | 'monthly') => void
   payOffDebt: (debtId: number) => void
   vehicleCost: () => number
   spotCost: () => number
@@ -751,9 +853,14 @@ type GameState = {
   buyVito: (mode: 'cash' | 'loan') => void
   buyBus: (kind: BusKind, mode: 'cash' | 'loan') => void
   rentalOffice: boolean // rent-a-car ofisi kuruldu mu
-  rentalCars: number // kiralama filosundaki araç sayısı
+  rentals: Rental[] // kiralama filosu — plakalı gerçek araçlar
   buyRentalOffice: () => void
   buyRentalCar: () => void
+  refuelRental: (rentalId: number) => void
+  repairRental: (rentalId: number) => void
+  sellRental: (rentalId: number) => void
+  perons: number // peron durağı sayısı: aynı anda bu kadar araç yolcu alır
+  buyPeron: () => void
   buySpot: () => void
   hireDriver: () => void
   refuel: (vehicleId: number) => void
@@ -808,7 +915,8 @@ function initialState() {
     creditScore: CONFIG.creditScoreStart,
     missedPayDays: 0,
     rentalOffice: false,
-    rentalCars: 0,
+    rentals: [] as Rental[],
+    perons: 1,
     streak: 1,
     lastPlayDate: localDateStr(),
     rainUntil: 0,
@@ -951,10 +1059,57 @@ export const useGame = create<GameState>((set, get) => ({
   },
   buyRentalCar: () => {
     const s = get()
-    if (!s.rentalOffice || s.rentalCars >= CONFIG.rentalCarMax) return
-    const price = CONFIG.rentalCarCost + CONFIG.rentalCarStep * s.rentalCars
+    if (!s.rentalOffice || s.rentals.length >= CONFIG.rentalCarMax) return
+    const price = CONFIG.rentalCarCost + CONFIG.rentalCarStep * s.rentals.length
     if (s.money < price) return
-    set({ money: s.money - price, rentalCars: s.rentalCars + 1 })
+    set({ money: s.money - price, rentals: [...s.rentals, makeRental()] })
+  },
+
+  // Kiralık araç bakımı otobüslerle aynı mantık: depoyu doldur / yıpranmayı sıfırla
+  refuelRental: (rentalId: number) => {
+    const s = get()
+    const r = s.rentals.find((x) => x.id === rentalId)
+    if (!r || r.fuel >= CONFIG.rentalTank) return
+    const cost = Math.ceil(
+      (CONFIG.rentalTank - r.fuel) *
+        s.fuelPrice *
+        (s.buildings.yakitTanki ? CONFIG.yakitTankiDiscount : 1),
+    )
+    if (s.money < cost) return
+    trackExpense(cost)
+    set({
+      money: s.money - cost,
+      rentals: s.rentals.map((x) => (x.id === rentalId ? { ...x, fuel: CONFIG.rentalTank } : x)),
+    })
+  },
+  // Eskiyen kiralık satılır: değer yıpranmayla düşer (kiradayken satılamaz)
+  sellRental: (rentalId: number) => {
+    const s = get()
+    const r = s.rentals.find((x) => x.id === rentalId)
+    if (!r || r.rentDaysLeft > 0) return
+    const price = Math.round(CONFIG.rentalCarCost * Math.max(0.4, 1 - r.wear / 180))
+    trackIncome('kiralama', price)
+    set({
+      money: s.money + price,
+      rentals: s.rentals.filter((x) => x.id !== rentalId),
+    })
+  },
+
+  repairRental: (rentalId: number) => {
+    const s = get()
+    const r = s.rentals.find((x) => x.id === rentalId)
+    if (!r || r.wear <= 0) return
+    const cost = Math.ceil(
+      r.wear *
+        CONFIG.rentalRepairPerUnit *
+        (s.buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
+    )
+    if (s.money < cost) return
+    trackExpense(cost)
+    set({
+      money: s.money - cost,
+      rentals: s.rentals.map((x) => (x.id === rentalId ? { ...x, wear: 0 } : x)),
+    })
   },
 
   buySpot: () => {
@@ -962,6 +1117,15 @@ export const useGame = create<GameState>((set, get) => ({
     const cost = s.spotCost()
     if (s.money < cost || s.spots >= CONFIG.maxSpots) return
     set({ money: s.money - cost, spots: s.spots + 1 })
+  },
+
+  // Ek peron durağı: belediyeden tahsis — aynı anda bir araç daha yolcu alır
+  buyPeron: () => {
+    const s = get()
+    if (s.perons >= CONFIG.peronMax) return
+    const cost = CONFIG.peronCosts[s.perons - 1]
+    if (!cost || s.money < cost) return
+    set({ money: s.money - cost, perons: s.perons + 1 })
   },
 
   hireDriver: () => {
@@ -989,9 +1153,14 @@ export const useGame = create<GameState>((set, get) => ({
       (refuelCost(v, fuelUnitPrice(v.kind ?? 'dolmus', s.fuelPrice, s.buildings)) * v.share) / 100,
     )
     if (cost <= 0 || !v.hasDriver) return
-    // Araç parkta değilse ya da pompa doluysa: planla — parka dönünce pompaya gider
-    const pumpBusy = s.vehicles.some((veh) => veh.state === 'toPump' || veh.state === 'fueling')
-    if (v.state !== 'parked' || pumpBusy) {
+    // Elektrikli araç şarj ünitesine, dizel pompaya sürer — ayrı kuyruklar.
+    // Araç parkta değilse ya da nokta doluysa: planla — parka dönünce gider
+    const isEV = v.kind === 'ebus'
+    const stationBusy = s.vehicles.some(
+      (veh) =>
+        (veh.state === 'toPump' || veh.state === 'fueling') && (veh.kind === 'ebus') === isEV,
+    )
+    if (v.state !== 'parked' || stationBusy) {
       set({
         vehicles: s.vehicles.map((veh) =>
           veh.id === vehicleId ? { ...veh, pendingRefuel: true } : veh,
@@ -1005,7 +1174,12 @@ export const useGame = create<GameState>((set, get) => ({
       money: s.money - cost,
       vehicles: s.vehicles.map((veh) =>
         veh.id === vehicleId
-          ? { ...veh, state: 'toPump' as const, path: toPumpPath(spotPos(veh.spotIdx)), dist: 0 }
+          ? {
+              ...veh,
+              state: 'toPump' as const,
+              path: isEV ? toChargePath(spotPos(veh.spotIdx)) : toPumpPath(spotPos(veh.spotIdx)),
+              dist: 0,
+            }
           : veh,
       ),
       toasts: [
@@ -1216,15 +1390,47 @@ export const useGame = create<GameState>((set, get) => ({
     if (!d) return
     const pay = Math.min(d.daily, d.remaining)
     if (s.money < pay) return
+    const today = clockOf(s.time).day
     set({
       money: s.money - pay,
       debts: s.debts
         .map((debt) =>
           debt.id === debtId
-            ? { ...debt, remaining: debt.remaining - pay, paidDay: clockOf(s.time).day }
+            ? {
+                ...debt,
+                remaining: debt.remaining - pay,
+                paidDay: today,
+                nextPayDay: today + (debt.every ?? 1),
+              }
             : debt,
         )
         .filter((debt) => debt.remaining > 0),
+    })
+  },
+
+  // Senet yapılandırma: günlük taksiti kaldıramayan haftalık (13 taksit, +%8)
+  // veya aylık (6 taksit, +%15) plana çevirir — bir kez yapılır
+  restructureDebt: (debtId: number, plan: 'weekly' | 'monthly') => {
+    const s = get()
+    const d = s.debts.find((debt) => debt.id === debtId)
+    if (!d || (d.every ?? 1) !== 1) return
+    const markup = plan === 'weekly' ? 1.08 : 1.15
+    const installments = plan === 'weekly' ? 13 : 6
+    const every = plan === 'weekly' ? 7 : 30
+    const remaining = Math.round(d.remaining * markup)
+    const today = clockOf(s.time).day
+    set({
+      debts: s.debts.map((debt) =>
+        debt.id === debtId
+          ? {
+              ...debt,
+              remaining,
+              daily: Math.ceil(remaining / installments),
+              every,
+              nextPayDay: today + every,
+            }
+          : debt,
+      ),
     })
   },
 
@@ -1250,6 +1456,7 @@ export const useGame = create<GameState>((set, get) => ({
     const fuelNeed = Math.ceil(c.km * CONFIG.charterFuelPerKm)
     const eligible = (veh: Vehicle) =>
       isHatVehicle(veh.kind) &&
+      veh.brokenUntilDay === 0 &&
       veh.hasDriver &&
       veh.fuel >= fuelNeed &&
       veh.wear < 100 &&
@@ -1273,7 +1480,7 @@ export const useGame = create<GameState>((set, get) => ({
               ...(immediate
                 ? {
                     state: 'departing' as const,
-                    path: departPath,
+                    path: spotDepartPath(spotPos(veh.spotIdx)),
                     dist: 0,
                     tripLeft: c.duration,
                   }
@@ -1385,16 +1592,19 @@ export const useGame = create<GameState>((set, get) => ({
     const s = get()
     const bank = BANKS[bankIdx]
     if (!bank || s.rep < bank.minRep || s.creditScore < bank.minScore) return
-    const limit = bankLimitOf(s.statsHistory, bank.limitFactor)
+    const limit = bankLimitOf(s.statsHistory, bank.limitFactor, fleetAssetValue(s.vehicles, s.rep))
     const used = s.debts.reduce(
       (sum, d) => sum + (d.bank && d.bankId === bank.id ? d.remaining : 0),
       0,
     )
     const amt = Math.floor(amount)
     if (amt <= 0 || amt > limit - used) return
-    // Kredi skoru vade farkını belirler: skor düştükçe faiz artar
+    // Kredi skoru vade farkını belirler: skor düştükçe faiz artar.
+    // Banka taksitleri HAFTALIK işler (gerçekte kimse günlük kredi ödemez)
     const markup = bank.markup + ((100 - s.creditScore) / 100) * CONFIG.bankLoanScorePenalty
     const remaining = Math.round(amt * (1 + markup))
+    const weeks = Math.ceil(CONFIG.bankLoanTermDays / 7)
+    const today = clockOf(s.time).day
     set({
       money: s.money + amt,
       debts: [
@@ -1405,7 +1615,9 @@ export const useGame = create<GameState>((set, get) => ({
           bank: true,
           bankId: bank.id,
           remaining,
-          daily: Math.ceil(remaining / CONFIG.bankLoanTermDays),
+          daily: Math.ceil(remaining / weeks),
+          every: 7,
+          nextPayDay: today + 7,
         },
       ],
     })
@@ -1442,7 +1654,7 @@ export const useGame = create<GameState>((set, get) => ({
       money: s.money - CONFIG.taxiPlateCost,
       taxis: [
         ...s.taxis,
-        { id: nextId++, plate: `34 T ${1000 + Math.floor(Math.random() * 9000)}`, mode: 'rent', hasCar: false },
+        { id: nextId++, plate: `34 T ${1000 + Math.floor(Math.random() * 9000)}`, mode: 'rent', hasCar: false, nightShift: false },
       ],
     })
   },
@@ -1464,6 +1676,18 @@ export const useGame = create<GameState>((set, get) => ({
     const taxi = s.taxis.find((tx) => tx.id === taxiId)
     if (!taxi || (mode === 'operate' && !taxi.hasCar)) return
     set({ taxis: s.taxis.map((tx) => (tx.id === taxiId ? { ...tx, mode } : tx)) })
+  },
+
+  // Gece vardiyası: ikinci şoför — taksi 24 saat döner (yalnız işletilen takside)
+  toggleTaxiNightShift: (taxiId: number) => {
+    const s = get()
+    const taxi = s.taxis.find((tx) => tx.id === taxiId)
+    if (!taxi || !taxi.hasCar || taxi.mode !== 'operate') return
+    set({
+      taxis: s.taxis.map((tx) =>
+        tx.id === taxiId ? { ...tx, nightShift: !tx.nightShift } : tx,
+      ),
+    })
   },
 
   toggleNightShift: (vehicleId: number) => {
@@ -1494,6 +1718,7 @@ export const useGame = create<GameState>((set, get) => ({
     let contracts = s.contracts
     let statsHistory = s.statsHistory
     let deposits = s.deposits
+    let rentals = s.rentals
     let creditScore = s.creditScore
     let missedPayDays = s.missedPayDays
     let hacizPending = false
@@ -1549,6 +1774,38 @@ export const useGame = create<GameState>((set, get) => ({
       dayExpense = 0
       // Şoför pazarı yenilenir, moraller günlük düşer
       marketRefreshPending = true
+      // Kiralama sabahı: boştaki uygun araçlar dolulukla kiraya çıkar.
+      // %10 kurumsal (30 gün, ×0.85 ama garanti), %20 uzun hafta (3-7 gün, ×0.95)
+      if (s.rentalOffice && rentals.length > 0) {
+        const occ = Math.min(0.95, CONFIG.rentalOccBase + CONFIG.rentalOccPerRep * rep)
+        let corpSigned: string | null = null
+        let depositsTaken = 0
+        rentals = rentals.map((r) => {
+          if (r.rentDaysLeft > 0 || !rentalServiceable(r)) return r
+          if (Math.random() >= occ) return r
+          // Teminat müşteriden peşin alınır; teslimde kesintiler düşülüp iade edilir
+          depositsTaken += CONFIG.rentalDeposit
+          const rented = { ...r, depositHeld: CONFIG.rentalDeposit, wearAtRent: r.wear, refundIn: 0 }
+          const base = rand(CONFIG.rentalDailyMin, CONFIG.rentalDailyMax)
+          // %5 kurumsal (30 gün, indirimli ama garanti); gerisi 1-10 gün arası bireysel
+          if (Math.random() < 0.05) {
+            corpSigned = r.plate
+            return { ...rented, rentDaysLeft: 30, rentDaily: Math.round(base * 0.85), corporate: true }
+          }
+          return {
+            ...rented,
+            rentDaysLeft: Math.round(rand(1, 10)),
+            rentDaily: Math.round(base),
+            corporate: false,
+          }
+        })
+        // Teminat gelir değildir: kasada bekler, iadede geri çıkar
+        money += depositsTaken
+        if (corpSigned) pushToast(t.rentalCorpDeal(corpSigned))
+        // Sabah bilgisi: bugün kaç araç kiraya çıktı (araçlar otoparktan trafiğe karışır)
+        const outToday = rentals.filter((r) => r.rentDaysLeft > 0).length
+        if (outToday > 0) pushToast(t.rentalMorning(outToday, rentals.length))
+      }
       // Mevduat vadeleri işler: dolan mevduat faiziyle kasaya döner
       if (deposits.length > 0) {
         const next: Deposit[] = []
@@ -1628,7 +1885,11 @@ export const useGame = create<GameState>((set, get) => ({
           (sum, tx) =>
             sum +
             (tx.mode === 'operate' && tx.hasCar
-              ? rand(CONFIG.taxiOperateMin, CONFIG.taxiOperateMax)
+              ? rand(CONFIG.taxiOperateMin, CONFIG.taxiOperateMax) +
+                // Gece vardiyası: ikinci şoförün hasılatı - yevmiyesi
+                (tx.nightShift
+                  ? rand(CONFIG.taxiNightMin, CONFIG.taxiNightMax) - CONFIG.taxiNightWage
+                  : 0)
               : CONFIG.taxiRentDaily),
           0,
         ),
@@ -1638,23 +1899,104 @@ export const useGame = create<GameState>((set, get) => ({
         trackIncome('taksi', taxiIncome)
         pushToast(t.taxiIncome(taxiIncome))
       }
-      // Kiralama (rent-a-car): her araç itibara bağlı dolulukla kiralanır
-      if (s.rentalOffice && s.rentalCars > 0) {
-        const occ = Math.min(0.95, CONFIG.rentalOccBase + CONFIG.rentalOccPerRep * rep)
-        let rented = 0
+      // Kiralama: kiradaki araçlar günlük kirayı yatırır; yakıt yanar, yıpranma işler.
+      // Teslimde full-to-full: müşteri %70 depoyu doldurup verir, vermezse eksik
+      // yakıt + yıpranma bedeli teminatından kesilir. Kalan teminat 3-4 günde iade.
+      if (rentals.some((r) => r.rentDaysLeft > 0 || r.refundIn > 0)) {
         let rentalIncome = 0
-        for (let i = 0; i < s.rentalCars; i++) {
-          if (Math.random() < occ) {
-            rented++
-            rentalIncome += rand(CONFIG.rentalDailyMin, CONFIG.rentalDailyMax)
+        let rentedCount = 0
+        let refundPaid = 0
+        let kesintiTotal = 0
+        rentals = rentals.map((r) => {
+          // Bekleyen teminat iadesi: günü gelince kalan tutar müşteriye döner
+          if (r.rentDaysLeft <= 0 && r.refundIn > 0) {
+            const left = r.refundIn - 1
+            if (left <= 0) {
+              refundPaid += r.depositHeld
+              return { ...r, refundIn: 0, depositHeld: 0 }
+            }
+            return { ...r, refundIn: left }
           }
-        }
+          if (r.rentDaysLeft <= 0) return r
+          rentedCount++
+          rentalIncome += r.rentDaily
+          const wear = Math.min(
+            100,
+            r.wear + rand(CONFIG.rentalWearPerDayMin, CONFIG.rentalWearPerDayMax),
+          )
+          const fuel = Math.max(
+            0,
+            r.fuel - rand(CONFIG.rentalFuelPerDayMin, CONFIG.rentalFuelPerDayMax),
+          )
+          const daysLeft = wear >= 100 ? 0 : r.rentDaysLeft - 1
+          if (daysLeft > 0) return { ...r, fuel, wear, rentDaysLeft: daysLeft }
+          // TESLİM: yıpranma bedeli teminattan kesilir; %30 müşteri depoyu
+          // doldurmadan verir — eksik yakıt da teminattan tahsil edilir
+          let kesinti = Math.round((wear - r.wearAtRent) * CONFIG.rentalRepairPerUnit)
+          let returnFuel = CONFIG.rentalTank
+          if (Math.random() < 0.3) {
+            kesinti += Math.ceil((CONFIG.rentalTank - fuel) * fuelPrice)
+            returnFuel = fuel
+          }
+          kesinti = Math.min(kesinti, r.depositHeld)
+          kesintiTotal += kesinti
+          return {
+            ...r,
+            fuel: returnFuel,
+            wear,
+            rentDaysLeft: 0,
+            corporate: false,
+            depositHeld: r.depositHeld - kesinti,
+            refundIn: Math.round(rand(CONFIG.rentalRefundDaysMin, CONFIG.rentalRefundDaysMax)),
+          }
+        })
         rentalIncome = Math.round(rentalIncome)
         if (rentalIncome > 0) {
           money += rentalIncome
           trackIncome('kiralama', rentalIncome)
-          pushToast(t.rentalIncome(rented, s.rentalCars, rentalIncome))
+          pushToast(t.rentalIncome(rentedCount, rentals.length, rentalIncome))
         }
+        // Kesinti bizde kalır: teminat zaten kasada, sadece iade azalır — gelir sayılır
+        if (kesintiTotal > 0) {
+          trackIncome('kiralama', kesintiTotal)
+          pushToast(t.rentalKesinti(kesintiTotal))
+        }
+        if (refundPaid > 0) {
+          money -= refundPaid
+          pushToast(t.rentalRefund(refundPaid))
+        }
+      }
+      // Otomasyon kiralık filoyu da kapsar: oto-pompa depoları doldurur,
+      // bakım aboneliği yıpranmışları elden geçirir (hat araçlarıyla aynı eşikler)
+      if ((buildings.otoPompa || buildings.otoBakim) && rentals.length > 0) {
+        rentals = rentals.map((r) => {
+          let rr = r
+          if (buildings.otoPompa && rr.fuel < CONFIG.rentalMinFuel * 2) {
+            const cost = Math.ceil(
+              (CONFIG.rentalTank - rr.fuel) *
+                fuelPrice *
+                (buildings.yakitTanki ? CONFIG.yakitTankiDiscount : 1),
+            )
+            if (money >= cost) {
+              money -= cost
+              trackExpense(cost)
+              rr = { ...rr, fuel: CONFIG.rentalTank }
+            }
+          }
+          if (buildings.otoBakim && rr.wear >= 80) {
+            const cost = Math.ceil(
+              rr.wear *
+                CONFIG.rentalRepairPerUnit *
+                (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
+            )
+            if (money >= cost) {
+              money -= cost
+              trackExpense(cost)
+              rr = { ...rr, wear: 0 }
+            }
+          }
+          return rr
+        })
       }
       // Kontrat gelirleri: koşulan sefer başına günlük ödemenin yarısı
       const contractIncome = Math.round(
@@ -1691,9 +2033,17 @@ export const useGame = create<GameState>((set, get) => ({
           .map((d) => {
             // Gün içinde elle ödendiyse bu akşam kesinti yok
             if (d.paidDay === day) return d
+            // Haftalık/aylık plan: vadesi gelmediyse dokunma
+            const nextDue = d.nextPayDay ?? day
+            if (day < nextDue) return d
             const pay = Math.min(d.daily, d.remaining)
             paid += pay
-            return { ...d, remaining: d.remaining - pay, paidDay: day }
+            return {
+              ...d,
+              remaining: d.remaining - pay,
+              paidDay: day,
+              nextPayDay: day + (d.every ?? 1),
+            }
           })
           .filter((d) => d.remaining > 0)
         if (paid > 0) {
@@ -1706,7 +2056,12 @@ export const useGame = create<GameState>((set, get) => ({
 
     // Terminale yolcu akışı — gece ayak seyrekleşir, itibar/filo/prestij ve
     // hava olayları yoğunluğu belirler. Kuyruk doluysa itibar zedelenir.
-    const activeFleet = Math.max(1, s.vehicles.filter((v) => v.hasDriver).length)
+    // Talep, araç SINIFI ağırlıklı: otobüs durağa minibüsten çok yolcu çeker
+    // (demandWeight — dolmuş 1, otobüs 1.8, körüklü 2.6, elektrikli 2; vito saymaz)
+    const activeFleet = Math.max(
+      1,
+      s.vehicles.reduce((sum, v) => sum + (v.hasDriver ? specOf(v.kind).demandWeight : 0), 0),
+    )
     const queueCap = queueCapOf(activeFleet)
     spawnTimer -= dt
     if (spawnTimer <= 0) {
@@ -1735,7 +2090,9 @@ export const useGame = create<GameState>((set, get) => ({
           bufeToday += sale
         }
       } else {
-        rep = clampRep(rep - CONFIG.repLostPassenger)
+        // Büyük terminalde tek kaçan yolcunun itibar etkisi orantısal küçülür —
+        // yoksa otobüs filosunda hızlanan yolcu akışı itibarı eritiyor
+        rep = clampRep(rep - CONFIG.repLostPassenger / Math.sqrt(activeFleet))
       }
     }
 
@@ -1756,6 +2113,8 @@ export const useGame = create<GameState>((set, get) => ({
       if (contractOfferTimer <= 0) {
         contractOfferTimer = rand(CONFIG.contractOfferMin, CONFIG.contractOfferMax)
         contractOffer = makeContractOffer(time)
+        // Teklif sessizce sekmede beklemesin: oyuncuya haber ver
+        pushToast(t.contractOfferToast(t.contractKinds[contractOffer.kind], contractOffer.dailyPay))
       }
     }
 
@@ -1789,11 +2148,23 @@ export const useGame = create<GameState>((set, get) => ({
     }
 
     // Peron tek araçlık ve hat ortak: rakipler de aynı perona yanaşır
-    let peronBusy =
-      s.vehicles.some((v) => v.state === 'toPeron' || v.state === 'loading') ||
-      s.rivals.some((r) => r.state === 'toPeron' || r.state === 'loading')
-    // Pompa da tek araçlık
-    let pumpInUse = s.vehicles.some((v) => v.state === 'toPump' || v.state === 'fueling')
+    // Peron slotları: her durak aynı anda tek araç alır — rakipler ana peronu (0) kullanır
+    const peronSlots: boolean[] = new Array(Math.max(1, s.perons)).fill(false)
+    for (const v of s.vehicles) {
+      if (v.state === 'toPeron' || v.state === 'loading') {
+        peronSlots[Math.min(v.peronIdx ?? 0, peronSlots.length - 1)] = true
+      }
+    }
+    if (s.rivals.some((r) => r.state === 'toPeron' || r.state === 'loading')) {
+      peronSlots[0] = true
+    }
+    // Pompa ve şarj ünitesi ayrı ayrı tek araçlık: dizel pompaya, elektrikli şarja
+    let pumpInUse = s.vehicles.some(
+      (v) => (v.state === 'toPump' || v.state === 'fueling') && v.kind !== 'ebus',
+    )
+    let chargerInUse = s.vehicles.some(
+      (v) => (v.state === 'toPump' || v.state === 'fueling') && v.kind === 'ebus',
+    )
 
     // Rakip minibüsler: gündüz gelir, kuyruktan yolcu kapar, para onlara gider
     let rivals = s.rivals.map((rival) => {
@@ -1806,10 +2177,10 @@ export const useGame = create<GameState>((set, get) => ({
         case 'away': {
           r.timer -= dt
           if (r.timer <= 0) {
-            if (isNight || peronBusy) {
+            if (isNight || peronSlots[0]) {
               r.timer = 4 // kısa süre sonra tekrar dene
             } else {
-              peronBusy = true
+              peronSlots[0] = true
               r.state = 'toPeron'
               r.path = rivalArrivePath
               r.dist = 0
@@ -1874,11 +2245,19 @@ export const useGame = create<GameState>((set, get) => ({
 
       switch (v.state) {
         case 'parked': {
+          // Ağır arıza: araç tamirhanede — günü dolana kadar hiçbir şey yapamaz,
+          // çıkışta sıfır bakımla döner (fatura arıza anında kesildi)
+          if (v.brokenUntilDay > 0) {
+            if (day < v.brokenUntilDay) break
+            v.brokenUntilDay = 0
+            v.wear = 0
+            pushToast(t.bigRepairDone(v.plate))
+          }
           // Kuyruktaki özel servis: park eder etmez yola çıkar (masrafı kabulde ödendi)
           if (v.charterQueued) {
             v.charterQueued = false
             v.state = 'departing'
-            v.path = departPath
+            v.path = spotDepartPath(spotPos(v.spotIdx))
             v.dist = 0
             v.tripLeft = v.charterDuration
             break
@@ -1899,7 +2278,7 @@ export const useGame = create<GameState>((set, get) => ({
             }
           }
           // Planlı yakıt: pompa boşsa öde ve pompaya sür
-          if (v.pendingRefuel && v.hasDriver && !pumpInUse) {
+          if (v.pendingRefuel && v.hasDriver && !(v.kind === 'ebus' ? chargerInUse : pumpInUse)) {
             if (v.fuel >= specOf(v.kind).tank) {
               v.pendingRefuel = false
             } else {
@@ -1910,10 +2289,14 @@ export const useGame = create<GameState>((set, get) => ({
                 money -= cost
                 trackExpense(cost)
                 v.pendingRefuel = false
-                pumpInUse = true
+                if (v.kind === 'ebus') chargerInUse = true
+                else pumpInUse = true
                 pushToast(t.refueled(v.plate, cost))
                 v.state = 'toPump'
-                v.path = toPumpPath(spotPos(v.spotIdx))
+                v.path =
+                  v.kind === 'ebus'
+                    ? toChargePath(spotPos(v.spotIdx))
+                    : toPumpPath(spotPos(v.spotIdx))
                 v.dist = 0
                 break
               }
@@ -1933,7 +2316,7 @@ export const useGame = create<GameState>((set, get) => ({
           if (
             buildings.otoPompa &&
             v.hasDriver &&
-            !pumpInUse &&
+            !(v.kind === 'ebus' ? chargerInUse : pumpInUse) &&
             v.fuel < specOf(v.kind).fuelPerTrip * 2 &&
             v.fuel < specOf(v.kind).tank
           ) {
@@ -1944,9 +2327,13 @@ export const useGame = create<GameState>((set, get) => ({
               money -= cost
               trackExpense(cost)
               v.pendingRefuel = false
-              pumpInUse = true
+              if (v.kind === 'ebus') chargerInUse = true
+              else pumpInUse = true
               v.state = 'toPump'
-              v.path = toPumpPath(spotPos(v.spotIdx))
+              v.path =
+                v.kind === 'ebus'
+                  ? toChargePath(spotPos(v.spotIdx))
+                  : toPumpPath(spotPos(v.spotIdx))
               v.dist = 0
               break
             }
@@ -1971,7 +2358,7 @@ export const useGame = create<GameState>((set, get) => ({
                   )
                   v.tripLeft = CONFIG.vitoDurationBase + km * CONFIG.vitoDurationPerKm
                   v.state = 'departing'
-                  v.path = departPath
+                  v.path = spotDepartPath(spotPos(v.spotIdx))
                   v.dist = 0
                 }
                 v.callIn =
@@ -1983,10 +2370,12 @@ export const useGame = create<GameState>((set, get) => ({
           }
           // Gece (00-06) nöbetçi veya ortaklı araç çalışır (ortağın şoförü sürer)
           const onDuty = !isNight || v.nightShift || v.share < 100
-          if (v.hasDriver && canServe(v) && onDuty && !peronBusy) {
-            peronBusy = true
+          const freeSlot = peronSlots.findIndex((used) => !used)
+          if (v.hasDriver && canServe(v) && onDuty && freeSlot >= 0) {
+            peronSlots[freeSlot] = true
+            v.peronIdx = freeSlot
             v.state = 'toPeron'
-            v.path = toPeronPath(spotPos(v.spotIdx))
+            v.path = toPeronPath(spotPos(v.spotIdx), freeSlot)
             v.dist = 0
           }
           break
@@ -2068,7 +2457,7 @@ export const useGame = create<GameState>((set, get) => ({
             )
             pushToast(t.departed(v.plate, v.passengers, tripFare))
             v.state = 'departing'
-            v.path = departPath
+            v.path = departPathOf(v.peronIdx ?? 0)
             v.dist = 0
           }
           break
@@ -2164,12 +2553,38 @@ export const useGame = create<GameState>((set, get) => ({
           v.fuel = Math.min(tank, v.fuel + CONFIG.fuelFillRate * (tank / CONFIG.fuelCapacity) * dt)
           if (v.fuel >= tank) {
             v.state = 'fromPump'
-            v.path = fromPumpPath(spotPos(v.spotIdx))
+            v.path =
+              v.kind === 'ebus'
+                ? fromChargePath(spotPos(v.spotIdx))
+                : fromPumpPath(spotPos(v.spotIdx))
             v.dist = 0
           }
           break
         }
         case 'fromPump': {
+          if (advance()) {
+            v.state = 'parked'
+            v.path = null
+          }
+          break
+        }
+        case 'toRepair': {
+          // path korunur: araç servis parkında sabit bekler
+          if (advance()) v.state = 'inRepair'
+          break
+        }
+        case 'inRepair': {
+          if (day >= v.brokenUntilDay) {
+            v.brokenUntilDay = 0
+            v.wear = 0
+            pushToast(t.bigRepairDone(v.plate))
+            v.state = 'fromRepair'
+            v.path = fromRepairPath(spotPos(v.spotIdx))
+            v.dist = 0
+          }
+          break
+        }
+        case 'fromRepair': {
           if (advance()) {
             v.state = 'parked'
             v.path = null
@@ -2205,8 +2620,34 @@ export const useGame = create<GameState>((set, get) => ({
       eventTimer -= dt
       if (eventTimer <= 0) {
         eventTimer = rand(CONFIG.eventIntervalMin, CONFIG.eventIntervalMax)
-        const roll = Math.floor(rand(0, 4))
-        if (roll === 0) {
+        // Büyük filoda (6+) ağır arıza da olasılık havuzuna girer
+        const roll = Math.floor(rand(0, vehicles.length >= 6 ? 5 : 4))
+        if (roll === 4) {
+          // Ağır arıza: şanzıman/motor — araç servis parkına çekilir, 2-3 gün
+          // tamirde kalır, fatura peşin kesilir
+          const idx = vehicles.findIndex(
+            (v) => v.state === 'parked' && v.hasDriver && v.brokenUntilDay === 0,
+          )
+          if (idx >= 0) {
+            const days = 2 + Math.floor(rand(0, 2))
+            const bill = Math.ceil(
+              CONFIG.repairCostPerUnit *
+                60 *
+                specOf(vehicles[idx].kind).repairMult *
+                (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
+            )
+            money -= bill
+            trackExpense(bill)
+            vehicles[idx] = {
+              ...vehicles[idx],
+              brokenUntilDay: day + days,
+              state: 'toRepair',
+              path: toRepairPath(spotPos(vehicles[idx].spotIdx)),
+              dist: 0,
+            }
+            pushToast(t.bigBreakdown(vehicles[idx].plate, days, bill))
+          }
+        } else if (roll === 0) {
           // Zabıta: ayakta yolcu taşıyan araç yakalanırsa ceza
           const overloaded = vehicles.find(
             (v) =>
@@ -2293,6 +2734,7 @@ export const useGame = create<GameState>((set, get) => ({
         const idx = vehicles.findIndex(
           (veh) =>
             isHatVehicle(veh.kind) &&
+            veh.brokenUntilDay === 0 &&
             veh.state === 'parked' &&
             veh.hasDriver &&
             veh.fuel >= CONFIG.contractFuel &&
@@ -2305,7 +2747,7 @@ export const useGame = create<GameState>((set, get) => ({
         vehicles[idx] = {
           ...veh,
           state: 'departing',
-          path: departPath,
+          path: spotDepartPath(spotPos(veh.spotIdx)),
           dist: 0,
           tripLeft: CONFIG.contractRunDuration,
           contractRun: true,
@@ -2364,7 +2806,7 @@ export const useGame = create<GameState>((set, get) => ({
       })
     }
 
-    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay, bufeToday, rivals, rivalRespawn, charter, contracts, contractOffer, rainUntil, korsanUntil, celebrateAt, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, driverMarket })
+    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay, bufeToday, rivals, rivalRespawn, charter, contracts, contractOffer, rainUntil, korsanUntil, celebrateAt, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, driverMarket, rentals })
 
     // ~2.5 sn'de bir kaydet — her frame localStorage'a yazmak gereksiz
     saveAcc += dt

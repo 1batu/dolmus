@@ -13,7 +13,7 @@ const BUMPER = '#b6bac0'
 
 // Plaka dokusu: beyaz zemin + mavi TR bandı + siyah koyu punto (plaka başına önbellekli)
 const plateMatCache = new Map<string, THREE.MeshBasicMaterial>()
-function plateMaterial(plate: string): THREE.MeshBasicMaterial {
+export function plateMaterial(plate: string): THREE.MeshBasicMaterial {
   let m = plateMatCache.get(plate)
   if (!m) {
     const canvas = document.createElement('canvas')
@@ -39,7 +39,7 @@ function plateMaterial(plate: string): THREE.MeshBasicMaterial {
   return m
 }
 
-const plateGeo = new THREE.PlaneGeometry(0.72, 0.18)
+export const plateGeo = new THREE.PlaneGeometry(0.72, 0.18)
 
 // Klasik beyaz + renkli şerit Türk minibüsü — yuvarlatılmış modern kasa, sıfır asset
 export function MinibusMesh({
