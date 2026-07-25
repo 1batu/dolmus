@@ -88,7 +88,18 @@ npm run dev
 22. ~~**Araç kiralama**~~ ✅ — rent-a-car ofisi + günlük kiralık filo
 23. ~~**Terminal büyümesi**~~ ✅ — 20 park cebi (2 sıra), Türkçe tabelalar, gece 2× hız, araç üstü uyarı rozetleri, renkli rakip minibüsler
 
-### Kalan
-24. **Yayın** — Vercel deploy → oynanabilir link; sonrasında Capacitor ile mağaza
-25. **Onboarding** — ilk oyuncu rehberi
-26. **Skor kartı paylaşımı** — tek tuşla şık görsel üret, sosyal medyaya at
+### Kalan — Para kazandıran yeni oyuncaklar
+24. **Araç modifiye** — motor yenileme (tüketim düşer), LPG dönüşümü (yakıt ucuzlar), klima (yolcu memnuniyeti), ses sistemi; para batırma noktası — kasa hızlı şişiyor
+25. **Reklam** — araç giydirme + terminale billboard: pasif gelir, sahneyi de zenginleştirir (tabelalar gibi canvas dokularla)
+26. **İkinci şube** — farklı ilçede ikinci terminal (geç oyun hedefi, ₺50M+): kamera değişmez, şube ekran dışı özet gelir üretir, kahya gibi "şube müdürü" atanır
+
+### Kalan — Takvim & atmosfer
+27. **Özel günler** — maç günü (talep patlar + zabıta artar), bayram (bedava taşıma = itibar), okul açılışı, yılbaşı; gün sayacına bağlı talep dalgaları
+28. **Kar + sis** — yağmur altyapısı hazır, kış görselleri kolay; karda kaza riski artar (sigortayla birleşir)
+29. **Minibüs radyosu** — WebAudio ile hafif arabesk-vari loop + klakson kültürü, sessize almaya bağlı
+
+### Kalan — Cila & meta
+30. **Başarım paneli** — milestone'lar var ama listesi görünmüyor: İnşaat'a "Başarımlar" sekmesi, kilitliler gri
+31. **Net varlık grafiği** — kasa + filo değeri + mevduat − borç; İstatistik sekmesine tek çizgi
+32. **Skor kartı paylaşımı + Yayın** — tek tuşla şık skor görseli + Vercel deploy → oynanabilir link (oyun paylaşılabilir olmadan twit tam vurmaz); sonrasında Capacitor ile mağaza
+33. **Onboarding** — ilk oyuncu rehberi
