@@ -25,6 +25,16 @@ const dicts = {
     restructureWeekly: 'Haftalık yap (+%8)',
     restructureMonthly: 'Aylık yap (+%15)',
     debtsCount: (n: number) => `${n} borç · toplam`,
+    modsTitle: 'Modifiye & Reklam',
+    modNames: {
+      engine: 'Motor Yenileme',
+      lpg: 'LPG Dönüşümü',
+      ac: 'Klima',
+      sound: 'Ses Sistemi',
+    } as Record<string, string>,
+    wrapAdd: (min: number, max: number) => `Reklam Giydir (+₺${fmt(min)}-${fmt(max)}/gün)`,
+    wrapRemove: 'Reklamı Sök',
+    adIncome: (amt: number) => `Reklam geliri: +₺${fmt(amt)}`,
     installmentsPaid: (total: number) => `Senet taksitleri ödendi: -₺${fmt(total)}`,
     rep: 'İtibar',
     debtsTitle: 'Senetler',
@@ -163,6 +173,7 @@ const dicts = {
       sarj: 'Şarj İstasyonu',
       solar: 'Güneş Paneli + Depo',
       yakitTanki: 'Akaryakıt Tankı',
+      billboard: 'Reklam Panosu',
       hat2: 'Hat Plakası (Kadıköy)',
     },
     buildingEffects: {
@@ -174,6 +185,7 @@ const dicts = {
       sarj: 'Elektrikli otobüsün ön şartı — şebekeden ucuz şarj',
       solar: 'Güneşten depolanan enerji: şarj maliyeti %65 daha iner',
       yakitTanki: 'Toptan mazot: kendi araçların %10 ucuza doldurur, esnafa satıştan saatlik kâr',
+      billboard: 'Ana yola dev pano: reklamveren her akşam kira öder',
       hat2: 'İkinci hat: yolcu akışı +%25, hat hasılatı +%35',
     },
     newsFuel: (oldP: number, newP: number) =>
@@ -235,6 +247,7 @@ const dicts = {
       faiz: 'Mevduat faizi',
       yakit: 'Akaryakıt satışı',
       kiralama: 'Araç kiralama',
+      reklam: 'Reklam',
       odul: 'Ödüller',
     } as Record<string, string>,
     zabitaFine: (plate: string, fine: number) =>
@@ -337,6 +350,16 @@ const dicts = {
     restructureWeekly: 'Make weekly (+8%)',
     restructureMonthly: 'Make monthly (+15%)',
     debtsCount: (n: number) => `${n} debts · total`,
+    modsTitle: 'Upgrades & Ads',
+    modNames: {
+      engine: 'Engine Rebuild',
+      lpg: 'LPG Conversion',
+      ac: 'Air Conditioning',
+      sound: 'Sound System',
+    } as Record<string, string>,
+    wrapAdd: (min: number, max: number) => `Wrap with Ads (+₺${fmt(min)}-${fmt(max)}/day)`,
+    wrapRemove: 'Remove Wrap',
+    adIncome: (amt: number) => `Ad income: +₺${fmt(amt)}`,
     installmentsPaid: (total: number) => `Installments paid: -₺${fmt(total)}`,
     rep: 'Rating',
     debtsTitle: 'Promissory Notes',
@@ -474,6 +497,7 @@ const dicts = {
       sarj: 'Charging Station',
       solar: 'Solar Panels + Storage',
       yakitTanki: 'Fuel Tank',
+      billboard: 'Billboard',
       hat2: 'Route License (Kadıköy)',
     },
     buildingEffects: {
@@ -485,6 +509,7 @@ const dicts = {
       sarj: 'Prerequisite for electric buses — cheap grid charging',
       solar: 'Stored solar energy: charging costs drop another 65%',
       yakitTanki: 'Wholesale diesel: your fleet refuels 10% cheaper, hourly profit selling to others',
+      billboard: 'Giant roadside panel: the advertiser pays rent every evening',
       hat2: 'Second route: +25% passengers, +35% route earnings',
     },
     newsFuel: (oldP: number, newP: number) =>
@@ -546,6 +571,7 @@ const dicts = {
       faiz: 'Deposit interest',
       yakit: 'Fuel sales',
       kiralama: 'Car rental',
+      reklam: 'Advertising',
       odul: 'Rewards',
     } as Record<string, string>,
     zabitaFine: (plate: string, fine: number) =>

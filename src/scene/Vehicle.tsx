@@ -203,13 +203,13 @@ export function VitoMesh({ plate }: { plate?: string }) {
 
 // Solo otobüs (12 m): özel halk otobüsü havası — uzun kasa, boydan cam bandı,
 // çift kapı, tavan klima. electric: yeşil şerit + tavan batarya paketi, egzozsuz.
-export function BusMesh({ plate, electric = false }: { plate?: string; electric?: boolean }) {
+export function BusMesh({ plate, electric = false, body = BODY }: { plate?: string; electric?: boolean; body?: string }) {
   const stripe = electric ? '#2e9e5b' : '#d8842a'
   return (
     <group>
       <ContactShadow w={2.7} d={6.2} />
       {/* Ana kasa */}
-      <mesh geometry={rbox(1.9, 1.5, 5.4, 0.18)} material={mat(BODY, 0.4)} position={[0, 1.18, 0]} castShadow />
+      <mesh geometry={rbox(1.9, 1.5, 5.4, 0.18)} material={mat(body, 0.4)} position={[0, 1.18, 0]} castShadow />
       {/* Etek + tampon */}
       <mesh geometry={rbox(1.94, 0.3, 5.5, 0.1)} material={mat('#3a3f45', 0.65)} position={[0, 0.42, 0]} />
       {/* İşletme şeridi */}
@@ -265,15 +265,15 @@ export function BusMesh({ plate, electric = false }: { plate?: string; electric?
 }
 
 // Körüklü otobüs (18 m): iki kasa + akordiyon körük, üç dingil
-export function ArticBusMesh({ plate }: { plate?: string }) {
+export function ArticBusMesh({ plate, body = BODY }: { plate?: string; body?: string }) {
   const stripe = '#b84a4a'
   return (
     <group>
       <ContactShadow w={2.7} d={7.8} />
       {/* Ön kasa */}
-      <mesh geometry={rbox(1.9, 1.5, 3.6, 0.18)} material={mat(BODY, 0.4)} position={[0, 1.18, 1.7]} castShadow />
+      <mesh geometry={rbox(1.9, 1.5, 3.6, 0.18)} material={mat(body, 0.4)} position={[0, 1.18, 1.7]} castShadow />
       {/* Arka kasa */}
-      <mesh geometry={rbox(1.9, 1.5, 2.7, 0.18)} material={mat(BODY, 0.4)} position={[0, 1.18, -2.05]} castShadow />
+      <mesh geometry={rbox(1.9, 1.5, 2.7, 0.18)} material={mat(body, 0.4)} position={[0, 1.18, -2.05]} castShadow />
       {/* Körük: koyu akordiyon dilimleri */}
       {[-0.12, -0.36, -0.6].map((z, i) => (
         <mesh key={z} geometry={rbox(i === 1 ? 1.86 : 1.78, 1.38, 0.22, 0.08)} material={mat(i === 1 ? '#22262b' : '#2e343b', 0.85)} position={[0, 1.16, z]} />
@@ -385,6 +385,64 @@ function badgeYOf(kind: string): number {
   return kind === 'bus' || kind === 'artic' || kind === 'ebus' ? 2.9 : kind === 'vito' ? 2.1 : 2.4
 }
 
+// Reklam giydirme kampanyaları: uydurma markalar — gövde rengi + yan panel yazısı
+export const WRAPS = [
+  { color: '#e2543a', brand: 'EFSANE KOLONYA', text: '#fff4e8' },
+  { color: '#2f8f5b', brand: 'BEREKET UN', text: '#f2f7ee' },
+  { color: '#3b6bc9', brand: 'YILDIZ SİGORTA', text: '#eef3fc' },
+  { color: '#c9a227', brand: 'GÜNEŞ TURŞULARI', text: '#231d0d' },
+]
+const wrapMatCache = new Map<number, THREE.MeshBasicMaterial>()
+function wrapPanelMaterial(idx: number): THREE.MeshBasicMaterial {
+  let m = wrapMatCache.get(idx)
+  if (!m) {
+    const w = WRAPS[idx % WRAPS.length]
+    const canvas = document.createElement('canvas')
+    canvas.width = 512
+    canvas.height = 96
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = w.color
+    ctx.fillRect(0, 0, 512, 96)
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)'
+    ctx.lineWidth = 5
+    ctx.strokeRect(6, 6, 500, 84)
+    ctx.fillStyle = w.text
+    ctx.font = '900 44px system-ui, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(w.brand, 256, 52)
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.anisotropy = 4
+    m = new THREE.MeshBasicMaterial({ map: tex })
+    wrapMatCache.set(idx, m)
+  }
+  return m
+}
+
+// Giydirilmiş aracın yan reklam panelleri (araç sınıfına göre boyut/konum)
+function WrapPanels({ kind, wrap }: { kind: string; wrap: number }) {
+  if (wrap <= 0) return null
+  const idx = (wrap - 1) % WRAPS.length
+  const dims =
+    kind === 'bus' || kind === 'ebus'
+      ? { x: 0.97, y: 1.05, z: -0.2, w: 3.4, h: 0.6 }
+      : kind === 'artic'
+        ? { x: 0.97, y: 1.05, z: 1.55, w: 2.6, h: 0.6 }
+        : kind === 'vito'
+          ? { x: 0.84, y: 0.95, z: -0.3, w: 2.0, h: 0.4 }
+          : { x: 0.88, y: 1.0, z: -0.2, w: 2.3, h: 0.5 }
+  return (
+    <>
+      <mesh material={wrapPanelMaterial(idx)} position={[dims.x, dims.y, dims.z]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[dims.w, dims.h]} />
+      </mesh>
+      <mesh material={wrapPanelMaterial(idx)} position={[-dims.x, dims.y, dims.z]} rotation={[0, -Math.PI / 2, 0]}>
+        <planeGeometry args={[dims.w, dims.h]} />
+      </mesh>
+    </>
+  )
+}
+
 // Store'daki aracı sahnede sürer; seferdeyken (ekran dışı) gizlenir
 export function Vehicle({ vehicleId }: { vehicleId: number }) {
   const group = useRef<THREE.Group>(null)
@@ -392,6 +450,9 @@ export function Vehicle({ vehicleId }: { vehicleId: number }) {
   const old = useGame((s) => s.vehicles.find((v) => v.id === vehicleId)?.old ?? false)
   const plate = useGame((s) => s.vehicles.find((v) => v.id === vehicleId)?.plate ?? '')
   const kind = useGame((s) => s.vehicles.find((v) => v.id === vehicleId)?.kind ?? 'dolmus')
+  const wrap = useGame((s) => s.vehicles.find((v) => v.id === vehicleId)?.wrap ?? 0)
+  // Giydirilmiş araç kampanya rengine boyanır (vito siyah kalır, sadece panel takar)
+  const wrapBody = wrap > 0 && kind !== 'vito' ? WRAPS[(wrap - 1) % WRAPS.length].color : undefined
   // Uyarı kodu: yakıt (0 tam / 1 azaldı / 2 bitti) × 10 + yıpranma — sadece
   // eşik değişince re-render tetikler, dolum sırasında her frame çalışmaz
   const badgeCode = useGame((s) => {
@@ -445,12 +506,13 @@ export function Vehicle({ vehicleId }: { vehicleId: number }) {
       {kind === 'vito' ? (
         <VitoMesh plate={plate || undefined} />
       ) : kind === 'artic' ? (
-        <ArticBusMesh plate={plate || undefined} />
+        <ArticBusMesh plate={plate || undefined} body={wrapBody} />
       ) : kind === 'bus' || kind === 'ebus' ? (
-        <BusMesh plate={plate || undefined} electric={kind === 'ebus'} />
+        <BusMesh plate={plate || undefined} electric={kind === 'ebus'} body={wrapBody} />
       ) : (
-        <MinibusMesh body={old ? '#ece5d4' : undefined} plate={plate || undefined} />
+        <MinibusMesh body={wrapBody ?? (old ? '#ece5d4' : undefined)} plate={plate || undefined} />
       )}
+      <WrapPanels kind={kind} wrap={wrap} />
       {(fuelLvl > 0 || wearLvl > 0) && (
         <group ref={badges} position={[0, badgeY, 0]}>
           {fuelLvl > 0 && (

@@ -225,6 +225,23 @@ export const CONFIG = {
   rentalRefundDaysMin: 3,
   rentalRefundDaysMax: 4,
 
+  // Araç modifiye: araç başına tek seferlik yükseltmeler (fiyat kasa boyuyla ölçekli)
+  modEngineCost: 150000, // motor yenileme
+  modEngineFuelFactor: 0.8, // sefer tüketimi çarpanı (-%20)
+  modLpgCost: 80000, // LPG dönüşümü (elektrikliye takılamaz)
+  modLpgPriceFactor: 0.65, // yakıt birim fiyatı çarpanı
+  modAcCost: 60000, // klima
+  modAcRepFactor: 1.5, // sefer itibar kazancı çarpanı
+  modSoundCost: 45000, // ses sistemi
+  modSoundEnRouteBonus: 0.08, // hat hasılatı bonusu
+
+  // Reklam: billboard (tesis) + araç giydirme — reklamveren her akşam öder
+  billboardCost: 400000,
+  billboardDailyMin: 8000,
+  billboardDailyMax: 15000,
+  wrapDailyMin: 1500, // giydirilmiş araç başına günlük reklam geliri
+  wrapDailyMax: 3000,
+
   // Offline kazanç: kapalıyken terminal düşük verimle çalışır
   offlineCapSec: 4 * 3600, // azami birikim süresi (gerçek sn)
   offlineEfficiency: 0.5, // aktif oyuna göre verim

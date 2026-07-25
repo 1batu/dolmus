@@ -598,6 +598,38 @@ function TerminalBuildings() {
   )
 }
 
+// Reklam panosu: ana yol kenarında dev pano — reklam her gün değişir
+const BILLBOARD_ADS: Array<{ brand: string; slogan: string; bg: string; fg?: string }> = [
+  { brand: 'EFSANE KOLONYA', slogan: '80 DERECE FERAHLIK', bg: '#e2543a' },
+  { brand: 'BEREKET UN', slogan: 'HAMURUN HASI', bg: '#2f8f5b' },
+  { brand: 'YILDIZ SİGORTA', slogan: 'KAZAYA KARŞI YILDIZ KALKAN', bg: '#3b6bc9' },
+  { brand: 'GÜNEŞ TURŞULARI', slogan: 'ÇITIR ÇITIR', bg: '#c9a227', fg: '#231d0d' },
+  { brand: 'DOLMUŞ!', slogan: 'HATTIN KRALI SENSİN', bg: '#171a1f' },
+]
+
+function Billboard() {
+  const built = useGame((s) => s.buildings.billboard)
+  // Reklam kampanyası her oyun günü döner (değer eşitliği: günde bir render)
+  const adIdx = useGame((s) => clockOf(s.time).day % BILLBOARD_ADS.length)
+  if (!built) return null
+  const ad = BILLBOARD_ADS[adIdx]
+  return (
+    <group position={[33, 0, 15.4]}>
+      {/* Ayaklar + platform */}
+      {[-2.6, 2.6].map((ox) => (
+        <mesh key={ox} geometry={cyl(0.14, 0.18, 3.6, 10)} material={mat('#5d646b', 0.6, { metal: 0.4 })} position={[ox, 1.8, 0]} castShadow />
+      ))}
+      <mesh geometry={rbox(7.6, 0.14, 0.5, 0.04)} material={mat('#8f969e', 0.6, { metal: 0.3 })} position={[0, 3.6, 0]} />
+      {/* Pano gövdesi + reklam yüzü (yola ve kameraya bakar) */}
+      <mesh geometry={rbox(7.4, 3.0, 0.24, 0.05)} material={mat('#2a2f35', 0.6)} position={[0, 5.3, 0]} castShadow />
+      <Sign text={ad.brand} bg={ad.bg} fg={ad.fg} w={7.0} h={1.7} pos={[0, 5.8, 0.14]} />
+      <Sign text={ad.slogan} bg={ad.bg} fg={ad.fg} w={7.0} h={0.9} pos={[0, 4.45, 0.14]} />
+      {/* Tepe aydınlatması */}
+      <mesh geometry={rbox(1.2, 0.08, 0.3, 0.03)} material={mat('#fff3c9', 0.3, { emissive: '#ffe89a', emissiveIntensity: 0.6 })} position={[0, 7.0, 0.2]} />
+    </group>
+  )
+}
+
 // Taksi durağı: terminal girişinin yanında — işletilen taksiler gece burada
 // dinlenir, gündüz şehir trafiğine çıkar (AmbientTraffic)
 function TaxiStand() {
@@ -875,6 +907,7 @@ export function World() {
       <Road />
       <ExtraPerons />
       <TaxiStand />
+      <Billboard />
       {/* Mahalle, genişleyen terminale yer açmak için 7 birim geride */}
       <group position={[0, 0, -7]}>
         <BackStreet />

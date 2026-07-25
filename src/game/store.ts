@@ -48,12 +48,21 @@ export function isHatVehicle(kind: VehicleKind): boolean {
 }
 
 // Pompa birim fiyatı: elektrikli şebekeden (güneş varsa depodan) şarj olur,
-// dizel araçlar yakıt tankı varsa toptan fiyattan doldurur
-export function fuelUnitPrice(kind: VehicleKind, fuelPrice: number, b: Buildings): number {
+// dizel araçlar yakıt tankı varsa toptan fiyattan, LPG'li araç otogaz fiyatından doldurur
+export function fuelUnitPrice(
+  kind: VehicleKind,
+  fuelPrice: number,
+  b: Buildings,
+  lpg = false,
+): number {
   if (kind === 'ebus') {
     return fuelPrice * CONFIG.elektrikPriceFactor * (b.solar ? CONFIG.solarChargeFactor : 1)
   }
-  return fuelPrice * (b.yakitTanki ? CONFIG.yakitTankiDiscount : 1)
+  return (
+    fuelPrice *
+    (lpg ? CONFIG.modLpgPriceFactor : 1) *
+    (b.yakitTanki ? CONFIG.yakitTankiDiscount : 1)
+  )
 }
 
 export type Vehicle = {
@@ -89,7 +98,18 @@ export type Vehicle = {
   driverMoral: number // 0-100: düşükse beceri işlemez, çay molası tazeler
   peronIdx: number // yanaştığı peron durağı (0 = ana peron)
   brokenUntilDay: number // ağır arıza: bu güne kadar tamirhanede (0 = sağlam)
+  mods: VehicleMod[] // tek seferlik yükseltmeler: motor/lpg/klima/ses
+  wrap: number // reklam giydirme: 0 = yok, 1+ = kampanya indeksi (gövde rengi değişir)
 }
+
+export type VehicleMod = 'engine' | 'lpg' | 'ac' | 'sound'
+export const MOD_COSTS: Record<VehicleMod, number> = {
+  engine: CONFIG.modEngineCost,
+  lpg: CONFIG.modLpgCost,
+  ac: CONFIG.modAcCost,
+  sound: CONFIG.modSoundCost,
+}
+export const WRAP_COUNT = 4 // sahnedeki reklam kampanyası sayısı (Vehicle.tsx WRAPS)
 
 // Servis kontratı: her gün sabah + akşam birer sefer, günlük sabit ödeme
 export type Contract = {
@@ -369,6 +389,7 @@ export type BuildingKind =
   | 'sarj'
   | 'solar'
   | 'yakitTanki'
+  | 'billboard'
   | 'hat2'
 export type Buildings = Record<BuildingKind, boolean>
 export const BUILDING_COSTS: Record<BuildingKind, number> = {
@@ -380,6 +401,7 @@ export const BUILDING_COSTS: Record<BuildingKind, number> = {
   sarj: CONFIG.sarjCost,
   solar: CONFIG.solarCost,
   yakitTanki: CONFIG.yakitTankiCost,
+  billboard: CONFIG.billboardCost,
   hat2: CONFIG.hat2Cost,
 }
 
@@ -650,6 +672,8 @@ function loadSave(): Partial<GameState> | null {
         driverMoral: v.driverMoral ?? 100,
         peronIdx: v.peronIdx ?? 0,
         brokenUntilDay: v.brokenUntilDay ?? 0,
+        mods: v.mods ?? [],
+        wrap: v.wrap ?? 0,
         partners:
           v.partners ?? (v.share != null && v.share < 100 ? [{ name: genPartner(), pct: 100 - v.share }] : []),
       })),
@@ -667,6 +691,7 @@ function loadSave(): Partial<GameState> | null {
         sarj: d.buildings?.sarj ?? false,
         solar: d.buildings?.solar ?? false,
         yakitTanki: d.buildings?.yakitTanki ?? false,
+        billboard: d.buildings?.billboard ?? false,
         hat2: d.buildings?.hat2 ?? false,
       },
       bufeToday: Number.isFinite(d.bufeToday) ? d.bufeToday : 0,
@@ -764,6 +789,8 @@ function makeVehicle(
     driverMoral: 100,
     peronIdx: 0,
     brokenUntilDay: 0,
+    mods: [],
+    wrap: 0,
   }
 }
 
@@ -852,6 +879,8 @@ type GameState = {
   buyVehicle: (mode: 'cash' | 'loan') => void
   buyVito: (mode: 'cash' | 'loan') => void
   buyBus: (kind: BusKind, mode: 'cash' | 'loan') => void
+  buyMod: (vehicleId: number, mod: VehicleMod) => void
+  toggleWrap: (vehicleId: number) => void
   rentalOffice: boolean // rent-a-car ofisi kuruldu mu
   rentals: Rental[] // kiralama filosu — plakalı gerçek araçlar
   buyRentalOffice: () => void
@@ -896,6 +925,7 @@ function initialState() {
       sarj: false,
       solar: false,
       yakitTanki: false,
+      billboard: false,
       hat2: false,
     } as Buildings,
     bufeToday: 0,
@@ -1119,6 +1149,37 @@ export const useGame = create<GameState>((set, get) => ({
     set({ money: s.money - cost, spots: s.spots + 1 })
   },
 
+  // Modifiye: araç başına tek seferlik yükseltme — fiyat kasa boyuyla ölçekli
+  buyMod: (vehicleId: number, mod: VehicleMod) => {
+    const s = get()
+    const v = s.vehicles.find((veh) => veh.id === vehicleId)
+    if (!v || v.mods.includes(mod)) return
+    if (mod === 'lpg' && v.kind === 'ebus') return // elektrikliye LPG takılmaz
+    const cost = Math.ceil(MOD_COSTS[mod] * specOf(v.kind).repairMult)
+    if (s.money < cost) return
+    trackExpense(cost)
+    set({
+      money: s.money - cost,
+      vehicles: s.vehicles.map((veh) =>
+        veh.id === vehicleId ? { ...veh, mods: [...veh.mods, mod] } : veh,
+      ),
+    })
+  },
+
+  // Reklam giydirme: ücretsiz, reklamveren her akşam öder; istenirse sökülür
+  toggleWrap: (vehicleId: number) => {
+    const s = get()
+    const v = s.vehicles.find((veh) => veh.id === vehicleId)
+    if (!v) return
+    set({
+      vehicles: s.vehicles.map((veh) =>
+        veh.id === vehicleId
+          ? { ...veh, wrap: veh.wrap > 0 ? 0 : 1 + (veh.id % WRAP_COUNT) }
+          : veh,
+      ),
+    })
+  },
+
   // Ek peron durağı: belediyeden tahsis — aynı anda bir araç daha yolcu alır
   buyPeron: () => {
     const s = get()
@@ -1150,7 +1211,7 @@ export const useGame = create<GameState>((set, get) => ({
     if (!v) return
     // Ortaklı araçta yakıt masrafının sadece oyuncu payı ödenir
     const cost = Math.ceil(
-      (refuelCost(v, fuelUnitPrice(v.kind ?? 'dolmus', s.fuelPrice, s.buildings)) * v.share) / 100,
+      (refuelCost(v, fuelUnitPrice(v.kind ?? 'dolmus', s.fuelPrice, s.buildings, v.mods.includes('lpg'))) * v.share) / 100,
     )
     if (cost <= 0 || !v.hasDriver) return
     // Elektrikli araç şarj ünitesine, dizel pompaya sürer — ayrı kuyruklar.
@@ -1899,6 +1960,25 @@ export const useGame = create<GameState>((set, get) => ({
         trackIncome('taksi', taxiIncome)
         pushToast(t.taxiIncome(taxiIncome))
       }
+      // Reklam gelirleri: billboard kirası + giydirilmiş araçların kampanya ödemesi
+      // (ortaklı araçta reklam geliri de hisse oranında bölüşülür)
+      {
+        let adIncome = 0
+        if (buildings.billboard) {
+          adIncome += rand(CONFIG.billboardDailyMin, CONFIG.billboardDailyMax)
+        }
+        for (const v of s.vehicles) {
+          if (v.wrap > 0) {
+            adIncome += (rand(CONFIG.wrapDailyMin, CONFIG.wrapDailyMax) * v.share) / 100
+          }
+        }
+        adIncome = Math.round(adIncome)
+        if (adIncome > 0) {
+          money += adIncome
+          trackIncome('reklam', adIncome)
+          pushToast(t.adIncome(adIncome))
+        }
+      }
       // Kiralama: kiradaki araçlar günlük kirayı yatırır; yakıt yanar, yıpranma işler.
       // Teslimde full-to-full: müşteri %70 depoyu doldurup verir, vermezse eksik
       // yakıt + yıpranma bedeli teminatından kesilir. Kalan teminat 3-4 günde iade.
@@ -2283,7 +2363,7 @@ export const useGame = create<GameState>((set, get) => ({
               v.pendingRefuel = false
             } else {
               const cost = Math.ceil(
-                (refuelCost(v, fuelUnitPrice(v.kind, fuelPrice, buildings)) * v.share) / 100,
+                (refuelCost(v, fuelUnitPrice(v.kind, fuelPrice, buildings, v.mods.includes('lpg'))) * v.share) / 100,
               )
               if (money >= cost) {
                 money -= cost
@@ -2321,7 +2401,7 @@ export const useGame = create<GameState>((set, get) => ({
             v.fuel < specOf(v.kind).tank
           ) {
             const cost = Math.ceil(
-              (refuelCost(v, fuelUnitPrice(v.kind, fuelPrice, buildings)) * v.share) / 100,
+              (refuelCost(v, fuelUnitPrice(v.kind, fuelPrice, buildings, v.mods.includes('lpg'))) * v.share) / 100,
             )
             if (money >= cost) {
               money -= cost
@@ -2441,11 +2521,12 @@ export const useGame = create<GameState>((set, get) => ({
             advanceTask('carry', v.passengers)
             advanceTask('revenue', tripFare)
             sfx('horn')
-            // Usta şoför yakıtı idareli kullanır (tüketim araç sınıfına göre)
+            // Usta şoför yakıtı idareli kullanır; yenilenmiş motor daha az yakar
             v.fuel = Math.max(
               0,
               v.fuel -
                 specOf(v.kind).fuelPerTrip *
+                  (v.mods.includes('engine') ? CONFIG.modEngineFuelFactor : 1) *
                   (1 -
                     CONFIG.driverSkillFuelBonus *
                       ((v.driverMoral < CONFIG.moralLowThreshold ? 1 : v.driverSkill) - 1)),
@@ -2509,10 +2590,11 @@ export const useGame = create<GameState>((set, get) => ({
             const fleetBonus =
               (1 + CONFIG.fleetEnRouteBonus * (activeFleet - 1)) *
               (buildings.hat2 ? 1 + CONFIG.hat2EnRouteBonus : 1)
-            // Büyük kasa hat boyunca daha çok indi-bindi alır (enRouteMult)
+            // Büyük kasa hat boyunca daha çok indi-bindi alır; ses sistemi araca müşteri çeker
             const enRoute = Math.floor(
               rand(CONFIG.enRouteFaresMin, CONFIG.enRouteFaresMax + 1) *
                 specOf(v.kind).enRouteMult *
+                (1 + (v.mods.includes('sound') ? CONFIG.modSoundEnRouteBonus : 0)) *
                 kahyaBonus *
                 fleetBonus,
             )
@@ -2525,8 +2607,13 @@ export const useGame = create<GameState>((set, get) => ({
             advanceTask('carry', enRoute)
             advanceTask('revenue', extra)
             advanceTask('trips', 1)
-            // Elektrikli otobüs çevreci imaj yapar: itibar iki kat işler
-            rep = clampRep(rep + CONFIG.repPerTrip * specOf(v.kind).repMult)
+            // Elektrikli otobüs çevreci imaj yapar; klimalı araç yolcuyu memnun eder
+            rep = clampRep(
+              rep +
+                CONFIG.repPerTrip *
+                  specOf(v.kind).repMult *
+                  (v.mods.includes('ac') ? CONFIG.modAcRepFactor : 1),
+            )
             pushToast(t.returned(v.plate, extra))
             v.state = 'returning'
             v.path = returnPath(spotPos(v.spotIdx))

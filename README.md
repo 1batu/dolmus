@@ -89,8 +89,8 @@ npm run dev
 23. ~~**Terminal büyümesi**~~ ✅ — 20 park cebi (2 sıra), Türkçe tabelalar, gece 2× hız, araç üstü uyarı rozetleri, renkli rakip minibüsler
 
 ### Kalan — Para kazandıran yeni oyuncaklar
-24. **Araç modifiye** — motor yenileme (tüketim düşer), LPG dönüşümü (yakıt ucuzlar), klima (yolcu memnuniyeti), ses sistemi; para batırma noktası — kasa hızlı şişiyor
-25. **Reklam** — araç giydirme + terminale billboard: pasif gelir, sahneyi de zenginleştirir (tabelalar gibi canvas dokularla)
+24. ~~**Araç modifiye**~~ ✅ — araç detayında Modifiye & Reklam bölümü: motor yenileme (tüketim −%20), LPG dönüşümü (yakıt ×0,65 — elektrikliye takılmaz), klima (itibar ×1,5), ses sistemi (hat hasılatı +%8); fiyatlar kasa boyuyla ölçekli
+25. ~~**Reklam**~~ ✅ — araç giydirme (gövde kampanya rengine boyanır + yan panel, ₺1.500-3.000/gün, hisse oranında) + Reklam Panosu tesisi (₺400k, ₺8-15k/gün, reklam her gün döner — uydurma markalar: Efsane Kolonya, Bereket Un...)
 26. **İkinci şube** — farklı ilçede ikinci terminal (geç oyun hedefi, ₺50M+): kamera değişmez, şube ekran dışı özet gelir üretir, kahya gibi "şube müdürü" atanır
 
 ### Kalan — Takvim & atmosfer

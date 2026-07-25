@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useGame, BANKS, BUILDING_COSTS, bankLimitOf, capacityOf, fleetAssetValue, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
+import { useGame, BANKS, BUILDING_COSTS, MOD_COSTS, bankLimitOf, capacityOf, fleetAssetValue, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
 import { CONFIG, VEHICLE_SPECS, clockOf, queueCapOf } from '../game/config'
 import {
   AlertTriangle,
@@ -67,6 +67,7 @@ const BUILDING_ICONS: Record<BuildingKind, ReactNode> = {
   sarj: <PlugZap className="h-7 w-7 text-cyan-300" />,
   solar: <Sun className="h-7 w-7 text-yellow-300" />,
   yakitTanki: <Droplets className="h-7 w-7 text-amber-300" />,
+  billboard: <Megaphone className="h-7 w-7 text-pink-300" />,
   hat2: <MapIcon className="h-7 w-7 text-yellow-300" />,
 }
 
@@ -412,8 +413,10 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
   const buyBackShare = useGame((s) => s.buyBackShare)
   const hireKahya = useGame((s) => s.hireKahya)
   const upgradeKahya = useGame((s) => s.upgradeKahya)
+  const buyMod = useGame((s) => s.buyMod)
+  const toggleWrap = useGame((s) => s.toggleWrap)
 
-  const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr, kindStr, driverName, driverSkillStr, moralStr, partnersStr] = entry.split('|')
+  const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr, kindStr, driverName, driverSkillStr, moralStr, partnersStr, modsStr, wrapStr] = entry.split('|')
   const id = Number(idStr)
   const fuel = Number(fuelStr)
   const wear = Number(wearStr)
@@ -430,8 +433,13 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
   const fuelPct = (fuel / spec.tank) * 100
   const stateText = t.state[state as keyof typeof t.state]
   const warn = state === 'noDriver' || state === 'noFuel' || state === 'wornOut'
-  // Birim fiyat: elektrikli şarj / tanklı toptan mazot indirimi dahil
-  const unitPrice = fuelUnitPrice(kindStr as VehicleKind, fuelPrice, buildings)
+  // Birim fiyat: elektrikli şarj / LPG / tanklı toptan mazot indirimi dahil
+  const unitPrice = fuelUnitPrice(
+    kindStr as VehicleKind,
+    fuelPrice,
+    buildings,
+    (modsStr ?? '').includes('lpg'),
+  )
   const refuelPrice = Math.ceil((spec.tank - fuel) * unitPrice)
   const repairPrice = Math.ceil(
     wear * CONFIG.repairCostPerUnit * spec.repairMult * (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
@@ -562,6 +570,46 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
           </>
         )}
       </div>
+      {/* Modifiye: tek seferlik yükseltmeler + reklam giydirme */}
+      {(() => {
+        const mods = (modsStr ?? '').split('+').filter(Boolean)
+        const wrap = Number(wrapStr ?? 0)
+        return (
+          <div className="mt-2 border-t border-white/10 pt-1.5">
+            <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-white/35">{t.modsTitle}</div>
+            <div className="grid grid-cols-2 gap-1">
+              {(['engine', 'lpg', 'ac', 'sound'] as const).map((m) => {
+                if (m === 'lpg' && kindStr === 'ebus') return null
+                const cost = Math.ceil(MOD_COSTS[m] * spec.repairMult)
+                return mods.includes(m) ? (
+                  <span key={m} className="rounded-lg bg-emerald-400/15 px-1.5 py-1 text-center text-[9px] font-bold text-emerald-300">
+                    {t.modNames[m]}
+                  </span>
+                ) : (
+                  <MiniButton
+                    key={m}
+                    label={`${t.modNames[m]} ₺${fmt(cost)}`}
+                    enabled={money >= cost}
+                    onClick={() => buyMod(id, m)}
+                  />
+                )
+              })}
+            </div>
+            <div className="mt-1">
+              <MiniButton
+                label={
+                  wrap > 0
+                    ? t.wrapRemove
+                    : t.wrapAdd(CONFIG.wrapDailyMin, CONFIG.wrapDailyMax)
+                }
+                enabled
+                active={wrap > 0}
+                onClick={() => toggleWrap(id)}
+              />
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -689,7 +737,7 @@ export function HUD() {
               : v.state === 'parked' && v.wear >= 100
                 ? 'wornOut'
                 : v.state
-        return `${v.id}|${v.plate}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}|${v.share}|${valuationOf(v, s.vehicles.length, s.rep)}|${v.pendingRefuel ? 1 : 0}|${v.pendingRepair ? 1 : 0}|${v.kind}|${v.hasDriver ? v.driverName : ''}|${v.driverSkill}|${Math.round(v.driverMoral)}|${v.partners.map((pt) => `${pt.name}~${pt.pct}`).join(';')}`
+        return `${v.id}|${v.plate}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}|${v.share}|${valuationOf(v, s.vehicles.length, s.rep)}|${v.pendingRefuel ? 1 : 0}|${v.pendingRepair ? 1 : 0}|${v.kind}|${v.hasDriver ? v.driverName : ''}|${v.driverSkill}|${Math.round(v.driverMoral)}|${v.partners.map((pt) => `${pt.name}~${pt.pct}`).join(';')}|${v.mods.join('+')}|${v.wrap}`
       })
       .join(','),
   )
