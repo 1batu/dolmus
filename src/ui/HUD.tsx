@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useGame, BANKS, BUILDING_COSTS, MOD_COSTS, bankLimitOf, capacityOf, fleetAssetValue, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
-import { CONFIG, VEHICLE_SPECS, clockOf, queueCapOf } from '../game/config'
+import { CONFIG, VEHICLE_SPECS, clockOf, contractSlotsOf, queueCapOf } from '../game/config'
 import {
   AlertTriangle,
   Landmark,
@@ -741,14 +741,15 @@ export function HUD() {
       })
       .join(','),
   )
-  const debtsKey = useGame((s) =>
-    s.debts
+  const debtsKey = useGame((s) => {
+    const today = clockOf(s.time).day
+    return s.debts
       .map(
         (d) =>
-          `${d.id}|${d.bank ? (t.bankNames[d.bankId ?? ''] ?? 'Banka') : (d.plate ?? `Minibüs ${d.no}`)}|${d.remaining}|${d.daily}|${d.bank ? 1 : 0}|${d.every ?? 1}`,
+          `${d.id}|${d.bank ? (t.bankNames[d.bankId ?? ''] ?? 'Banka') : (d.plate ?? `Minibüs ${d.no}`)}|${d.remaining}|${d.daily}|${d.bank ? 1 : 0}|${d.every ?? 1}|${Math.max(0, (d.nextPayDay ?? today) - today)}`,
       )
-      .join(','),
-  )
+      .join(',')
+  })
   const payInstallment = useGame((s) => s.payInstallment)
   const payOffDebt = useGame((s) => s.payOffDebt)
   const [debtsOpen, setDebtsOpen] = useState(false)
@@ -932,11 +933,12 @@ export function HUD() {
           </div>
           <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
             {debtsKey.split(',').map((entry) => {
-              const [idStr, label, remainingStr, dailyStr, bankFlag, everyStr] = entry.split('|')
+              const [idStr, label, remainingStr, dailyStr, bankFlag, everyStr, dueStr] = entry.split('|')
               const id = Number(idStr)
               const remaining = Number(remainingStr)
               const daily = Number(dailyStr)
               const every = Number(everyStr || 1)
+              const dueIn = Number(dueStr || 0)
               const installment = Math.min(daily, remaining)
               const payoff = Math.ceil(remaining * CONFIG.payoffDiscount)
               return (
@@ -949,6 +951,10 @@ export function HUD() {
                       ₺{fmt(remaining)} ·{' '}
                       {every === 1 ? t.perDay(daily) : every === 7 ? t.perWeek(daily) : t.perMonth(daily)}
                     </span>
+                  </div>
+                  {/* Tahsilat geri sayımı: günü gelen kesinti kırmızı yanar */}
+                  <div className={`mt-0.5 text-[9px] font-bold tabular-nums ${dueIn === 0 ? 'animate-pulse text-red-300' : 'text-white/40'}`}>
+                    {dueIn === 0 ? t.dueTonight : t.dueIn(dueIn)}
                   </div>
                   <div className="mt-1.5 flex gap-1.5">
                     <MiniButton
@@ -1459,7 +1465,7 @@ export function HUD() {
                       >
                         <PriceButton
                           label={`${t.accept} · ${t.contractPerDay(Number(payStr))}`}
-                          enabled={contractCount < CONFIG.contractSlots}
+                          enabled={contractCount < contractSlotsOf(drivers)}
                           onClick={acceptContract}
                         />
                       </ModalCard>

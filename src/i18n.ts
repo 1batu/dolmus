@@ -25,6 +25,8 @@ const dicts = {
     restructureWeekly: 'Haftalık yap (+%8)',
     restructureMonthly: 'Aylık yap (+%15)',
     debtsCount: (n: number) => `${n} borç · toplam`,
+    dueTonight: 'Tahsilat: BU AKŞAM 20:00',
+    dueIn: (n: number) => `Tahsilat: ${n} gün sonra`,
     modsTitle: 'Modifiye & Reklam',
     modNames: {
       engine: 'Motor Yenileme',
@@ -361,6 +363,8 @@ const dicts = {
     restructureWeekly: 'Make weekly (+8%)',
     restructureMonthly: 'Make monthly (+15%)',
     debtsCount: (n: number) => `${n} debts · total`,
+    dueTonight: 'Charge: TONIGHT at 20:00',
+    dueIn: (n: number) => `Charge in ${n} days`,
     modsTitle: 'Upgrades & Ads',
     modNames: {
       engine: 'Engine Rebuild',

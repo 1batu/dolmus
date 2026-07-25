@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { CONFIG, VEHICLE_SPECS, clockOf, queueCapOf, type VehicleSpec } from './config'
+import { CONFIG, VEHICLE_SPECS, clockOf, contractSlotsOf, queueCapOf, type VehicleSpec } from './config'
 import {
   type P2,
   LAYOUT,
@@ -1581,7 +1581,8 @@ export const useGame = create<GameState>((set, get) => ({
   acceptContract: () => {
     const s = get()
     const o = s.contractOffer
-    if (!o || s.contracts.length >= CONFIG.contractSlots) return
+    if (!o || s.contracts.length >= contractSlotsOf(s.vehicles.filter((v) => v.hasDriver).length))
+      return
     set({
       contractOffer: null,
       contracts: [
@@ -2225,7 +2226,11 @@ export const useGame = create<GameState>((set, get) => ({
 
     // Kontrat teklifleri: boş slot varsa gündüz arada bir düşer
     if (contractOffer && contractOffer.expiresAt <= time) contractOffer = null
-    if (!contractOffer && !isNight && contracts.length < CONFIG.contractSlots) {
+    if (
+      !contractOffer &&
+      !isNight &&
+      contracts.length < contractSlotsOf(s.vehicles.filter((v) => v.hasDriver).length)
+    ) {
       contractOfferTimer -= dt
       if (contractOfferTimer <= 0) {
         // Okul açılışında kontrat teklifleri sıklaşır, okul servisi ağırlıklı ve dolgun
@@ -2267,7 +2272,11 @@ export const useGame = create<GameState>((set, get) => ({
       const gameHour = CONFIG.dayLength / 24
       while (yakitTankiTimer >= gameHour) {
         yakitTankiTimer -= gameHour
-        const liters = Math.round(rand(CONFIG.yakitTankiSaleLMin, CONFIG.yakitTankiSaleLMax))
+        // Satış hacmi hatla büyür: hattın büyümesi esnaf/servis trafiğini çeker
+        const liters = Math.round(
+          rand(CONFIG.yakitTankiSaleLMin, CONFIG.yakitTankiSaleLMax) *
+            (1 + CONFIG.yakitTankiFleetBonus * activeFleet),
+        )
         const profit = liters * CONFIG.yakitTankiMarginPerL
         money += profit
         trackIncome('yakit', profit)

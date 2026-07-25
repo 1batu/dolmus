@@ -143,9 +143,9 @@ export const CONFIG = {
   vitoNightCallFactor: 1.6, // gece çağrı seyrekliği çarpanı
   vitoKmMin: 3, // çağrı mesafesi (km)
   vitoKmMax: 40,
-  vitoBaseFare: 400, // ₺ açılış
-  vitoPerKmMin: 45, // ₺/km bandı
-  vitoPerKmMax: 70,
+  vitoBaseFare: 800, // ₺ açılış — VIP transfer gerçekte ₺2.500-6.000/yolculuk bandında
+  vitoPerKmMin: 90, // ₺/km bandı (ort. çağrı ~₺3.200, havalimanı ~₺5.500)
+  vitoPerKmMax: 140,
   vitoDurationBase: 8, // sn + km başına süre
   vitoDurationPerKm: 0.7,
   vitoFuelPerKm: 0.3, // L/km
@@ -167,14 +167,17 @@ export const CONFIG = {
   solarChargeFactor: 0.35, // güneşle depolanan enerji: şarj maliyeti çarpanı
   yakitTankiCost: 750000, // terminal akaryakıt tankı
   yakitTankiDiscount: 0.9, // kendi araçların pompa fiyatı çarpanı (toptan mazot)
-  yakitTankiSaleLMin: 40, // dışarıya saatlik satış bandı (L) — hattın diğer esnafı tanktan alır
-  yakitTankiSaleLMax: 120,
-  yakitTankiMarginPerL: 9, // ₺/L kâr marjı
+  yakitTankiSaleLMin: 150, // dışarıya saatlik satış bandı (L) — hattın esnafı + servisler tanktan alır
+  yakitTankiSaleLMax: 400, // (gerçek küçük istasyon 5-15 bin L/gün satar; bu ölçek onun terminal payı)
+  yakitTankiMarginPerL: 9, // ₺/L kâr marjı (toptan alım - pompa farkı)
+  yakitTankiFleetBonus: 0.06, // talep ağırlığı başına satış hacmi artışı — hat büyüdükçe tank döner
 
   // Servis kontratları: okul/personel — sabah-akşam iki sefer, günlük sabit gelir.
   // Tem 2026 tarifesi: okul servisi ₺4.456/öğrenci-ay (0-1 km), personel ₺2.513/kişi-ay
   // taban — dolu bir araç aylık ₺135-285k kontrat cirosu yapar
-  contractSlots: 2, // aynı anda azami kontrat
+  contractSlots: 2, // taban kontrat kapasitesi — filo büyüdükçe artar (contractSlotsOf)
+  contractSlotsMax: 6,
+  contractSlotsPerFleet: 4, // her 4 şoförlü araca +1 slot
   contractOfferMin: 60, // yeni teklif aralığı (sn)
   contractOfferMax: 140,
   contractOfferLifetime: 90, // teklifin geçerlilik süresi (sn)
@@ -307,7 +310,10 @@ export const CONFIG = {
   // ihtiyaç kredisi aylık %2,8-5,5 (ort. %3,7). Oyun günü kısa olduğu için
   // oranlar ~×3 tempo çarpanıyla ölçekli; bankalar arası makas gerçek piyasayla aynı.
   depositTerms: [7, 15, 30], // vade seçenekleri (gün)
-  depositDailyRates: [0.0025, 0.0032, 0.004], // günlük basit faiz — 30 günde ~%12 (gerçek: %3,5)
+  // Gerçek (Tem 2026): 1M TL 32 günde net ₺30-33k (%3-3,3). Oyun günü 5 dk olduğu
+  // için tempo çarpanıyla: 30 günde ~%27 (Boğaziçi ×1,2 ile ~%32) — filo getirisiyle
+  // yarışmaz ama atıl parayı bekletmeye değer
+  depositDailyRates: [0.005, 0.007, 0.009], // günlük basit faiz
   depositMin: 10000, // asgari mevduat ₺
   bankLoanMarkup: 0.055, // taban vade farkı ≈ aylık %3,7 (Tem 2026 ihtiyaç kredisi ortalaması)
   bankLoanScorePenalty: 0.06, // (100-skor)/100 × bu kadar ek vade farkı — kötü skor %5,5/ay bandına iter
@@ -342,6 +348,14 @@ export const VEHICLE_SPECS: Record<string, VehicleSpec> = {
   bus: { seats: 27, tank: 200, fuelPerTrip: 14, wearPerTrip: 4, repairMult: 1.8, boardMult: 1, enRouteMult: 1.7, repMult: 1, demandWeight: 1.8 },
   artic: { seats: 42, tank: 300, fuelPerTrip: 19, wearPerTrip: 4.5, repairMult: 2.4, boardMult: 0.8, enRouteMult: 2.3, repMult: 1, demandWeight: 2.6 },
   ebus: { seats: 30, tank: 250, fuelPerTrip: 15, wearPerTrip: 3.5, repairMult: 1.3, boardMult: 0.9, enRouteMult: 1.8, repMult: 2, demandWeight: 2 },
+}
+
+// Kontrat kapasitesi: taban + her N şoförlü araca bir slot (filo büyüdükçe kurumlar kapını çalar)
+export function contractSlotsOf(activeFleet: number): number {
+  return Math.min(
+    CONFIG.contractSlotsMax,
+    CONFIG.contractSlots + Math.floor(activeFleet / CONFIG.contractSlotsPerFleet),
+  )
 }
 
 // Şoförlü araç sayısına göre kuyruk kapasitesi
