@@ -103,6 +103,11 @@ export type Vehicle = {
 }
 
 export type VehicleMod = 'engine' | 'lpg' | 'ac' | 'sound'
+
+// Özel günler: takvime bağlı talep dalgaları — sabah ilan edilir, gün boyu sürer.
+// mac: akşam talep patlar + servis teklifleri şişer + zabıta sahada;
+// bayram: yarım tarife ama itibar 2 kat; okul: öğrenci akını + okul kontratları
+export type SpecialDay = 'mac' | 'bayram' | 'okul'
 export const MOD_COSTS: Record<VehicleMod, number> = {
   engine: CONFIG.modEngineCost,
   lpg: CONFIG.modLpgCost,
@@ -543,11 +548,13 @@ type SavedFields = Pick<
   | 'rentalOffice'
   | 'rentals'
   | 'perons'
+  | 'specialDay'
+  | 'specialDayFor'
 >
 
 function persist(s: SavedFields) {
   try {
-    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, streak, lastPlayDate, rentalOffice, rentals, perons } = s
+    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, streak, lastPlayDate, rentalOffice, rentals, perons, specialDay, specialDayFor } = s
     localStorage.setItem(
       SAVE_KEY,
       JSON.stringify({
@@ -587,6 +594,8 @@ function persist(s: SavedFields) {
         rentalOffice,
         rentals,
         perons,
+        specialDay,
+        specialDayFor,
       }),
     )
   } catch {
@@ -717,6 +726,8 @@ function loadSave(): Partial<GameState> | null {
       missedPayDays: Number.isFinite(d.missedPayDays) ? d.missedPayDays : 0,
       rentalOffice: d.rentalOffice ?? false,
       perons: Number.isFinite(d.perons) ? d.perons : 1,
+      specialDay: d.specialDay ?? null,
+      specialDayFor: Number.isFinite(d.specialDayFor) ? d.specialDayFor : 0,
       // Eski kayıt: sayı olarak tutulan filo, plakalı gerçek araçlara çevrilir
       rentals: Array.isArray(d.rentals)
         ? d.rentals.map((r: Partial<Rental>) => ({
@@ -890,6 +901,8 @@ type GameState = {
   sellRental: (rentalId: number) => void
   perons: number // peron durağı sayısı: aynı anda bu kadar araç yolcu alır
   buyPeron: () => void
+  specialDay: SpecialDay | null // bugünün özel günü (takvim etkinliği)
+  specialDayFor: number // özel günün geçerli olduğu gün numarası
   buySpot: () => void
   hireDriver: () => void
   refuel: (vehicleId: number) => void
@@ -947,6 +960,8 @@ function initialState() {
     rentalOffice: false,
     rentals: [] as Rental[],
     perons: 1,
+    specialDay: null as SpecialDay | null,
+    specialDayFor: 0,
     streak: 1,
     lastPlayDate: localDateStr(),
     rainUntil: 0,
@@ -1789,7 +1804,12 @@ export const useGame = create<GameState>((set, get) => ({
     const clock = clockOf(time)
     const day = clock.day
     const isNight = clock.hour < CONFIG.nightEndHour // 00:00-06:00
-    const fareMult = isNight ? CONFIG.nightFareMultiplier : 1
+    let specialDay = s.specialDay
+    let specialDayFor = s.specialDayFor
+    // Bugün geçerli özel gün (dünden kalanı sayma)
+    const special = specialDayFor === day ? specialDay : null
+    // Bayramda yarım tarife (gece çarpanıyla birlikte işler)
+    const fareMult = (isNight ? CONFIG.nightFareMultiplier : 1) * (special === 'bayram' ? 0.5 : 1)
 
     let toasts = s.toasts
     if (toasts.some((tst) => tst.expireAt <= time)) {
@@ -1827,6 +1847,14 @@ export const useGame = create<GameState>((set, get) => ({
     if (clock.hour >= CONFIG.nightEndHour && taskDay < day) {
       taskDay = day
       task = makeTask(s.vehicles.length)
+      // Özel gün zarı: sabah ilan edilir, gün boyu kuralları değiştirir
+      specialDay = null
+      const sdRoll = Math.random()
+      if (sdRoll < 0.12) specialDay = 'mac'
+      else if (sdRoll < 0.2) specialDay = 'okul'
+      else if (sdRoll < 0.25) specialDay = 'bayram'
+      specialDayFor = day
+      if (specialDay) pushToast(t.specialDayToast[specialDay])
       statsHistory = [
         ...statsHistory,
         { day: day - 1, income: dayIncome, expense: dayExpense },
@@ -2153,7 +2181,10 @@ export const useGame = create<GameState>((set, get) => ({
         (buildings.hat2 ? 1 + CONFIG.hat2SpawnBonus : 1)
       const weatherFactor =
         (time < rainUntil ? CONFIG.rainSpawnFactor : 1) *
-        (time < korsanUntil ? CONFIG.korsanSpawnFactor : 1)
+        (time < korsanUntil ? CONFIG.korsanSpawnFactor : 1) *
+        // Özel gün: maç akşamı yolcu patlar, bayramda ayak seyrekleşir
+        (special === 'mac' && clock.hour >= 16 ? 0.5 : 1) *
+        (special === 'bayram' ? 1.35 : 1)
       spawnTimer =
         (rand(CONFIG.spawnIntervalMin, CONFIG.spawnIntervalMax) *
           nightFactor *
@@ -2181,8 +2212,14 @@ export const useGame = create<GameState>((set, get) => ({
     if (!charter && !isNight) {
       charterTimer -= dt
       if (charterTimer <= 0) {
-        charterTimer = rand(CONFIG.charterIntervalMin, CONFIG.charterIntervalMax)
+        // Maç günü servis teklifleri hem sık hem dolgun gelir
+        charterTimer =
+          rand(CONFIG.charterIntervalMin, CONFIG.charterIntervalMax) *
+          (special === 'mac' ? 0.6 : 1)
         charter = makeCharter(time, activeFleet)
+        if (special === 'mac') {
+          charter = { ...charter, payout: Math.round(charter.payout * 1.5) }
+        }
       }
     }
 
@@ -2191,8 +2228,18 @@ export const useGame = create<GameState>((set, get) => ({
     if (!contractOffer && !isNight && contracts.length < CONFIG.contractSlots) {
       contractOfferTimer -= dt
       if (contractOfferTimer <= 0) {
-        contractOfferTimer = rand(CONFIG.contractOfferMin, CONFIG.contractOfferMax)
+        // Okul açılışında kontrat teklifleri sıklaşır, okul servisi ağırlıklı ve dolgun
+        contractOfferTimer =
+          rand(CONFIG.contractOfferMin, CONFIG.contractOfferMax) *
+          (special === 'okul' ? 0.4 : 1)
         contractOffer = makeContractOffer(time)
+        if (special === 'okul') {
+          contractOffer = {
+            ...contractOffer,
+            kind: 0,
+            dailyPay: Math.round((contractOffer.dailyPay * 1.2) / 100) * 100,
+          }
+        }
         // Teklif sessizce sekmede beklemesin: oyuncuya haber ver
         pushToast(t.contractOfferToast(t.contractKinds[contractOffer.kind], contractOffer.dailyPay))
       }
@@ -2493,6 +2540,8 @@ export const useGame = create<GameState>((set, get) => ({
             let fareSum = 0
             let students = 0
             let kacakCaught = false
+            // Okul açılışında öğrenci oranı üçe katlanır
+            const pctStudent = special === 'okul' ? CONFIG.pctStudent * 3 : CONFIG.pctStudent
             for (let i = 0; i < v.passengers; i++) {
               const r = Math.random()
               if (r < CONFIG.pctKacak) {
@@ -2500,10 +2549,10 @@ export const useGame = create<GameState>((set, get) => ({
                   fareSum += fare
                   kacakCaught = true
                 }
-              } else if (r < CONFIG.pctKacak + CONFIG.pctStudent) {
+              } else if (r < CONFIG.pctKacak + pctStudent) {
                 fareSum += fare * CONFIG.studentFareFactor
                 students++
-              } else if (r < CONFIG.pctKacak + CONFIG.pctStudent + CONFIG.pctTourist) {
+              } else if (r < CONFIG.pctKacak + pctStudent + CONFIG.pctTourist) {
                 fareSum += fare
                 if (Math.random() < CONFIG.touristTipChance) {
                   fareSum += rand(CONFIG.touristTipMin, CONFIG.touristTipMax)
@@ -2607,12 +2656,14 @@ export const useGame = create<GameState>((set, get) => ({
             advanceTask('carry', enRoute)
             advanceTask('revenue', extra)
             advanceTask('trips', 1)
-            // Elektrikli otobüs çevreci imaj yapar; klimalı araç yolcuyu memnun eder
+            // Elektrikli otobüs çevreci imaj yapar; klimalı araç yolcuyu memnun eder;
+            // bayram indirimiyle taşımak itibarı iki kat işletir
             rep = clampRep(
               rep +
                 CONFIG.repPerTrip *
                   specOf(v.kind).repMult *
-                  (v.mods.includes('ac') ? CONFIG.modAcRepFactor : 1),
+                  (v.mods.includes('ac') ? CONFIG.modAcRepFactor : 1) *
+                  (special === 'bayram' ? 2 : 1),
             )
             pushToast(t.returned(v.plate, extra))
             v.state = 'returning'
@@ -2707,8 +2758,10 @@ export const useGame = create<GameState>((set, get) => ({
       eventTimer -= dt
       if (eventTimer <= 0) {
         eventTimer = rand(CONFIG.eventIntervalMin, CONFIG.eventIntervalMax)
-        // Büyük filoda (6+) ağır arıza da olasılık havuzuna girer
-        const roll = Math.floor(rand(0, vehicles.length >= 6 ? 5 : 4))
+        // Büyük filoda (6+) ağır arıza da olasılık havuzuna girer.
+        // Maç günü zabıta sahada: denetim olasılığı belirgin artar
+        let roll = Math.floor(rand(0, vehicles.length >= 6 ? 5 : 4))
+        if (special === 'mac' && Math.random() < 0.4) roll = 0
         if (roll === 4) {
           // Ağır arıza: şanzıman/motor — araç servis parkına çekilir, 2-3 gün
           // tamirde kalır, fatura peşin kesilir
@@ -2893,7 +2946,7 @@ export const useGame = create<GameState>((set, get) => ({
       })
     }
 
-    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay, bufeToday, rivals, rivalRespawn, charter, contracts, contractOffer, rainUntil, korsanUntil, celebrateAt, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, driverMarket, rentals })
+    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay, bufeToday, rivals, rivalRespawn, charter, contracts, contractOffer, rainUntil, korsanUntil, celebrateAt, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, driverMarket, rentals, specialDay, specialDayFor })
 
     // ~2.5 sn'de bir kaydet — her frame localStorage'a yazmak gereksiz
     saveAcc += dt

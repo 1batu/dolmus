@@ -792,6 +792,10 @@ export function HUD() {
   const statsHistory = useGame((s) => s.statsHistory)
   // Hipotek: banka limitine eklenen filo değeri (hisse ağırlıklı)
   const assetValue = useGame((s) => fleetAssetValue(s.vehicles, s.rep))
+  // Bugünün özel günü (varsa üst barda çip olarak görünür)
+  const specialToday = useGame((s) =>
+    s.specialDayFor === clockOf(s.time).day ? s.specialDay : null,
+  )
   const restructureDebt = useGame((s) => s.restructureDebt)
   const taxisKey = useGame((s) =>
     s.taxis
@@ -886,6 +890,22 @@ export function HUD() {
         <Stat icon={<Fuel className="h-4 w-4 text-amber-300" />} label={t.fuelLabel} value={`₺${fuelPrice.toFixed(0)}/L`} />
         <Stat icon={<Ticket className="h-4 w-4 text-sky-300" />} label={t.fareLabel} value={`₺${fareNow}`} />
         {streak >= 2 && <Stat icon={<Flame className="h-4 w-4 text-orange-400" />} label={t.streakLabel} value={`${streak}`} accent="text-orange-300" />}
+        {specialToday && (
+          <Stat
+            icon={
+              specialToday === 'mac' ? (
+                <Trophy className="h-4 w-4 text-pink-300" />
+              ) : specialToday === 'bayram' ? (
+                <PartyPopper className="h-4 w-4 text-pink-300" />
+              ) : (
+                <School className="h-4 w-4 text-pink-300" />
+              )
+            }
+            label={t.specialLabel}
+            value={t.specialNames[specialToday]}
+            accent="text-pink-300"
+          />
+        )}
         <Stat
           icon={<Star className="h-4 w-4 text-yellow-300" />}
           label={t.rep}
