@@ -195,11 +195,42 @@ export const CONFIG = {
   // Otomasyon anlaşmaları (İnşaat > Tesisler)
   otoPompaCost: 150000, // depo azalınca araç kendiliğinden pompaya gider
   otoBakimCost: 200000, // yıpranma %80'i geçince otomatik bakım
+  hat2Cost: 25000000, // ikinci hat plakası (Kadıköy) — geç oyun zirvesi
+  hat2SpawnBonus: 0.25, // ikinci hatla yolcu akışı
+  hat2EnRouteBonus: 0.35, // ikinci hatla güzergah hasılatı
 
   // Prestij: hattı devret, kalıcı bonuslarla yeni başla
   prestigeSpawnBonus: 0.05, // seviye başına yolcu akış hızı
   prestigeMoneyBonus: 0.25, // seviye başına başlangıç parası çarpanı
   prestigeRepBonus: 0.2, // seviye başına başlangıç itibarı
+
+  // Ekonomi haberleri: motorin/tarife canlı değişir (state'te tutulur)
+  newsIntervalMin: 450, // sn (~1,5 oyun günü)
+  newsIntervalMax: 900,
+  fuelPriceMin: 60, // ₺/L bandı
+  fuelPriceMax: 130,
+  fareMin: 43, // indi-bindi bandı
+  fareMax: 90,
+
+  // Yolcu tipleri: biniş anında istatistiksel örneklenir
+  pctKacak: 0.05, // kaçak binen — kahya varsa yakalanır ve öder
+  pctStudent: 0.15, // öğrenci: indirimli ama itibar kazandırır
+  pctTourist: 0.1, // turist: bahşiş şansı
+  studentFareFactor: 0.65,
+  studentRep: 0.004, // öğrenci başına itibar
+  touristTipChance: 0.35,
+  touristTipMin: 10,
+  touristTipMax: 35,
+
+  // Şoför morali: düşerse beceri işlemez, çay molası tazeler
+  moralDecayPerDay: 8,
+  moralLowThreshold: 40,
+  cayMolasiCost: 250,
+  cayMolasiBoost: 45,
+  moralDecayCayFactor: 0.5, // çay ocağı varsa moral yarı hızda düşer
+
+  // Şoför pazarı: her gün 2 aday (yıldızı belli, ücreti yıldıza göre)
+  marketHirePerSkill: 3500,
 
   toastLifetime: 3, // sn
 }

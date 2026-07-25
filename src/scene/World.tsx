@@ -35,6 +35,7 @@ const NIGHT_SKY = new THREE.Color('#141d33')
 const DAY_SUN = new THREE.Color('#ffffff')
 const NIGHT_SUN = new THREE.Color('#5a6fa8')
 const DUSK_SUN = new THREE.Color('#ffb46b')
+const RAIN_SKY = new THREE.Color('#78838f')
 
 // 0 = gece, 1 = gündüz; 05-07 şafak, 18-21 gün batımı
 function dayFactor(hour: number): number {
@@ -103,11 +104,13 @@ function DayNight() {
   const sky = useMemo(() => new THREE.Color(), [])
 
   useFrame(() => {
-    const { hour } = clockOf(useGame.getState().time)
+    const st = useGame.getState()
+    const { hour } = clockOf(st.time)
     const f = dayFactor(hour)
+    const raining = st.rainUntil > st.time
 
     if (dir.current) {
-      dir.current.intensity = 0.12 + 1.28 * f
+      dir.current.intensity = (0.12 + 1.28 * f) * (raining ? 0.7 : 1)
       // Alacakaranlıkta güneş turunculaşır
       const dusk = f > 0 && f < 1 ? Math.sin(f * Math.PI) : 0
       dir.current.color.lerpColors(NIGHT_SUN, DAY_SUN, f).lerp(DUSK_SUN, dusk * 0.6)
@@ -115,6 +118,7 @@ function DayNight() {
     if (amb.current) amb.current.intensity = 0.16 + 0.39 * f
     if (hemi.current) hemi.current.intensity = 0.12 + 0.38 * f
     sky.lerpColors(NIGHT_SKY, DAY_SKY, f)
+    if (raining) sky.lerp(RAIN_SKY, 0.45)
     scene.background = sky
     // Uzaklık sisi: sahneye derinlik katar, gökyüzüyle aynı tona akar
     if (!scene.fog) scene.fog = new THREE.Fog(sky, 130, 320)
@@ -141,14 +145,66 @@ function DayNight() {
   )
 }
 
+// Yol malzemesi modül seviyesinde: yağmurda ıslak parlaklığa geçer
+const roadMaterial = new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.95 })
+
+// Yağmur: nokta partikülleri + asfaltın ıslanması
+function RainFX() {
+  const points = useRef<THREE.Points>(null)
+  const N = 700
+  const data = useMemo(() => {
+    const positions = new Float32Array(N * 3)
+    const speeds = new Float32Array(N)
+    for (let i = 0; i < N; i++) {
+      positions[i * 3] = -80 + Math.random() * 170
+      positions[i * 3 + 1] = Math.random() * 42
+      positions[i * 3 + 2] = -28 + Math.random() * 60
+      speeds[i] = 26 + Math.random() * 18
+    }
+    return { positions, speeds }
+  }, [])
+  const rainMat = useMemo(
+    () =>
+      new THREE.PointsMaterial({ color: '#aac4e0', size: 0.16, transparent: true, opacity: 0.65 }),
+    [],
+  )
+  useFrame((_, dt) => {
+    const s = useGame.getState()
+    const raining = s.rainUntil > s.time
+    if (points.current) points.current.visible = raining
+    // Islak asfalt: pürüzlülük düşer, renk koyulaşır
+    const targetRough = raining ? 0.35 : 0.95
+    roadMaterial.roughness += (targetRough - roadMaterial.roughness) * Math.min(1, dt * 2)
+    if (!raining || !points.current) return
+    const pos = points.current.geometry.getAttribute('position') as THREE.BufferAttribute
+    for (let i = 0; i < N; i++) {
+      let y = pos.getY(i) - data.speeds[i] * dt
+      if (y < 0) y = 40 + Math.random() * 4
+      pos.setY(i, y)
+    }
+    pos.needsUpdate = true
+  })
+  return (
+    <points ref={points} visible={false} material={rainMat}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[data.positions, 3]} />
+      </bufferGeometry>
+    </points>
+  )
+}
+
 // Ana yol: asfalt + kenar bantları + orta şerit kesikleri
 function Road() {
   const dashes = useMemo(() => Array.from({ length: 24 }, (_, i) => -88 + i * 7.6), [])
   return (
     <group>
-      <mesh position={[0, 0.02, LAYOUT.roadZ]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh
+        position={[0, 0.02, LAYOUT.roadZ]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        material={roadMaterial}
+        receiveShadow
+      >
         <planeGeometry args={[190, LAYOUT.roadHalf * 2]} />
-        <meshStandardMaterial map={asphaltTex} roughness={0.95} />
       </mesh>
       {/* Kenar çizgileri */}
       {[-LAYOUT.roadHalf + 0.25, LAYOUT.roadHalf - 0.25].map((oz) => (
@@ -527,6 +583,7 @@ export function World() {
       <SimTicker />
       <DayNight />
       <NightLights />
+      <RainFX />
 
       {/* Zemin */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>

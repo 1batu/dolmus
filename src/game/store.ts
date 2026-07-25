@@ -56,6 +56,7 @@ export type Vehicle = {
   contractRun: boolean // kontrat seferinde: ücretsiz tur, dönüşte sıfırlanır
   driverName: string // şoför profili (hasDriver ise anlamlı)
   driverSkill: number // 1-3 ⭐: biniş hızı + yakıt verimi
+  driverMoral: number // 0-100: düşükse beceri işlemez, çay molası tazeler
 }
 
 // Servis kontratı: her gün sabah + akşam birer sefer, günlük sabit ödeme
@@ -232,7 +233,7 @@ function genDriver(): { name: string; skill: number } {
 }
 
 // Terminal tesisleri: tek seferlik yatırım, kalıcı etki
-export type BuildingKind = 'bufe' | 'cayOcagi' | 'tamirhane' | 'otoPompa' | 'otoBakim'
+export type BuildingKind = 'bufe' | 'cayOcagi' | 'tamirhane' | 'otoPompa' | 'otoBakim' | 'hat2'
 export type Buildings = Record<BuildingKind, boolean>
 export const BUILDING_COSTS: Record<BuildingKind, number> = {
   bufe: CONFIG.bufeCost,
@@ -240,6 +241,7 @@ export const BUILDING_COSTS: Record<BuildingKind, number> = {
   tamirhane: CONFIG.tamirhaneCost,
   otoPompa: CONFIG.otoPompaCost,
   otoBakim: CONFIG.otoBakimCost,
+  hat2: CONFIG.hat2Cost,
 }
 
 let nextId = 1
@@ -262,6 +264,30 @@ let bufeStreetTimer = 0 // yoldan geçen müşteri sayacı (kalıcı olması ger
 let charterTimer = 45 // ilk servis teklifine kalan süre
 let contractOfferTimer = 70 // ilk kontrat teklifine kalan süre
 let eventTimer = 90 // ilk rastgele olaya kalan süre
+let newsTimer = 300 // ilk ekonomi haberine kalan süre
+let marketRefreshPending = true // şoför pazarı ilk açılışta ve her sabah yenilenir
+
+// Günlük istatistik biriktiricileri (kalıcı değil, gün dönümünde tarihe yazılır)
+export type DayStats = { day: number; income: Record<string, number>; expense: number }
+let dayIncome: Record<string, number> = {}
+let dayExpense = 0
+function trackIncome(src: string, amt: number) {
+  if (amt > 0) dayIncome[src] = (dayIncome[src] ?? 0) + amt
+}
+function trackExpense(amt: number) {
+  if (amt > 0) dayExpense += amt
+}
+export function getTodayStats(): { income: Record<string, number>; expense: number } {
+  return { income: dayIncome, expense: dayExpense }
+}
+
+// Günlük seri: gerçek takvim günü bazlı
+let streakToastPending: { streak: number; reward: number } | null = null
+function localDateStr(offsetDays = 0): string {
+  const d = new Date()
+  d.setDate(d.getDate() + offsetDays)
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+}
 
 // --- Kalıcılık: localStorage'a periyodik yaz, açılışta geri yükle ---
 const SAVE_KEY = 'dolmus-save'
@@ -293,11 +319,16 @@ type SavedFields = Pick<
   | 'taxis'
   | 'milestonesDone'
   | 'prestige'
+  | 'fuelPrice'
+  | 'fare'
+  | 'statsHistory'
+  | 'streak'
+  | 'lastPlayDate'
 >
 
 function persist(s: SavedFields) {
   try {
-    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige } = s
+    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige, fuelPrice, fare, statsHistory, streak, lastPlayDate } = s
     localStorage.setItem(
       SAVE_KEY,
       JSON.stringify({
@@ -306,6 +337,11 @@ function persist(s: SavedFields) {
         savedAt: Date.now(),
         milestonesDone,
         prestige,
+        fuelPrice,
+        fare,
+        statsHistory,
+        streak,
+        lastPlayDate,
         time,
         day,
         wageDay,
@@ -408,6 +444,7 @@ function loadSave(): Partial<GameState> | null {
         contractRun: v.contractRun ?? false,
         driverName: v.driverName ?? (v.hasDriver ? genDriver().name : ''),
         driverSkill: v.driverSkill ?? 1 + Math.floor(Math.random() * 3),
+        driverMoral: v.driverMoral ?? 100,
       })),
       debts: Array.isArray(d.debts) ? d.debts : [],
       spawnTimer: d.spawnTimer ?? 1,
@@ -420,6 +457,7 @@ function loadSave(): Partial<GameState> | null {
         tamirhane: d.buildings?.tamirhane ?? false,
         otoPompa: d.buildings?.otoPompa ?? false,
         otoBakim: d.buildings?.otoBakim ?? false,
+        hat2: d.buildings?.hat2 ?? false,
       },
       bufeToday: Number.isFinite(d.bufeToday) ? d.bufeToday : 0,
       rivals: Array.isArray(d.rivals)
@@ -434,6 +472,26 @@ function loadSave(): Partial<GameState> | null {
       taxis: Array.isArray(d.taxis) ? d.taxis : [],
       milestonesDone: Array.isArray(d.milestonesDone) ? d.milestonesDone : [],
       prestige: Number.isFinite(d.prestige) ? d.prestige : 0,
+      fuelPrice: Number.isFinite(d.fuelPrice) ? d.fuelPrice : CONFIG.refuelCostPerUnit,
+      fare: Number.isFinite(d.fare) ? d.fare : CONFIG.farePerPassenger,
+      statsHistory: Array.isArray(d.statsHistory) ? d.statsHistory : [],
+      ...(() => {
+        // Günlük seri: dün oynandıysa seri büyür (ödül ilk tick'te toast'lanır)
+        const today = localDateStr()
+        const yesterday = localDateStr(-1)
+        const last = typeof d.lastPlayDate === 'string' ? d.lastPlayDate : ''
+        let streak = Number.isFinite(d.streak) ? d.streak : 1
+        if (last === today) {
+          // aynı gün — seri değişmez
+        } else if (last === yesterday) {
+          streak += 1
+          const reward = Math.min(streak, 7) * 4000
+          streakToastPending = { streak, reward }
+        } else {
+          streak = 1
+        }
+        return { streak, lastPlayDate: today }
+      })(),
     }
   } catch {
     return null
@@ -475,6 +533,7 @@ function makeVehicle(
     callIn: 20,
     contractRun: false,
     ...(hasDriver ? (({ name, skill }) => ({ driverName: name, driverSkill: skill }))(genDriver()) : { driverName: '', driverSkill: 1 }),
+    driverMoral: 100,
   }
 }
 
@@ -483,8 +542,8 @@ export function canServe(v: Vehicle): boolean {
   return v.fuel >= CONFIG.fuelPerTrip && v.wear < 100
 }
 
-export function refuelCost(v: Vehicle): number {
-  return Math.ceil((CONFIG.fuelCapacity - v.fuel) * CONFIG.refuelCostPerUnit)
+export function refuelCost(v: Vehicle, pricePerL = CONFIG.refuelCostPerUnit): number {
+  return Math.ceil((CONFIG.fuelCapacity - v.fuel) * pricePerL)
 }
 
 export function repairCost(v: Vehicle): number {
@@ -517,9 +576,17 @@ type GameState = {
   contractOffer: ContractOffer | null
   acceptContract: () => void
   taxis: Taxi[]
+  driverMarket: Array<{ name: string; skill: number; price: number }>
+  cayMolasi: (vehicleId: number) => void
+  hireFromMarket: (idx: number) => void
   selectedVehicle: number | null // sahnede/dock'ta seçilen araç (kalıcı değil)
   selectVehicle: (vehicleId: number | null) => void
   milestonesDone: string[]
+  fuelPrice: number // güncel motorin ₺/L (haberlerle değişir)
+  fare: number // güncel indi-bindi tarifesi ₺
+  statsHistory: DayStats[] // son 14 günün gelir/gider dökümü
+  streak: number // art arda oynanan gerçek gün sayısı
+  lastPlayDate: string
   rainUntil: number // yağmur bitiş zamanı (oyun sn)
   korsanUntil: number // korsan dolmuş bitiş zamanı
   prestige: number // devir sayısı: kalıcı bonuslar
@@ -577,6 +644,7 @@ function initialState() {
       tamirhane: false,
       otoPompa: false,
       otoBakim: false,
+      hat2: false,
     } as Buildings,
     bufeToday: 0,
     rivals: [makeRival(7), makeRival(12)],
@@ -585,8 +653,14 @@ function initialState() {
     contracts: [] as Contract[],
     contractOffer: null as ContractOffer | null,
     taxis: [] as Taxi[],
+    driverMarket: [] as Array<{ name: string; skill: number; price: number }>,
     selectedVehicle: null as number | null,
     milestonesDone: [] as string[],
+    fuelPrice: CONFIG.refuelCostPerUnit,
+    fare: CONFIG.farePerPassenger,
+    statsHistory: [] as DayStats[],
+    streak: 1,
+    lastPlayDate: localDateStr(),
     rainUntil: 0,
     korsanUntil: 0,
     prestige: 0,
@@ -704,7 +778,7 @@ export const useGame = create<GameState>((set, get) => ({
     const v = s.vehicles.find((veh) => veh.id === vehicleId)
     if (!v) return
     // Ortaklı araçta yakıt masrafının sadece oyuncu payı ödenir
-    const cost = Math.ceil((refuelCost(v) * v.share) / 100)
+    const cost = Math.ceil((refuelCost(v, get().fuelPrice) * v.share) / 100)
     if (cost <= 0 || !v.hasDriver) return
     // Araç parkta değilse ya da pompa doluysa: planla — parka dönünce pompaya gider
     const pumpBusy = s.vehicles.some((veh) => veh.state === 'toPump' || veh.state === 'fueling')
@@ -717,6 +791,7 @@ export const useGame = create<GameState>((set, get) => ({
       return
     }
     if (s.money < cost) return
+    trackExpense(cost)
     set({
       money: s.money - cost,
       vehicles: s.vehicles.map((veh) =>
@@ -748,6 +823,7 @@ export const useGame = create<GameState>((set, get) => ({
       return
     }
     if (s.money < cost) return
+    trackExpense(cost)
     set({
       money: s.money - cost,
       vehicles: s.vehicles.map((veh) => (veh.id === vehicleId ? { ...veh, wear: 0 } : veh)),
@@ -1012,6 +1088,37 @@ export const useGame = create<GameState>((set, get) => ({
     set({ selectedVehicle: vehicleId })
   },
 
+  cayMolasi: (vehicleId: number) => {
+    const s = get()
+    const v = s.vehicles.find((veh) => veh.id === vehicleId)
+    if (!v || !v.hasDriver || v.driverMoral >= 100 || s.money < CONFIG.cayMolasiCost) return
+    set({
+      money: s.money - CONFIG.cayMolasiCost,
+      vehicles: s.vehicles.map((veh) =>
+        veh.id === vehicleId
+          ? { ...veh, driverMoral: Math.min(100, veh.driverMoral + CONFIG.cayMolasiBoost) }
+          : veh,
+      ),
+    })
+  },
+
+  hireFromMarket: (idx: number) => {
+    const s = get()
+    const cand = s.driverMarket[idx]
+    const idle = s.vehicles.find((v) => !v.hasDriver)
+    if (!cand || !idle || s.money < cand.price) return
+    set({
+      money: s.money - cand.price,
+      drivers: s.drivers + 1,
+      driverMarket: s.driverMarket.filter((_, i) => i !== idx),
+      vehicles: s.vehicles.map((v) =>
+        v.id === idle.id
+          ? { ...v, hasDriver: true, driverName: cand.name, driverSkill: cand.skill, driverMoral: 100 }
+          : v,
+      ),
+    })
+  },
+
   dismissOffline: () => set({ offlineEarned: 0, offlineSecs: 0 }),
 
   prestigeReset: () => {
@@ -1091,9 +1198,12 @@ export const useGame = create<GameState>((set, get) => ({
   tick: (dt: number) => {
     const s = get()
     const time = s.time + dt
-    let { money, totalCarried, queue, spawnTimer, wageDay, rep, task, taskDay, bufeToday, rivalRespawn, charter, contractOffer, rainUntil, korsanUntil, celebrateAt } = s
+    let { money, totalCarried, queue, spawnTimer, wageDay, rep, task, taskDay, bufeToday, rivalRespawn, charter, contractOffer, rainUntil, korsanUntil, celebrateAt, fuelPrice, fare } = s
     let contracts = s.contracts
+    let statsHistory = s.statsHistory
+    let moralDecayNow = 0
     const { buildings } = s
+
     const clock = clockOf(time)
     const day = clock.day
     const isNight = clock.hour < CONFIG.nightEndHour // 00:00-06:00
@@ -1107,6 +1217,15 @@ export const useGame = create<GameState>((set, get) => ({
       toasts = [...toasts, { id: nextId++, text, expireAt: time + CONFIG.toastLifetime }].slice(-5)
     }
 
+    // Günlük seri ödülü: açılıştan sonraki ilk tick'te bir kez
+    if (streakToastPending) {
+      money += streakToastPending.reward
+      trackIncome('odul', streakToastPending.reward)
+      pushToast(t.streakToast(streakToastPending.streak, streakToastPending.reward))
+      celebrateAt = time
+      streakToastPending = null
+    }
+
     // Görev ilerlemesi: hedef tutunca ödül + itibar bonusu + konfeti
     const advanceTask = (kind: DailyTask['kind'], amount: number) => {
       if (!task || task.done || task.kind !== kind) return
@@ -1114,6 +1233,7 @@ export const useGame = create<GameState>((set, get) => ({
       if (task.progress >= task.target) {
         task = { ...task, progress: task.target, done: true }
         money += task.reward
+        trackIncome('odul', task.reward)
         rep = clampRep(rep + CONFIG.repTaskBonus)
         pushToast(t.taskDone(task.reward))
         celebrateAt = time
@@ -1121,10 +1241,18 @@ export const useGame = create<GameState>((set, get) => ({
       }
     }
 
-    // Yeni işletme günü (06:00): taze günlük görev + kontrat günü sıfırlama
+    // Yeni işletme günü (06:00): taze görev + kontrat sıfırlama + istatistik dökümü
     if (clock.hour >= CONFIG.nightEndHour && taskDay < day) {
       taskDay = day
       task = makeTask(s.vehicles.length)
+      statsHistory = [
+        ...statsHistory,
+        { day: day - 1, income: dayIncome, expense: dayExpense },
+      ].slice(-14)
+      dayIncome = {}
+      dayExpense = 0
+      // Şoför pazarı yenilenir, moraller günlük düşer
+      marketRefreshPending = true
       contracts = contracts
         .map((c) => ({
           ...c,
@@ -1154,7 +1282,11 @@ export const useGame = create<GameState>((set, get) => ({
         ),
       )
       money -= wages
+      trackExpense(wages)
       pushToast(t.wagesPaid(wages))
+      // Moral günlük yıpranır; çay ocağı varsa yarı hızda (araç döngüsünde uygulanır)
+      moralDecayNow =
+        CONFIG.moralDecayPerDay * (buildings.cayOcagi ? CONFIG.moralDecayCayFactor : 1)
       sfx('coin')
       if (bufeToday > 0) {
         pushToast(t.bufeSummary(bufeToday))
@@ -1174,6 +1306,7 @@ export const useGame = create<GameState>((set, get) => ({
       )
       if (partnerIncome > 0) {
         money += partnerIncome
+        trackIncome('ortaklik', partnerIncome)
         pushToast(t.partnerDaily(partnerIncome))
       }
       // Taksi gelirleri: kirada sabit, işletmede değişken günlük net
@@ -1189,6 +1322,7 @@ export const useGame = create<GameState>((set, get) => ({
       )
       if (taxiIncome > 0) {
         money += taxiIncome
+        trackIncome('taksi', taxiIncome)
         pushToast(t.taxiIncome(taxiIncome))
       }
       // Kontrat gelirleri: koşulan sefer başına günlük ödemenin yarısı
@@ -1201,6 +1335,7 @@ export const useGame = create<GameState>((set, get) => ({
       )
       if (contractIncome > 0) {
         money += contractIncome
+        trackIncome('kontrat', contractIncome)
         pushToast(t.contractIncome(contractIncome))
       }
       if (debts.length > 0) {
@@ -1213,6 +1348,7 @@ export const useGame = create<GameState>((set, get) => ({
           })
           .filter((d) => d.remaining > 0)
         money -= paid
+        trackExpense(paid)
         pushToast(t.installmentsPaid(paid))
       }
     }
@@ -1227,7 +1363,8 @@ export const useGame = create<GameState>((set, get) => ({
       const repFactor = CONFIG.repSpawnBase - CONFIG.repSpawnSlope * rep
       const fleetFactor =
         (1 + CONFIG.fleetSpawnBonus * (activeFleet - 1)) *
-        (1 + CONFIG.prestigeSpawnBonus * s.prestige)
+        (1 + CONFIG.prestigeSpawnBonus * s.prestige) *
+        (buildings.hat2 ? 1 + CONFIG.hat2SpawnBonus : 1)
       const weatherFactor =
         (time < rainUntil ? CONFIG.rainSpawnFactor : 1) *
         (time < korsanUntil ? CONFIG.korsanSpawnFactor : 1)
@@ -1243,6 +1380,7 @@ export const useGame = create<GameState>((set, get) => ({
         if (buildings.bufe && Math.random() < CONFIG.bufeSaleChance) {
           const sale = Math.round(rand(CONFIG.bufeSaleMin, CONFIG.bufeSaleMax))
           money += sale
+          trackIncome('bufe', sale)
           bufeToday += sale
         }
       } else {
@@ -1280,6 +1418,7 @@ export const useGame = create<GameState>((set, get) => ({
         for (let i = 0; i < sales; i++) {
           const sale = Math.round(rand(CONFIG.bufeSaleMin, CONFIG.bufeSaleMax))
           money += sale
+          trackIncome('bufe', sale)
           bufeToday += sale
         }
       }
@@ -1361,6 +1500,9 @@ export const useGame = create<GameState>((set, get) => ({
 
     const vehicles = s.vehicles.map((vehicle) => {
       const v = { ...vehicle }
+      if (moralDecayNow > 0 && v.hasDriver) {
+        v.driverMoral = Math.max(0, v.driverMoral - moralDecayNow)
+      }
       const advance = () => {
         v.dist += CONFIG.vehicleSpeed * dt
         return v.path !== null && v.dist >= pathLength(v.path)
@@ -1386,6 +1528,7 @@ export const useGame = create<GameState>((set, get) => ({
               const cost = Math.ceil((repairCost(v) * discount * v.share) / 100)
               if (money >= cost) {
                 money -= cost
+                trackExpense(cost)
                 v.wear = 0
                 v.pendingRepair = false
               }
@@ -1396,9 +1539,10 @@ export const useGame = create<GameState>((set, get) => ({
             if (v.fuel >= CONFIG.fuelCapacity) {
               v.pendingRefuel = false
             } else {
-              const cost = Math.ceil((refuelCost(v) * v.share) / 100)
+              const cost = Math.ceil((refuelCost(v, fuelPrice) * v.share) / 100)
               if (money >= cost) {
                 money -= cost
+                trackExpense(cost)
                 v.pendingRefuel = false
                 pumpInUse = true
                 pushToast(t.refueled(v.plate, cost))
@@ -1415,6 +1559,7 @@ export const useGame = create<GameState>((set, get) => ({
             const cost = Math.ceil((repairCost(v) * discount * v.share) / 100)
             if (money >= cost) {
               money -= cost
+              trackExpense(cost)
               v.wear = 0
               v.pendingRepair = false
             }
@@ -1426,9 +1571,10 @@ export const useGame = create<GameState>((set, get) => ({
             v.fuel < CONFIG.fuelPerTrip * 2 &&
             v.fuel < CONFIG.fuelCapacity
           ) {
-            const cost = Math.ceil((refuelCost(v) * v.share) / 100)
+            const cost = Math.ceil((refuelCost(v, fuelPrice) * v.share) / 100)
             if (money >= cost) {
               money -= cost
+              trackExpense(cost)
               v.pendingRefuel = false
               pumpInUse = true
               v.state = 'toPump'
@@ -1487,10 +1633,11 @@ export const useGame = create<GameState>((set, get) => ({
         }
         case 'loading': {
           // Çay ocağı + şoför becerisi: biniş daha hızlı akar
+          const effSkill = v.driverMoral < CONFIG.moralLowThreshold ? 1 : v.driverSkill
           const boardInterval =
             CONFIG.boardInterval *
             (buildings.cayOcagi ? CONFIG.cayOcagiBoardFactor : 1) *
-            (1 - CONFIG.driverSkillBoardBonus * (v.driverSkill - 1))
+            (1 - CONFIG.driverSkillBoardBonus * (effSkill - 1))
           const cap = capacityOf(v) // kahya varsa ayakta yolcu da biner
           v.wait += dt
           v.boardAcc += dt
@@ -1502,29 +1649,55 @@ export const useGame = create<GameState>((set, get) => ({
           const full = v.passengers >= cap
           const impatient = v.passengers > 0 && v.wait >= CONFIG.maxWaitAtPeron
           if (full || impatient) {
-            // Dolmuş usulü: ücret binişte peşin, sefer başlarken kasaya girer.
-            // Gece tarifesi zamlı. Gider kasadan değil araçtan: depo + yıpranma.
-            // Ortaklı araçta hasılatın sadece oyuncu payı kasaya girer
-            const fare = Math.round(
-              (v.passengers * CONFIG.farePerPassenger * fareMult * v.share) / 100,
-            )
-            money += fare
+            // Dolmuş usulü: ücret binişte peşin, canlı tarifeden. Yolcu tipleri
+            // istatistiksel: öğrenci indirimli (+itibar), turist bahşişli,
+            // kaçak binen kahyaya takılırsa öder. Ortak payı düşülür.
+            let fareSum = 0
+            let students = 0
+            let kacakCaught = false
+            for (let i = 0; i < v.passengers; i++) {
+              const r = Math.random()
+              if (r < CONFIG.pctKacak) {
+                if (v.kahya > 0) {
+                  fareSum += fare
+                  kacakCaught = true
+                }
+              } else if (r < CONFIG.pctKacak + CONFIG.pctStudent) {
+                fareSum += fare * CONFIG.studentFareFactor
+                students++
+              } else if (r < CONFIG.pctKacak + CONFIG.pctStudent + CONFIG.pctTourist) {
+                fareSum += fare
+                if (Math.random() < CONFIG.touristTipChance) {
+                  fareSum += rand(CONFIG.touristTipMin, CONFIG.touristTipMax)
+                }
+              } else {
+                fareSum += fare
+              }
+            }
+            rep = clampRep(rep + students * CONFIG.studentRep)
+            if (kacakCaught && Math.random() < 0.35) pushToast(t.kacakCaught(v.plate))
+            const tripFare = Math.round((fareSum * fareMult * v.share) / 100)
+            money += tripFare
+            trackIncome('dolmus', tripFare)
             totalCarried += v.passengers
             advanceTask('carry', v.passengers)
-            advanceTask('revenue', fare)
+            advanceTask('revenue', tripFare)
             sfx('horn')
             // Usta şoför yakıtı idareli kullanır
             v.fuel = Math.max(
               0,
               v.fuel -
-                CONFIG.fuelPerTrip * (1 - CONFIG.driverSkillFuelBonus * (v.driverSkill - 1)),
+                CONFIG.fuelPerTrip *
+                  (1 -
+                    CONFIG.driverSkillFuelBonus *
+                      ((v.driverMoral < CONFIG.moralLowThreshold ? 1 : v.driverSkill) - 1)),
             )
             // Eski kasa (devren) daha hızlı yıpranır
             v.wear = Math.min(
               100,
               v.wear + CONFIG.wearPerTrip * (v.old ? CONFIG.oldBusWearFactor : 1),
             )
-            pushToast(t.departed(v.plate, v.passengers, fare))
+            pushToast(t.departed(v.plate, v.passengers, tripFare))
             v.state = 'departing'
             v.path = departPath
             v.dist = 0
@@ -1558,6 +1731,7 @@ export const useGame = create<GameState>((set, get) => ({
             // Özel servis dönüşü: toplu ödeme (hisse oranında)
             const pay = Math.round((v.charterPayout * v.share) / 100)
             money += pay
+            trackIncome(v.kind === 'vito' ? 'vip' : 'servis', pay)
             rep = clampRep(rep + CONFIG.repPerTrip)
             advanceTask('trips', 1)
             advanceTask('revenue', pay)
@@ -1574,14 +1748,17 @@ export const useGame = create<GameState>((set, get) => ({
             // Hat boyunca inen-binen: dönüşte ek indi-bindi hasılatı.
             // Kahya kapıdan hat bağırır — seviyesi durak dışı yolcuyu artırır.
             const kahyaBonus = 1 + CONFIG.kahyaEnRouteBonus * v.kahya
-            const fleetBonus = 1 + CONFIG.fleetEnRouteBonus * (activeFleet - 1)
+            const fleetBonus =
+              (1 + CONFIG.fleetEnRouteBonus * (activeFleet - 1)) *
+              (buildings.hat2 ? 1 + CONFIG.hat2EnRouteBonus : 1)
             const enRoute = Math.floor(
               rand(CONFIG.enRouteFaresMin, CONFIG.enRouteFaresMax + 1) * kahyaBonus * fleetBonus,
             )
             const extra = Math.round(
-              (enRoute * CONFIG.farePerPassenger * fareMult * v.share) / 100,
+              (enRoute * fare * fareMult * v.share) / 100,
             )
             money += extra
+            trackIncome('dolmus', extra)
             totalCarried += enRoute
             advanceTask('carry', enRoute)
             advanceTask('revenue', extra)
@@ -1627,6 +1804,26 @@ export const useGame = create<GameState>((set, get) => ({
       return v
     })
 
+    // Ekonomi haberleri: motorin/tarife arada bir değişir
+    newsTimer -= dt
+    if (newsTimer <= 0) {
+      newsTimer = rand(CONFIG.newsIntervalMin, CONFIG.newsIntervalMax)
+      if (Math.random() < 0.6) {
+        const old = fuelPrice
+        const zam = Math.random() < 0.75
+        const change = zam ? 1 + rand(0.03, 0.09) : 1 - rand(0.02, 0.05)
+        fuelPrice = Math.round(
+          Math.max(CONFIG.fuelPriceMin, Math.min(CONFIG.fuelPriceMax, fuelPrice * change)) * 100,
+        ) / 100
+        if (Math.round(fuelPrice) !== Math.round(old)) pushToast(t.newsFuel(old, fuelPrice))
+      } else {
+        const old = fare
+        const delta = Math.random() < 0.85 ? Math.round(rand(2, 5)) : -Math.round(rand(1, 3))
+        fare = Math.max(CONFIG.fareMin, Math.min(CONFIG.fareMax, fare + delta))
+        if (fare !== old) pushToast(t.newsFare(old, fare))
+      }
+    }
+
     // Rastgele olaylar: gündüz — zabıta, lastik, yağmur, korsan dolmuş
     if (!isNight) {
       eventTimer -= dt
@@ -1644,6 +1841,7 @@ export const useGame = create<GameState>((set, get) => ({
             const standing = overloaded.passengers - CONFIG.seatCount
             const fine = standing * CONFIG.zabitaFinePerStanding
             money -= fine
+            trackExpense(fine)
             rep = clampRep(rep - 0.1)
             pushToast(t.zabitaFine(overloaded.plate, fine))
           } else {
@@ -1675,6 +1873,7 @@ export const useGame = create<GameState>((set, get) => ({
       if (s.milestonesDone.includes(m.id)) continue
       if (m.cond({ ...s, money, totalCarried, rep, day } as GameState)) {
         money += m.reward
+        trackIncome('odul', m.reward)
         pushToast(t.milestone(t.milestoneNames[m.id] ?? m.id, m.reward))
         celebrateAt = time
         sfx('ding')
@@ -1751,7 +1950,17 @@ export const useGame = create<GameState>((set, get) => ({
       if (changed) contracts = next
     }
 
-    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay, bufeToday, rivals, rivalRespawn, charter, contracts, contractOffer, rainUntil, korsanUntil, celebrateAt })
+    // Şoför pazarı: sabahları 2 yeni aday
+    let driverMarket = s.driverMarket
+    if (marketRefreshPending) {
+      marketRefreshPending = false
+      driverMarket = Array.from({ length: 2 }, () => {
+        const prof = genDriver()
+        return { name: prof.name, skill: prof.skill, price: prof.skill * CONFIG.marketHirePerSkill }
+      })
+    }
+
+    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay, bufeToday, rivals, rivalRespawn, charter, contracts, contractOffer, rainUntil, korsanUntil, celebrateAt, fuelPrice, fare, statsHistory, driverMarket })
 
     // ~2.5 sn'de bir kaydet — her frame localStorage'a yazmak gereksiz
     saveAcc += dt

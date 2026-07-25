@@ -1,15 +1,62 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useGame, BUILDING_COSTS, capacityOf, valuationOf, type BuildingKind } from '../game/store'
+import { useGame, BUILDING_COSTS, capacityOf, valuationOf, getTodayStats, type BuildingKind } from '../game/store'
 import { CONFIG, clockOf, queueCapOf } from '../game/config'
+import {
+  AlertTriangle,
+  ArrowUp,
+  Banknote,
+  BarChart3,
+  BedDouble,
+  Coins,
+  History,
+  Hourglass,
+  Megaphone,
+  PartyPopper,
+  Plane,
+  School,
+  Target,
+  Trash2,
+  TreePine,
+  TrendingUp,
+  Trophy,
+  Building2,
+  Bus,
+  CalendarDays,
+  CarTaxiFront,
+  Coffee,
+  Cog,
+  CupSoda,
+  FileSignature,
+  FileText,
+  Flame,
+  Fuel,
+  Handshake,
+  HardHat,
+  Hammer,
+  Map as MapIcon,
+  Moon,
+  ScrollText,
+  Star,
+  Sun,
+  Ticket,
+  Users,
+  UserRound,
+  Volume2,
+  VolumeX,
+  Wallet,
+  Wrench,
+  X,
+} from 'lucide-react'
 import { isMuted, toggleMute } from '../game/sound'
 import { t } from '../i18n'
 
-const BUILDING_ICONS: Record<BuildingKind, string> = {
-  bufe: '🥯',
-  cayOcagi: '🫖',
-  tamirhane: '🔧',
-  otoPompa: '⛽',
-  otoBakim: '🛠️',
+const BUILDING_ICONS: Record<BuildingKind, ReactNode> = {
+  bufe: <CupSoda className="h-7 w-7 text-amber-300" />,
+  cayOcagi: <Coffee className="h-7 w-7 text-orange-300" />,
+  tamirhane: <Wrench className="h-7 w-7 text-sky-300" />,
+  otoPompa: <Fuel className="h-7 w-7 text-emerald-300" />,
+  otoBakim: <Cog className="h-7 w-7 text-violet-300" />,
+  hat2: <MapIcon className="h-7 w-7 text-yellow-300" />,
 }
 
 // Görev/milestone kutlaması: kısa konfeti yağmuru
@@ -43,14 +90,17 @@ function Confetti({ token }: { token: number }) {
 
 const fmt = (n: number) => n.toLocaleString('tr-TR')
 
+// Özel servis türü ikonları (charterKinds sırasıyla)
+const CHARTER_ICONS = [PartyPopper, Plane, Trophy, School, TreePine]
+
 // Koyu cam panel: gündüz de gece de okunur
 const GLASS =
   'rounded-2xl border border-white/10 bg-gradient-to-b from-neutral-900/85 to-neutral-950/70 shadow-xl shadow-black/40 backdrop-blur-xl ring-1 ring-inset ring-white/5'
 
-function Stat({ icon, label, value, accent = 'text-white' }: { icon: string; label: string; value: string; accent?: string }) {
+function Stat({ icon, label, value, accent = 'text-white' }: { icon: ReactNode; label: string; value: string; accent?: string }) {
   return (
     <div className="flex items-center gap-2 px-3 py-1.5">
-      <span className="text-base leading-none">{icon}</span>
+      <span className="flex items-center leading-none text-white/70">{icon}</span>
       <div>
         <div className="text-[9px] font-bold uppercase tracking-widest text-white/40">{label}</div>
         <div className={`text-sm font-extrabold tabular-nums leading-tight ${accent}`}>{value}</div>
@@ -68,7 +118,7 @@ function ModalCard({
   desc,
   children,
 }: {
-  icon: string
+  icon: ReactNode
   title: string
   badge?: string
   badgeClass?: string
@@ -93,12 +143,12 @@ function ModalCard({
 }
 
 // Referans oyundaki yeşil fiyat butonu
-function PriceButton({ label, enabled, onClick }: { label: string; enabled: boolean; onClick: () => void }) {
+function PriceButton({ label, enabled, onClick }: { label: ReactNode; enabled: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       disabled={!enabled}
-      className={`w-full rounded-lg px-2 py-2 text-[11px] font-extrabold tabular-nums transition active:scale-[0.98]
+      className={`flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-extrabold tabular-nums transition active:scale-[0.98]
         ${
           enabled
             ? 'cursor-pointer bg-gradient-to-b from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-950/50 ring-1 ring-inset ring-white/20 hover:from-emerald-400 hover:to-emerald-500'
@@ -118,7 +168,6 @@ function PlateBadge({ plate, small = false }: { plate: string; small?: boolean }
       style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 3px rgba(0,0,0,0.5)' }}
     >
       <span className={`flex flex-col items-center justify-center bg-gradient-to-b from-blue-600 to-blue-800 leading-none ${small ? 'px-0.5' : 'px-1'}`}>
-        {!small && <span className="text-[6px]">🇹🇷</span>}
         <span className={`${small ? 'text-[6px]' : 'text-[7px]'} font-black text-white`}>TR</span>
       </span>
       <span
@@ -194,18 +243,18 @@ function OwnShareControls({
         </div>
       )}
       <div className="mt-1.5 flex items-center gap-1.5">
-        <span className="w-4 text-[10px]">🤝</span>
+        <span className="flex w-4 items-center text-white/50"><Handshake className="h-3 w-3" /></span>
         <ShareSlider value={pct} min={5} max={100} onChange={setPct} />
         <span className="w-8 text-right text-[10px] font-bold tabular-nums text-white/50">%{pct}</span>
       </div>
       <div className="mt-1.5 flex gap-1.5">
         <MiniButton
-          label={t.sellShareBtn(sellable, fmt(sellPrice))}
+          label={<><Handshake className="h-3 w-3" /> {t.sellShareBtn(sellable, fmt(sellPrice))}</>}
           enabled={sellable > 0}
           onClick={() => onSell(vehicleId, pct)}
         />
         <MiniButton
-          label={`📈 %${buyable} ${t.buyBack} ₺${fmt(buyPrice)}`}
+          label={<><TrendingUp className="h-3 w-3" /> %{buyable} {t.buyBack} ₺{fmt(buyPrice)}</>}
           enabled={buyable > 0 && money >= buyPrice}
           onClick={() => onBuyBack(vehicleId, pct)}
         />
@@ -238,18 +287,18 @@ function RivalPartnerRow({
   return (
     <>
       <div className="flex items-center gap-1.5">
-        <span className="w-4 text-[10px]">🤝</span>
+        <span className="flex w-4 items-center text-white/50"><Handshake className="h-3 w-3" /></span>
         <ShareSlider value={pct} min={5} max={90} onChange={setPct} />
         <span className="w-8 text-right text-[10px] font-bold tabular-nums text-white/50">%{pct}</span>
       </div>
       <div className="flex gap-1.5">
         <MiniButton
-          label={`🤝 %${addable} ₺${fmt(addCost)}`}
+          label={<><Handshake className="h-3 w-3" /> %{addable} ₺{fmt(addCost)}</>}
           enabled={addable > 0 && money >= addCost}
           onClick={() => onPartner(rivalId, pct)}
         />
         <MiniButton
-          label={`💸 %${sellable} +₺${fmt(refund)}`}
+          label={<><Coins className="h-3 w-3" /> %{sellable} +₺{fmt(refund)}</>}
           enabled={sellable > 0}
           onClick={() => onSellShare(rivalId, pct)}
         />
@@ -294,11 +343,11 @@ const DOT_STYLE: Record<string, string> = {
   wornOut: 'bg-red-500 animate-pulse',
 }
 
-function Bar({ icon, pct, from, to, low }: { icon: string; pct: number; from: string; to: string; low: boolean }) {
+function Bar({ icon, pct, from, to, low }: { icon: ReactNode; pct: number; from: string; to: string; low: boolean }) {
   const width = `${Math.max(0, Math.min(100, pct))}%`
   return (
     <div className="flex items-center gap-1.5">
-      <span className="w-4 text-[10px]">{icon}</span>
+      <span className="flex w-4 items-center text-white/60">{icon}</span>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
         <div
           className={`h-full rounded-full bg-gradient-to-r transition-all ${low ? 'from-red-500 to-red-400 animate-pulse' : `${from} ${to}`}`}
@@ -309,12 +358,12 @@ function Bar({ icon, pct, from, to, low }: { icon: string; pct: number; from: st
   )
 }
 
-function MiniButton({ label, enabled, onClick }: { label: string; enabled: boolean; onClick: () => void }) {
+function MiniButton({ label, enabled, onClick }: { label: ReactNode; enabled: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       disabled={!enabled}
-      className={`pointer-events-auto flex-1 rounded-lg px-1.5 py-1.5 text-[10px] font-bold tabular-nums transition active:scale-95
+      className={`pointer-events-auto flex flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[10px] font-bold tabular-nums transition active:scale-95
         ${enabled ? 'cursor-pointer bg-white/15 text-white hover:bg-white/25' : 'bg-white/5 text-white/25'}`}
     >
       {label}
@@ -341,7 +390,7 @@ function ResetButton({ onReset }: { onReset: () => void }) {
       className={`pointer-events-auto cursor-pointer rounded-xl px-3 py-1.5 text-[11px] font-bold transition active:scale-95 ${GLASS}
         ${armed ? 'border-red-400/40 bg-red-950/80 text-red-300' : 'text-white/40 hover:text-white/80'}`}
     >
-      {armed ? `⚠️ ${t.resetConfirm}` : `🗑 ${t.reset}`}
+      {armed ? <><AlertTriangle className="h-3 w-3" /> {t.resetConfirm}</> : <><Trash2 className="h-3 w-3" /> {t.reset}</>}
     </button>
   )
 }
@@ -421,7 +470,7 @@ export function HUD() {
               : v.state === 'parked' && v.wear >= 100
                 ? 'wornOut'
                 : v.state
-        return `${v.id}|${v.plate}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}|${v.share}|${valuationOf(v, s.vehicles.length, s.rep)}|${v.pendingRefuel ? 1 : 0}|${v.pendingRepair ? 1 : 0}|${v.kind}|${v.hasDriver ? v.driverName : ''}|${v.driverSkill}`
+        return `${v.id}|${v.plate}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}|${v.share}|${valuationOf(v, s.vehicles.length, s.rep)}|${v.pendingRefuel ? 1 : 0}|${v.pendingRepair ? 1 : 0}|${v.kind}|${v.hasDriver ? v.driverName : ''}|${v.driverSkill}|${Math.round(v.driverMoral)}`
       })
       .join(','),
   )
@@ -442,13 +491,20 @@ export function HUD() {
   const sellShare = useGame((s) => s.sellShare)
   const buyBackShare = useGame((s) => s.buyBackShare)
   const [buildOpen, setBuildOpen] = useState(false)
-  const [buildTab, setBuildTab] = useState<'arac' | 'personel' | 'tesis' | 'kontrat' | 'taksi' | 'devren' | 'prestij'>('arac')
+  const [buildTab, setBuildTab] = useState<'arac' | 'personel' | 'tesis' | 'kontrat' | 'taksi' | 'devren' | 'stats' | 'prestij'>('arac')
+  const streak = useGame((s) => s.streak)
+  const driverMarket = useGame((s) => s.driverMarket)
+  const hireFromMarket = useGame((s) => s.hireFromMarket)
+  const cayMolasi = useGame((s) => s.cayMolasi)
+  const statsHistory = useGame((s) => s.statsHistory)
   const taxisKey = useGame((s) =>
     s.taxis.map((tx) => `${tx.id}|${tx.plate}|${tx.mode}|${tx.hasCar ? 1 : 0}`).join(','),
   )
   const buyTaxiPlate = useGame((s) => s.buyTaxiPlate)
   const buyTaxiCar = useGame((s) => s.buyTaxiCar)
   const setTaxiMode = useGame((s) => s.setTaxiMode)
+  const fuelPrice = useGame((s) => s.fuelPrice)
+  const fareNow = useGame((s) => s.fare)
   const offlineEarned = useGame((s) => s.offlineEarned)
   const offlineSecs = useGame((s) => s.offlineSecs)
   const dismissOffline = useGame((s) => s.dismissOffline)
@@ -502,25 +558,30 @@ export function HUD() {
   return (
     <div className="pointer-events-none absolute inset-0 select-none font-sans">
       {/* Üst bar */}
-      <div className={`absolute left-4 top-4 flex items-stretch divide-x divide-white/10 ${GLASS}`}>
+      <div
+        className={`pointer-events-auto absolute left-4 top-4 flex max-w-[calc(100vw-200px)] items-stretch divide-x divide-white/10 overflow-x-auto ${GLASS}`}
+      >
         <div className="flex items-center px-3 text-lg font-black tracking-tight text-white">
-          🚐 <span className="ml-1.5 hidden sm:inline">{t.appTitle}</span>
+          <Bus className="h-5 w-5 text-amber-300" /> <span className="ml-1.5 hidden sm:inline">{t.appTitle}</span>
         </div>
-        <Stat icon="📅" label={t.day} value={`${day}`} />
-        <Stat icon={isNightHour ? '🌙' : '☀️'} label={t.clock} value={clock} />
-        <Stat icon="💰" label={t.cash} value={`₺${fmt(money)}`} accent={money < 0 ? 'text-red-400' : 'text-emerald-300'} />
+        <Stat icon={<CalendarDays className="h-4 w-4" />} label={t.day} value={`${day}`} />
+        <Stat icon={isNightHour ? <Moon className="h-4 w-4 text-indigo-300" /> : <Sun className="h-4 w-4 text-amber-300" />} label={t.clock} value={clock} />
+        <Stat icon={<Wallet className="h-4 w-4 text-emerald-300" />} label={t.cash} value={`₺${fmt(money)}`} accent={money < 0 ? 'text-red-400' : 'text-emerald-300'} />
         {totalDebt > 0 && (
           <button
             onClick={() => setDebtsOpen((o) => !o)}
             className={`pointer-events-auto cursor-pointer transition hover:bg-white/5 ${debtsOpen ? 'bg-white/10' : ''}`}
           >
-            <Stat icon="📝" label={t.debt} value={`₺${fmt(totalDebt)}`} accent="text-red-300" />
+            <Stat icon={<ScrollText className="h-4 w-4 text-red-300" />} label={t.debt} value={`₺${fmt(totalDebt)}`} accent="text-red-300" />
           </button>
         )}
-        <Stat icon="🧍" label={t.waiting} value={`${queue}`} accent={queue >= queueCap ? 'text-amber-300' : 'text-white'} />
-        <Stat icon="🧔" label={t.drivers} value={`${drivers}`} />
+        <Stat icon={<Users className="h-4 w-4" />} label={t.waiting} value={`${queue}`} accent={queue >= queueCap ? 'text-amber-300' : 'text-white'} />
+        <Stat icon={<UserRound className="h-4 w-4" />} label={t.drivers} value={`${drivers}`} />
+        <Stat icon={<Fuel className="h-4 w-4 text-amber-300" />} label={t.fuelLabel} value={`₺${fuelPrice.toFixed(0)}/L`} />
+        <Stat icon={<Ticket className="h-4 w-4 text-sky-300" />} label={t.fareLabel} value={`₺${fareNow}`} />
+        {streak >= 2 && <Stat icon={<Flame className="h-4 w-4 text-orange-400" />} label={t.streakLabel} value={`${streak}`} accent="text-orange-300" />}
         <Stat
-          icon="⭐"
+          icon={<Star className="h-4 w-4 text-yellow-300" />}
           label={t.rep}
           value={rep.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
           accent={rep >= 4 ? 'text-emerald-300' : rep < 2 ? 'text-red-400' : 'text-white'}
@@ -532,7 +593,7 @@ export function HUD() {
         <div className={`absolute left-[320px] top-[72px] w-80 p-3 ${GLASS}`}>
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
-              📝 {t.debtsTitle}
+              <ScrollText className="mr-1 inline h-3 w-3" /> {t.debtsTitle}
             </span>
             <span className="text-[9px] font-bold text-emerald-300/70">{t.payoffNote}</span>
           </div>
@@ -584,7 +645,7 @@ export function HUD() {
           <div className={`absolute left-4 top-[72px] w-72 p-3 ${GLASS} ${done ? 'border-emerald-400/30' : ''}`}>
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
-                🎯 {t.dailyTask}
+                <Target className="mr-1 inline h-3 w-3" /> {t.dailyTask}
               </span>
               <span className={`text-[10px] font-extrabold tabular-nums ${done ? 'text-emerald-300' : 'text-white/50'}`}>
                 {done ? `✓ ${t.taskDoneLabel}` : `${t.taskReward} ₺${fmt(Number(rewardStr))}`}
@@ -613,7 +674,7 @@ export function HUD() {
         <div className="pointer-events-auto fixed inset-0 z-20 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60" />
           <div className={`relative w-80 p-5 text-center ${GLASS}`}>
-            <div className="text-3xl">😴→💰</div>
+            <div className="flex items-center justify-center gap-2 text-white/70"><BedDouble className="h-7 w-7" /><span className="text-white/40">→</span><Banknote className="h-7 w-7 text-emerald-300" /></div>
             <div className="mt-2 text-sm font-black text-white">{t.offlineTitle}</div>
             <div className="mt-1 text-[11px] font-bold text-white/50">
               {t.offlineMsg(Math.round(offlineSecs / 60))}
@@ -633,16 +694,16 @@ export function HUD() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMutedUi(toggleMute())}
-            className={`pointer-events-auto cursor-pointer rounded-xl px-2.5 py-3 text-sm shadow-lg transition active:scale-95 ${GLASS} ${mutedUi ? 'opacity-50' : ''}`}
+            className={`pointer-events-auto cursor-pointer rounded-xl px-2.5 py-3 text-sm text-white shadow-lg transition active:scale-95 ${GLASS} ${mutedUi ? 'opacity-50' : ''}`}
           >
-            {mutedUi ? '🔇' : '🔊'}
+            {mutedUi ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
           </button>
         <button
           onClick={() => setBuildOpen((o) => !o)}
           className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-red-950/50 ring-1 ring-inset ring-white/20 transition active:scale-95
             ${buildOpen ? 'bg-gradient-to-b from-red-400 to-red-500' : 'bg-gradient-to-b from-red-500 to-red-600 hover:from-red-400 hover:to-red-500'}`}
         >
-          🏗 {t.construction}
+          <Hammer className="h-4 w-4" /> {t.construction}
           {canBuySomething && !buildOpen && (
             <span className="absolute -right-1 -top-1 h-3 w-3 animate-pulse rounded-full bg-emerald-400 shadow" />
           )}
@@ -654,10 +715,10 @@ export function HUD() {
       {buildOpen && (
         <div className="pointer-events-auto fixed inset-0 z-10 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setBuildOpen(false)} />
-          <div className={`relative flex max-h-[82dvh] w-[620px] max-w-[94vw] flex-col overflow-hidden ${GLASS}`}>
+          <div className={`relative flex max-h-[82dvh] w-[700px] max-w-[94vw] flex-col overflow-hidden ${GLASS}`}>
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
               <span className="flex items-center gap-2 text-sm font-black text-white">
-                <span className="h-4 w-1 rounded-full bg-red-500" /> 🏗 {t.buildModalTitle}
+                <span className="h-4 w-1 rounded-full bg-red-500" /> <Hammer className="h-4 w-4" /> {t.buildModalTitle}
               </span>
               <span className="flex items-center gap-2">
                 <ResetButton onReset={reset} />
@@ -665,26 +726,27 @@ export function HUD() {
                   onClick={() => setBuildOpen(false)}
                   className="cursor-pointer rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-white/70 transition hover:bg-white/20"
                 >
-                  ✕
+                  <X className="h-4 w-4" />
                 </button>
               </span>
             </div>
-            <div className="flex gap-1.5 px-4 pt-3">
+            <div className="flex flex-wrap gap-1.5 px-4 pt-3">
               {(
                 [
-                  ['arac', `🚐 ${t.sectionVehicles}`],
-                  ['personel', `👥 ${t.sectionStaffPark}`],
-                  ['tesis', `🏗 ${t.sectionFacilities}`],
-                  ['kontrat', `📑 ${t.tabContracts}`],
-                  ['taksi', `🚕 ${t.tabTaxi}`],
-                  ['devren', `🤝 ${t.devren}`],
-                  ['prestij', `⭐ ${t.tabPrestige}`],
+                  ['arac', <><Bus className="h-3.5 w-3.5" /> {t.sectionVehicles}</>],
+                  ['personel', <><Users className="h-3.5 w-3.5" /> {t.sectionStaffPark}</>],
+                  ['tesis', <><Building2 className="h-3.5 w-3.5" /> {t.sectionFacilities}</>],
+                  ['kontrat', <><FileText className="h-3.5 w-3.5" /> {t.tabContracts}</>],
+                  ['taksi', <><CarTaxiFront className="h-3.5 w-3.5" /> {t.tabTaxi}</>],
+                  ['devren', <><Handshake className="h-3.5 w-3.5" /> {t.devren}</>],
+                  ['stats', <><BarChart3 className="h-3.5 w-3.5" /> {t.tabStats}</>],
+                  ['prestij', <><Star className="h-3.5 w-3.5" /> {t.tabPrestige}</>],
                 ] as const
               ).map(([key, label]) => (
                 <button
                   key={key}
                   onClick={() => setBuildTab(key)}
-                  className={`cursor-pointer rounded-full px-3 py-1.5 text-[11px] font-extrabold transition
+                  className={`flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-extrabold transition
                     ${buildTab === key ? 'bg-white text-neutral-900' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}
                 >
                   {label}
@@ -697,19 +759,19 @@ export function HUD() {
                 const vitoDown = Math.ceil(vitoPrice * CONFIG.loanDownRate)
                 return (
                   <ModalCard
-                    icon="🖤"
+                    icon={<CarTaxiFront className="h-7 w-7 text-fuchsia-300" />}
                     title={t.buyVito}
                     badge="+1 VIP"
                     badgeClass="bg-fuchsia-400/15 text-fuchsia-300"
                     desc={t.vitoDesc}
                   >
                     <PriceButton
-                      label={`💵 ${t.payCash} ₺${fmt(vitoPrice)}`}
+                      label={<><Banknote className="h-3.5 w-3.5" /> {t.payCash} ₺{fmt(vitoPrice)}</>}
                       enabled={money >= vitoPrice && hasFreeSpot}
                       onClick={() => buyVito('cash')}
                     />
                     <PriceButton
-                      label={`📝 ${t.payLoan} ₺${fmt(vitoDown)}`}
+                      label={<><ScrollText className="h-3.5 w-3.5" /> {t.payLoan} ₺{fmt(vitoDown)}</>}
                       enabled={money >= vitoDown && hasFreeSpot}
                       onClick={() => buyVito('loan')}
                     />
@@ -718,7 +780,7 @@ export function HUD() {
               })()}
               {buildTab === 'arac' && (
                 <ModalCard
-                  icon="🚐"
+                  icon={<Bus className="h-7 w-7 text-sky-300" />}
                   title={t.buyVehicle}
                   badge="+1 araç"
                   badgeClass="bg-sky-400/15 text-sky-300"
@@ -732,12 +794,12 @@ export function HUD() {
                   )}
                 >
                   <PriceButton
-                    label={`💵 ${t.payCash} ₺${fmt(vehicleCost)}`}
+                    label={<><Banknote className="h-3.5 w-3.5" /> {t.payCash} ₺{fmt(vehicleCost)}</>}
                     enabled={money >= vehicleCost && hasFreeSpot}
                     onClick={() => buyVehicle('cash')}
                   />
                   <PriceButton
-                    label={`📝 ${t.payLoan} ₺${fmt(Math.ceil(vehicleCost * CONFIG.loanDownRate))}`}
+                    label={<><ScrollText className="h-3.5 w-3.5" /> {t.payLoan} ₺{fmt(Math.ceil(vehicleCost * CONFIG.loanDownRate))}</>}
                     enabled={money >= Math.ceil(vehicleCost * CONFIG.loanDownRate) && hasFreeSpot}
                     onClick={() => buyVehicle('loan')}
                   />
@@ -746,7 +808,7 @@ export function HUD() {
               {buildTab === 'personel' && (
                 <>
                   <ModalCard
-                    icon="🧔"
+                    icon={<UserRound className="h-7 w-7 text-emerald-300" />}
                     title={t.hireDriver}
                     badge="+1 şoför"
                     badgeClass="bg-emerald-400/15 text-emerald-300"
@@ -759,7 +821,7 @@ export function HUD() {
                     />
                   </ModalCard>
                   <ModalCard
-                    icon="🅿️"
+                    icon={<MapIcon className="h-7 w-7 text-amber-300" />}
                     title={t.buySpot}
                     badge="+1 cep"
                     badgeClass="bg-amber-400/15 text-amber-300"
@@ -771,6 +833,22 @@ export function HUD() {
                       onClick={buySpot}
                     />
                   </ModalCard>
+                  {driverMarket.map((cand, i) => (
+                    <ModalCard
+                      key={`${cand.name}-${i}`}
+                      icon={<UserRound className="h-7 w-7 text-orange-300" />}
+                      title={cand.name}
+                      badge={'★'.repeat(cand.skill)}
+                      badgeClass="bg-yellow-400/15 text-yellow-300"
+                      desc={t.marketDesc}
+                    >
+                      <PriceButton
+                        label={`₺${fmt(cand.price)}`}
+                        enabled={hasIdleVehicle && money >= cand.price}
+                        onClick={() => hireFromMarket(i)}
+                      />
+                    </ModalCard>
+                  ))}
                 </>
               )}
               {buildTab === 'tesis' &&
@@ -796,7 +874,7 @@ export function HUD() {
                     const [, kindStr, payStr] = contractOfferKey.split('|')
                     return (
                       <ModalCard
-                        icon="📑"
+                        icon={<FileSignature className="h-7 w-7 text-sky-300" />}
                         title={t.contractKinds[Number(kindStr)]}
                         badge={t.contractOfferTitle}
                         badgeClass="bg-sky-400/15 text-sky-300"
@@ -822,13 +900,13 @@ export function HUD() {
                           className={`flex-1 rounded-lg px-1.5 py-1 text-center text-[10px] font-bold
                             ${done ? 'bg-emerald-400/15 text-emerald-300' : missed ? 'bg-red-400/15 text-red-300' : 'bg-white/10 text-white/50'}`}
                         >
-                          {label} {done ? '✓' : missed ? '✗' : '⏳'}
+                          {label} {done ? '✓' : missed ? '✗' : <Hourglass className="inline h-2.5 w-2.5" />}
                         </span>
                       )
                       return (
                         <ModalCard
                           key={idStr}
-                          icon="🚌"
+                          icon={<Bus className="h-7 w-7 text-amber-300" />}
                           title={t.contractKinds[Number(kindStr)]}
                           badge={t.contractDaysLeft(Number(daysStr))}
                           badgeClass="bg-amber-400/15 text-amber-300"
@@ -851,7 +929,7 @@ export function HUD() {
               {buildTab === 'taksi' && (
                 <>
                   <ModalCard
-                    icon="🚕"
+                    icon={<CarTaxiFront className="h-7 w-7 text-yellow-300" />}
                     title={t.buyTaxiPlate}
                     badge={`${taxisKey ? taxisKey.split(',').length : 0}/${CONFIG.taxiPlateMax}`}
                     badgeClass="bg-yellow-400/15 text-yellow-300"
@@ -879,7 +957,7 @@ export function HUD() {
                       return (
                         <ModalCard
                           key={id}
-                          icon="🚕"
+                          icon={<CarTaxiFront className="h-7 w-7 text-yellow-300" />}
                           title={taxiPlate}
                           badge={operating ? t.taxiOperateMode : t.taxiRentMode}
                           badgeClass={
@@ -918,10 +996,92 @@ export function HUD() {
                     })}
                 </>
               )}
+              {buildTab === 'stats' && (() => {
+                const today = getTodayStats()
+                const entries = Object.entries(today.income).sort((a, b) => b[1] - a[1])
+                const totalIn = entries.reduce((sum, [, v]) => sum + v, 0)
+                const colors = ['bg-sky-500', 'bg-fuchsia-500', 'bg-purple-500', 'bg-amber-500', 'bg-yellow-500', 'bg-orange-500', 'bg-indigo-500', 'bg-emerald-500']
+                const week = statsHistory.slice(-7)
+                const maxAbs = Math.max(
+                  1,
+                  ...week.map((d) => Math.abs(Object.values(d.income).reduce((a, b) => a + b, 0) - d.expense)),
+                )
+                return (
+                  <div className="col-span-2 flex flex-col gap-3">
+                    <div>
+                      <div className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-white/40">
+                        {t.statsToday}
+                      </div>
+                      {totalIn === 0 ? (
+                        <div className="py-3 text-center text-[11px] font-bold text-white/40">{t.statsEmpty}</div>
+                      ) : (
+                        <>
+                          <div className="flex h-3 overflow-hidden rounded-full bg-white/10">
+                            {entries.map(([src, val], i) => (
+                              <div key={src} className={colors[i % colors.length]} style={{ width: `${(val / totalIn) * 100}%` }} />
+                            ))}
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+                            {entries.map(([src, val], i) => (
+                              <div key={src} className="flex items-center justify-between text-[11px] font-bold">
+                                <span className="flex items-center gap-1.5 text-white/60">
+                                  <span className={`h-2 w-2 rounded-full ${colors[i % colors.length]}`} />
+                                  {t.statsSources[src] ?? src}
+                                </span>
+                                <span className="tabular-nums text-white">₺{fmt(Math.round(val))}</span>
+                              </div>
+                            ))}
+                            <div className="flex items-center justify-between text-[11px] font-bold">
+                              <span className="flex items-center gap-1.5 text-white/60">
+                                <span className="h-2 w-2 rounded-full bg-red-500" />
+                                {t.statsExpense}
+                              </span>
+                              <span className="tabular-nums text-red-300">-₺{fmt(Math.round(today.expense))}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] font-black">
+                              <span className="text-white/60">{t.statsProfit}</span>
+                              <span className="tabular-nums text-emerald-300">
+                                ₺{fmt(Math.round(totalIn - today.expense))}
+                              </span>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <div>
+                      <div className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-white/40">
+                        {t.statsWeek}
+                      </div>
+                      {week.length === 0 ? (
+                        <div className="py-3 text-center text-[11px] font-bold text-white/40">{t.statsEmpty}</div>
+                      ) : (
+                        <div className="flex h-24 items-end gap-2">
+                          {week.map((d) => {
+                            const profit = Object.values(d.income).reduce((a, b) => a + b, 0) - d.expense
+                            const h = Math.max(6, (Math.abs(profit) / maxAbs) * 80)
+                            return (
+                              <div key={d.day} className="flex flex-1 flex-col items-center gap-1">
+                                <span className="text-[9px] font-bold tabular-nums text-white/50">
+                                  {profit >= 0 ? '+' : '-'}₺{fmt(Math.round(Math.abs(profit) / 1000))}k
+                                </span>
+                                <div
+                                  className={`w-full rounded-t ${profit >= 0 ? 'bg-gradient-to-t from-emerald-600 to-emerald-400' : 'bg-gradient-to-t from-red-600 to-red-400'}`}
+                                  style={{ height: `${h}px` }}
+                                />
+                                <span className="text-[9px] font-bold text-white/40">G{d.day}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
               {buildTab === 'prestij' && (
                 <div className="col-span-2">
                   <ModalCard
-                    icon="⭐"
+                    icon={<Star className="h-7 w-7 text-yellow-300" />}
                     title={t.prestigeTitle}
                     badge={t.prestigeLevel(prestige)}
                     badgeClass="bg-yellow-400/15 text-yellow-300"
@@ -938,7 +1098,7 @@ export function HUD() {
                       )}
                     </div>
                     <PriceButton
-                      label={prestigeArmed ? `⚠️ ${t.resetConfirm}` : `⭐ ${t.prestigeBtn}`}
+                      label={prestigeArmed ? <><AlertTriangle className="h-3.5 w-3.5" /> {t.resetConfirm}</> : <><Star className="h-3.5 w-3.5" /> {t.prestigeBtn}</>}
                       enabled
                       onClick={() => {
                         if (prestigeArmed) {
@@ -972,7 +1132,7 @@ export function HUD() {
                       return (
                         <ModalCard
                           key={id}
-                          icon="🚐"
+                          icon={<Bus className="h-7 w-7 text-emerald-300" />}
                           title={rivalPlate}
                           badge={
                             playerShare > 0
@@ -1036,11 +1196,15 @@ export function HUD() {
           <div className={`pointer-events-auto absolute left-1/2 top-1/2 w-72 -translate-x-1/2 -translate-y-1/2 p-3 ${GLASS} border-purple-400/30 shadow-2xl`}>
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase tracking-widest text-purple-300/80">
-                📢 {t.charterTitle}
+                <Megaphone className="mr-1 inline h-3 w-3" /> {t.charterTitle}
               </span>
               <span className="text-[10px] font-bold tabular-nums text-white/50">{left} sn</span>
             </div>
-            <div className="mt-1 text-[13px] font-extrabold text-white">
+            <div className="mt-1 flex items-center gap-1.5 text-[13px] font-extrabold text-white">
+              {(() => {
+                const KindIcon = CHARTER_ICONS[Number(kindStr)] ?? PartyPopper
+                return <KindIcon className="h-4 w-4 text-purple-300" />
+              })()}
               {kind} · {t.charterKm(Number(kmStr))}
             </div>
             <div className="mt-0.5 text-[12px] font-extrabold tabular-nums text-emerald-300">
@@ -1085,7 +1249,7 @@ export function HUD() {
 
       {/* Seçili araç detayı */}
       {selectedEntry && (() => {
-        const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr, kindStr, driverName, driverSkillStr] = selectedEntry.split('|')
+        const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr, kindStr, driverName, driverSkillStr, moralStr] = selectedEntry.split('|')
         const id = Number(idStr)
         const fuel = Number(fuelStr)
         const wear = Number(wearStr)
@@ -1101,7 +1265,7 @@ export function HUD() {
         const fuelPct = (fuel / CONFIG.fuelCapacity) * 100
         const stateText = t.state[state as keyof typeof t.state]
         const warn = state === 'noDriver' || state === 'noFuel' || state === 'wornOut'
-        const refuelPrice = Math.ceil((CONFIG.fuelCapacity - fuel) * CONFIG.refuelCostPerUnit)
+        const refuelPrice = Math.ceil((CONFIG.fuelCapacity - fuel) * fuelPrice)
         const repairPrice = Math.ceil(
           wear * CONFIG.repairCostPerUnit * (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
         )
@@ -1112,22 +1276,21 @@ export function HUD() {
             <div className="relative flex items-center justify-center">
               <PlateBadge plate={plate} small />
               <span className="absolute left-0 flex items-center gap-0.5">
-                {isOld && <span className="text-[10px] text-amber-400/80" title={t.oldBus}>🕰</span>}
-                {(pendF || pendR) && <span className="text-[10px]" title={t.planned}>⏳</span>}
+                {isOld && <span title={t.oldBus}><History className="h-3 w-3 text-amber-400/80" /></span>}
+                {(pendF || pendR) && <span title={t.planned}><Hourglass className="h-3 w-3 text-white/60" /></span>}
               </span>
               <button
                 onClick={() => selectVehicle(null)}
                 className="absolute right-0 cursor-pointer rounded-md bg-white/10 px-1.5 text-[10px] font-bold text-white/60 transition hover:bg-white/20"
               >
-                ✕
+                <X className="h-3 w-3" />
               </button>
             </div>
             <div className="mt-1.5 flex items-center gap-1.5">
               <span
                 className={`flex-1 rounded-full px-2 py-0.5 text-center text-[10px] font-extrabold tabular-nums ${STATE_STYLE[state] ?? 'bg-white/10 text-white/60'}`}
               >
-                {warn && '⚠️ '}
-                {isVito && '🖤 '}
+                {warn && <AlertTriangle className="mr-0.5 inline h-2.5 w-2.5" />}
                 {stateText}
                 {!warn && !isVito && ` · ${t.seats(Number(count), cap)}`}
               </span>
@@ -1138,22 +1301,39 @@ export function HUD() {
                   className={`pointer-events-auto cursor-pointer rounded-lg px-1.5 py-0.5 text-[11px] transition active:scale-95
                     ${night ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]' : 'bg-white/10 opacity-40 hover:opacity-100'}`}
                 >
-                  🌙
+                  <Moon className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
-            {driverName && (
-              <div className="mt-1.5 rounded-lg bg-white/5 px-1.5 py-1 text-center text-[10px] font-bold text-white/60">
-                {t.driverRow(driverName, Number(driverSkillStr))}
-              </div>
-            )}
+            {driverName && (() => {
+              const moral = Number(moralStr)
+              return (
+                <div className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-white/5 px-1.5 py-1">
+                  <span className="flex-1 text-[10px] font-bold text-white/60">
+                    {t.driverRow(driverName, Number(driverSkillStr))}
+                  </span>
+                  <span className={`text-[9px] font-bold tabular-nums ${moral < CONFIG.moralLowThreshold ? 'text-red-300' : 'text-white/40'}`}>
+                    %{moral}
+                  </span>
+                  <button
+                    onClick={() => cayMolasi(id)}
+                    disabled={moral >= 100 || money < CONFIG.cayMolasiCost}
+                    title={t.cayMolasi}
+                    className={`pointer-events-auto flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold transition active:scale-95
+                      ${moral < 100 && money >= CONFIG.cayMolasiCost ? 'cursor-pointer bg-orange-400/20 text-orange-300 hover:bg-orange-400/30' : 'bg-white/5 text-white/25'}`}
+                  >
+                    <Coffee className="h-3 w-3" /> ₺{fmt(CONFIG.cayMolasiCost)}
+                  </button>
+                </div>
+              )
+            })()}
             <div className="mt-1.5 flex flex-col gap-1">
-              <Bar icon="⛽" pct={fuelPct} from="from-amber-500" to="to-yellow-400" low={fuel < CONFIG.fuelPerTrip} />
-              <Bar icon="🔧" pct={100 - wear} from="from-emerald-500" to="to-green-400" low={wear >= 100} />
+              <Bar icon={<Fuel className="h-3 w-3" />} pct={fuelPct} from="from-amber-500" to="to-yellow-400" low={fuel < CONFIG.fuelPerTrip} />
+              <Bar icon={<Wrench className="h-3 w-3" />} pct={100 - wear} from="from-emerald-500" to="to-green-400" low={wear >= 100} />
             </div>
             <div className="mt-2 flex gap-1.5">
               <MiniButton
-                label={pendF ? `⛽ ⏳ ${t.planned}` : `⛽ ${t.refuel} ₺${fmt(refuelPrice)}`}
+                label={<><Fuel className="h-3 w-3" />{pendF ? ` ${t.planned}` : ` ${t.refuel} ₺${fmt(refuelPrice)}`}</>}
                 enabled={
                   !pendF &&
                   refuelPrice > 0 &&
@@ -1163,7 +1343,7 @@ export function HUD() {
                 onClick={() => refuel(id)}
               />
               <MiniButton
-                label={pendR ? `🔧 ⏳ ${t.planned}` : `🔧 ${t.repair} ₺${fmt(repairPrice)}`}
+                label={<><Wrench className="h-3 w-3" />{pendR ? ` ${t.planned}` : ` ${t.repair} ₺${fmt(repairPrice)}`}</>}
                 enabled={
                   !pendR &&
                   repairPrice > 0 &&
@@ -1183,18 +1363,18 @@ export function HUD() {
             <div className={`mt-1.5 items-center gap-1.5 ${isVito ? 'hidden' : 'flex'}`}>
               {kahya === 0 ? (
                 <MiniButton
-                  label={`🧢 ${t.hireKahya} ₺${fmt(CONFIG.kahyaHireCost)}`}
+                  label={<><HardHat className="h-3 w-3" /> {t.hireKahya} ₺{fmt(CONFIG.kahyaHireCost)}</>}
                   enabled={state !== 'noDriver' && money >= CONFIG.kahyaHireCost}
                   onClick={() => hireKahya(id)}
                 />
               ) : (
                 <>
                   <span className="flex-1 rounded-lg bg-indigo-400/15 px-1.5 py-1.5 text-center text-[10px] font-bold text-indigo-300">
-                    🧢 {t.kahya} {t.kahyaLevel(kahya)} · {t.kahyaEffect(cap - CONFIG.seatCount)}
+                    {t.kahya} {t.kahyaLevel(kahya)} · {t.kahyaEffect(cap - CONFIG.seatCount)}
                   </span>
                   {kahya < CONFIG.kahyaMaxLevel && (
                     <MiniButton
-                      label={`⬆ ${t.upgrade} ₺${fmt(CONFIG.kahyaUpgradeCosts[kahya - 1])}`}
+                      label={<><ArrowUp className="h-3 w-3" /> {t.upgrade} ₺{fmt(CONFIG.kahyaUpgradeCosts[kahya - 1])}</>}
                       enabled={money >= CONFIG.kahyaUpgradeCosts[kahya - 1]}
                       onClick={() => upgradeKahya(id)}
                     />

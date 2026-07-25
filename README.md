@@ -66,7 +66,17 @@ npm run dev
 9. ~~**Otomasyon**~~ ✅ — Oto-Pompa Anlaşması + Bakım Aboneliği (Tesisler'de tek seferlik)
 10. ~~**Ses + juice**~~ ✅ — WebAudio klakson/para/ding + görev-milestone konfetisi + 🔊 sessize alma
 
+11. ~~**Günlük seri**~~ ✅ — gerçek takvim günü bazlı 🔥 seri + artan ödül
+12. ~~**Dinamik ekonomi**~~ ✅ — motorin/tarife haberlerle değişir, üst barda canlı çipler
+13. ~~**Yolcu tipleri**~~ ✅ — öğrenci (indirimli, +itibar), turist (bahşiş), kaçak (kahyaya takılır)
+14. ~~**İstatistik**~~ ✅ — bugünkü gelir dağılımı + son 7 gün kâr/zarar (📊 sekmesi)
+15. ~~**Yağmur görseli**~~ ✅ — partiküller + ıslak asfalt + gri gök
+16. ~~**Hat plakası (Kadıköy)**~~ ✅ — ₺25M: yolcu +%25, hat hasılatı +%35
+17. ~~**Şoför pazarı + moral**~~ ✅ — günlük 2 aday (★'ı belli), moral/çay molası
+18. ~~**Mobil/PWA**~~ ✅ — manifest + ikon + landscape, dokunmatik uyumlu HUD
+19. ~~**Lucide ikonları**~~ ✅ — emoji chrome'u modern ikon setine geçti
+
 ### Kalan
-11. **Günlük seri (streak)** — art arda giriş ödülleri, haftalık büyük görev
-12. **Yayın** — Vercel deploy; dokunmatik uyum + Capacitor ile mobil
-13. **Onboarding + istatistik** — ilk oyuncu rehberi, günlük kâr/zarar paneli
+20. **Yayın** — Vercel deploy → oynanabilir link; sonrasında Capacitor ile mağaza
+21. **Onboarding** — ilk oyuncu rehberi
+22. **Skor kartı paylaşımı** — tek tuşla şık görsel üret, sosyal medyaya at
