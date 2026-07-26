@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { pointAt, spotPos } from '../game/paths'
+import { pointAt, vehicleSpotPos } from '../game/paths'
 import { useGame, specOf } from '../game/store'
 import { rbox, mat, Wheel } from './models'
 import { ContactShadow } from './textures'
@@ -201,6 +201,92 @@ export function VitoMesh({ plate }: { plate?: string }) {
   )
 }
 
+// Servis sprinteri: gerçek panelvan silueti — kısa eğimli burun, dev ön cam,
+// yüksek düz tavan, uzun slab gövde, arka çift kapı. Okul/personel servisi:
+// beyaz kasa + turuncu kuşak, plastik gri etek.
+export function SprinterMesh({ plate, body = '#f4f3ee' }: { plate?: string; body?: string }) {
+  const belt = '#e0862e'
+  const trim = '#3a3f45'
+  return (
+    <group>
+      <ContactShadow w={2.4} d={5.4} />
+      {/* Ana kasa: uzun, yüksek panelvan gövdesi (kabinden arkaya tek hacim) */}
+      <mesh geometry={rbox(1.66, 1.42, 3.6, 0.2)} material={mat(body, 0.35)} position={[0, 1.06, -0.5]} castShadow />
+      {/* Tavan kubbesi: yüksek tavan hattı öne, ön cam üstüne kadar uzanır */}
+      <mesh geometry={rbox(1.54, 0.3, 4.0, 0.14)} material={mat(body, 0.4)} position={[0, 1.82, -0.32]} castShadow />
+      {/* Kaput: kısa ve alçak, öne hafif eğimli burun */}
+      <mesh geometry={rbox(1.58, 0.52, 1.0, 0.18)} material={mat(body, 0.35)} position={[0, 0.62, 1.85]} rotation={[0.06, 0, 0]} castShadow />
+      {/* A-sütunu geçişi: kaputtan tavana dolan hacim */}
+      <mesh geometry={rbox(1.6, 0.9, 0.7, 0.16)} material={mat(body, 0.35)} position={[0, 1.25, 1.35]} castShadow />
+      {/* Dev ön cam: panelvan usulü yatık, tavana kadar */}
+      <mesh geometry={rbox(1.5, 0.95, 0.07, 0.03)} material={mat(GLASS, 0.12)} position={[0, 1.45, 1.6]} rotation={[-0.42, 0, 0]} />
+      {/* Sürücü kapı camları */}
+      {[-0.84, 0.84].map((x) => (
+        <mesh key={`d${x}`} geometry={rbox(0.05, 0.44, 0.75, 0.03)} material={mat(GLASS, 0.15)} position={[x, 1.42, 0.82]} />
+      ))}
+      {/* Servis camları: yolcu bölmesi boyunca cam bandı */}
+      {[-0.845, 0.845].map((x) => (
+        <mesh key={`w${x}`} geometry={rbox(0.05, 0.42, 2.55, 0.03)} material={mat(GLASS, 0.15)} position={[x, 1.44, -0.95]} />
+      ))}
+      {/* Plastik etek + tamponlar: Sprinter'ın gri kuşağı */}
+      <mesh geometry={rbox(1.7, 0.24, 4.55, 0.1)} material={mat('#9aa1a8', 0.7)} position={[0, 0.36, 0]} />
+      <mesh geometry={rbox(1.62, 0.3, 0.24, 0.08)} material={mat('#9aa1a8', 0.7)} position={[0, 0.45, 2.32]} />
+      {/* Turuncu servis kuşağı: kasa boyunca */}
+      <mesh geometry={rbox(1.68, 0.13, 3.62, 0.05)} material={mat(belt, 0.4)} position={[0, 0.78, -0.5]} />
+      {/* Sürgülü kapı rayı (sağ, camların altında) */}
+      <mesh geometry={rbox(0.03, 0.05, 2.0, 0.01)} material={mat('#c9c6bd', 0.5)} position={[0.845, 1.12, -0.9]} />
+      {/* Arka çift kapı: dikey ayrım çizgisi + camlar */}
+      <mesh geometry={rbox(0.03, 1.5, 0.05, 0.01)} material={mat('#c9c6bd', 0.5)} position={[0, 1.15, -2.31]} />
+      {[-0.4, 0.4].map((x) => (
+        <mesh key={`r${x}`} geometry={rbox(0.6, 0.42, 0.05, 0.03)} material={mat(GLASS, 0.15)} position={[x, 1.5, -2.31]} />
+      ))}
+      {/* Izgara + farlar: köşeleri tavana tırmanan büyük far grubu */}
+      <mesh geometry={rbox(0.9, 0.16, 0.07, 0.03)} material={mat(trim, 0.7)} position={[0, 0.78, 2.36]} />
+      {[-0.62, 0.62].map((x) => (
+        <mesh
+          key={`h${x}`}
+          geometry={rbox(0.3, 0.26, 0.07, 0.04)}
+          material={mat('#fff6d8', 0.3, { emissive: '#ffedb0', emissiveIntensity: 0.5 })}
+          position={[x, 0.85, 2.34]}
+          rotation={[0.06, 0, 0]}
+        />
+      ))}
+      {/* Stoplar: arka köşelerde dikey */}
+      {[-0.72, 0.72].map((x) => (
+        <mesh
+          key={`t${x}`}
+          geometry={rbox(0.14, 0.5, 0.05, 0.03)}
+          material={mat('#c93a3a', 0.4, { emissive: '#c93a3a', emissiveIntensity: 0.4 })}
+          position={[x, 1.0, -2.32]}
+        />
+      ))}
+      {/* Aynalar: uzun kollu kamyonet aynası */}
+      {[-0.92, 0.92].map((x) => (
+        <group key={`m${x}`} position={[x, 1.42, 1.28]}>
+          <mesh geometry={rbox(0.2, 0.05, 0.05, 0.02)} material={mat(trim, 0.7)} position={[x > 0 ? 0.08 : -0.08, 0, 0]} />
+          <mesh geometry={rbox(0.05, 0.28, 0.16, 0.02)} material={mat(trim, 0.7)} position={[x > 0 ? 0.2 : -0.2, -0.08, 0]} />
+        </group>
+      ))}
+      {/* Tepe servis lambası: "OKUL TAŞITI" havası */}
+      <mesh
+        geometry={rbox(0.66, 0.11, 0.28, 0.05)}
+        material={mat(belt, 0.4, { emissive: belt, emissiveIntensity: 0.45 })}
+        position={[0, 2.02, 1.15]}
+      />
+      {plate && (
+        <>
+          <mesh geometry={plateGeo} material={plateMaterial(plate)} position={[0, 0.5, 2.4]} />
+          <mesh geometry={plateGeo} material={plateMaterial(plate)} position={[0, 0.5, -2.34]} rotation={[0, Math.PI, 0]} />
+        </>
+      )}
+      <Wheel x={-0.76} z={1.55} r={0.3} />
+      <Wheel x={0.76} z={1.55} r={0.3} />
+      <Wheel x={-0.76} z={-1.45} r={0.3} />
+      <Wheel x={0.76} z={-1.45} r={0.3} />
+    </group>
+  )
+}
+
 // Solo otobüs (12 m): özel halk otobüsü havası — uzun kasa, boydan cam bandı,
 // çift kapı, tavan klima. electric: yeşil şerit + tavan batarya paketi, egzozsuz.
 export function BusMesh({ plate, electric = false, body = BODY }: { plate?: string; electric?: boolean; body?: string }) {
@@ -382,7 +468,13 @@ function badgeMaterial(glyph: 'fuel' | 'wrench', crit: boolean): THREE.SpriteMat
 
 // Araç sınıfına göre rozet yüksekliği (tavanın üstü)
 function badgeYOf(kind: string): number {
-  return kind === 'bus' || kind === 'artic' || kind === 'ebus' ? 2.9 : kind === 'vito' ? 2.1 : 2.4
+  return kind === 'bus' || kind === 'artic' || kind === 'ebus'
+    ? 2.9
+    : kind === 'vito'
+      ? 2.1
+      : kind === 'sprinter'
+        ? 2.6
+        : 2.4
 }
 
 // Reklam giydirme kampanyaları: uydurma markalar — gövde rengi + yan panel yazısı
@@ -430,7 +522,9 @@ function WrapPanels({ kind, wrap }: { kind: string; wrap: number }) {
         ? { x: 0.97, y: 1.05, z: 1.55, w: 2.6, h: 0.6 }
         : kind === 'vito'
           ? { x: 0.84, y: 0.95, z: -0.3, w: 2.0, h: 0.4 }
-          : { x: 0.88, y: 1.0, z: -0.2, w: 2.3, h: 0.5 }
+          : kind === 'sprinter'
+            ? { x: 0.86, y: 1.02, z: -0.5, w: 3.1, h: 0.42 }
+            : { x: 0.88, y: 1.0, z: -0.2, w: 2.3, h: 0.5 }
   return (
     <>
       <mesh material={wrapPanelMaterial(idx)} position={[dims.x, dims.y, dims.z]} rotation={[0, Math.PI / 2, 0]}>
@@ -481,8 +575,8 @@ export function Vehicle({ vehicleId }: { vehicleId: number }) {
       g.position.set(x, 0, z)
       g.rotation.y = angle
     } else {
-      // Parkta: burnu servis yoluna dönük bekler
-      const [x, z] = spotPos(v.spotIdx)
+      // Parkta: burnu servis yoluna dönük bekler (sprinter kendi otoparkında)
+      const [x, z] = vehicleSpotPos(v.kind, v.spotIdx)
       g.position.set(x, 0, z)
       g.rotation.y = 0
     }
@@ -505,6 +599,8 @@ export function Vehicle({ vehicleId }: { vehicleId: number }) {
     >
       {kind === 'vito' ? (
         <VitoMesh plate={plate || undefined} />
+      ) : kind === 'sprinter' ? (
+        <SprinterMesh plate={plate || undefined} body={wrapBody} />
       ) : kind === 'artic' ? (
         <ArticBusMesh plate={plate || undefined} body={wrapBody} />
       ) : kind === 'bus' || kind === 'ebus' ? (

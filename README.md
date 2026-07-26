@@ -17,6 +17,7 @@ Idle/tycoon game about running a Turkish dolmuş (shared minibus) terminal. Web-
 | 🤝 Rakipler & Devren | Aynı hattın esnafı perona yanaşıp yolcu kapar (gündüz). Devren: yeni fiyatın %60'ı ama %55-80 yıpranmış eski kasa (×1,5 yıpranır). Oranlı ortaklık: %5-90 pay al/artır/sat, payın kadar günlük cirodan akşam ödemesi |
 | 📊 Hisse ticareti | Kendi aracının hissesini kaydırıcıyla dilim dilim sat/geri al (değerleme: taban × yıpranma × itibar; geri alım %10 primli, elde asgari %25 kalır). Ortaklı araç gece de çalışır, gelir-gider hisse oranında bölüşülür; rakip ortaklık payı akşamları günlük cirodan ödenir |
 | 📢 Özel servisler | Gündüz ekran ortasına mesafeli teklif düşer (düğün/havalimanı/maç/okul/piknik, 5-60 km): fiyat-süre-masraf mesafeyle ölçekli, 40 sn içinde kabul edilmezse uçar. Parktaki veya dönüşteki araç atanır |
+| 🚐 Servis Sprinteri | Kontrat işine adanmış panelvan (₺1,25M, "34 S" plaka): hat/peron işine girmez, okul-fabrika kontrat seferlerine öncelikli çıkar (%40 düşük masraf + ödemeye %20 konfor primi), boşken özel servis tekliflerini kapar. Şoförlü her sprinter +1 kontrat slotu açar (azami +4) |
 | 🪪 Plakalar | Her araç kalıcı "34 M XXXX" plakası taşır — kartlarda gerçek plaka görünümü (TR bandı), 3D modelde ön/arka tampon dokusu, devren alınan araç rakibin plakasını getirir |
 | ⛽ Pompa & planlı bakım | "Doldur" basınca araç fiilen terminaldeki pompaya sürer. Araç seferdeyken basılırsa ⏳ planlanır, parka dönünce uygulanır |
 | 📈 Filo talebi | Şoförlü araç başına: yolcu gelişi +%25, kuyruk kapasitesi +6, hat indi-bindisi +%10 |
@@ -63,6 +64,7 @@ npm run dev
 1. ~~**🖤 VIP transfer (Uber tarzı)**~~ ✅ — siyah minivan (₺900k, senetli olur): çağrı bazlı 3-40 km transferler, peron beklemez, gece de çalışır
 2. ~~**📑 Servis kontratları**~~ ✅ — okul/fabrika/otel/plaza: 30 günlük kontrat, her gün 07:00 ve 17:00 seferi (kaçarsa itibar cezası), sefer başına günlük ödemenin yarısı akşam yatar
 3. ~~**🚕 Taksi işletmesi**~~ ✅ — plaka ₺11,5M (Tem 2026 gerçek borsa!): kirada ₺2.200/gün pasif ya da taksi al (₺750k) + işlet (₺6-12k/gün, sahnede sarı taksin dolaşır); maks 3 plaka
+4. ~~**🚐 Servis Sprinteri**~~ ✅ — kontrat/özel servis işine adanmış panelvan: +1 kontrat slotu, sefer masrafı düşük, ödemeye konfor primi
 
 ### Retention
 4. ~~**Offline kazanç**~~ ✅ — kapalıyken birikim (verim %50, 4 saat kapak) + "sen yokken" karşılama modalı

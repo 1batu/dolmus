@@ -152,6 +152,15 @@ export const CONFIG = {
   vitoWearBase: 1.5, // % + km başına yıpranma
   vitoWearPerKm: 0.05,
 
+  // Servis aracı (Sprinter panelvan): hat işine girmez — kontrat seferlerine
+  // öncelikli çıkar, boşken özel servis tekliflerini kapar. Şoförlü her sprinter
+  // +1 kontrat slotu açar; koştuğu kontrat seferi konfor primiyle daha iyi öder.
+  sprinterCost: 1250000, // ₺ 16+1 servis dönüşümlü panelvan (2. el)
+  sprinterCostStep: 150000, // her ilave sprinterde artış
+  sprinterContractFactor: 0.6, // kontrat seferi yakıt/yıpranma çarpanı (idareli kasa)
+  sprinterContractBonus: 0.2, // sprinter koşan sefer ödemesine konfor primi
+  sprinterSlotCap: 4, // sprinterlerin ekleyebileceği azami kontrat slotu
+
   // Otobüs sınıfı hat araçları: özel halk otobüsü ruhu — büyük kasa, büyük ciro, büyük masraf
   busCost: 5500000, // ₺ solo otobüs (12 m, Otokar Kent sınıfı 2. el)
   busCostStep: 600000, // her ilave otobüste artış
@@ -345,16 +354,20 @@ export type VehicleSpec = {
 export const VEHICLE_SPECS: Record<string, VehicleSpec> = {
   dolmus: { seats: 14, tank: 80, fuelPerTrip: 6, wearPerTrip: 4, repairMult: 1, boardMult: 1, enRouteMult: 1, repMult: 1, demandWeight: 1 },
   vito: { seats: 6, tank: 80, fuelPerTrip: 6, wearPerTrip: 4, repairMult: 1, boardMult: 1, enRouteMult: 1, repMult: 1, demandWeight: 0 },
+  sprinter: { seats: 17, tank: 75, fuelPerTrip: 5, wearPerTrip: 3.5, repairMult: 1.1, boardMult: 1, enRouteMult: 1, repMult: 1, demandWeight: 0 },
   bus: { seats: 27, tank: 200, fuelPerTrip: 14, wearPerTrip: 4, repairMult: 1.8, boardMult: 1, enRouteMult: 1.7, repMult: 1, demandWeight: 1.8 },
   artic: { seats: 42, tank: 300, fuelPerTrip: 19, wearPerTrip: 4.5, repairMult: 2.4, boardMult: 0.8, enRouteMult: 2.3, repMult: 1, demandWeight: 2.6 },
   ebus: { seats: 30, tank: 250, fuelPerTrip: 15, wearPerTrip: 3.5, repairMult: 1.3, boardMult: 0.9, enRouteMult: 1.8, repMult: 2, demandWeight: 2 },
 }
 
-// Kontrat kapasitesi: taban + her N şoförlü araca bir slot (filo büyüdükçe kurumlar kapını çalar)
-export function contractSlotsOf(activeFleet: number): number {
-  return Math.min(
-    CONFIG.contractSlotsMax,
-    CONFIG.contractSlots + Math.floor(activeFleet / CONFIG.contractSlotsPerFleet),
+// Kontrat kapasitesi: taban + her N şoförlü araca bir slot (filo büyüdükçe kurumlar
+// kapını çalar) + şoförlü her servis sprinteri bir slot daha açar
+export function contractSlotsOf(activeFleet: number, sprinters = 0): number {
+  return (
+    Math.min(
+      CONFIG.contractSlotsMax,
+      CONFIG.contractSlots + Math.floor(activeFleet / CONFIG.contractSlotsPerFleet),
+    ) + Math.min(CONFIG.sprinterSlotCap, sprinters)
   )
 }
 

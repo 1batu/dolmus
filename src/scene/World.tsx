@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { LAYOUT, PERON_STOPS, spotPos } from '../game/paths'
+import { LAYOUT, PERON_STOPS, SPRINTER_LOT, spotPos } from '../game/paths'
 import { CONFIG, clockOf } from '../game/config'
 import { useGame } from '../game/store'
 import { RivalBus, Vehicle, plateGeo, plateMaterial } from './Vehicle'
@@ -761,6 +761,39 @@ function RentACarLot() {
   )
 }
 
+// Servis otoparkı: sprinterlerin ayrı park şeridi — ana ceplerin batısında.
+// Rent-a-car otoparkının aksine buradaki araçlar canlıdır (Vehicle.tsx çizer):
+// kontrat/özel servise buradan çıkıp buraya dönerler.
+function SprinterLot() {
+  const w = SPRINTER_LOT.gapX * SPRINTER_LOT.max + 1.2
+  const cx = SPRINTER_LOT.startX + (SPRINTER_LOT.gapX * (SPRINTER_LOT.max - 1)) / 2
+  return (
+    <group position={[cx, 0, SPRINTER_LOT.z]}>
+      {/* Otopark zemini: terminal betonundan ayrışan koyu asfalt pedi */}
+      <mesh geometry={rbox(w, 0.08, 6.2, 0.03)} material={mat('#878d93', 0.85)} position={[0, 0.04, 0]} receiveShadow />
+      {/* Cep ayrım çizgileri + turuncu servis bandı */}
+      {Array.from({ length: SPRINTER_LOT.max + 1 }, (_, i) => (
+        <mesh
+          key={`ln${i}`}
+          position={[(i - SPRINTER_LOT.max / 2) * SPRINTER_LOT.gapX, 0.09, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <planeGeometry args={[0.12, 5.6]} />
+          <meshStandardMaterial color="#f0ece0" />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.09, -2.85]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[w - 0.8, 0.18]} />
+        <meshStandardMaterial color="#e0862e" />
+      </mesh>
+      {/* Tabela */}
+      <mesh geometry={cyl(0.05, 0.05, 2.6, 8)} material={mat('#6f767e', 0.6, { metal: 0.4 })} position={[-w / 2 - 0.5, 1.3, -2.6]} />
+      <mesh geometry={rbox(2.3, 0.56, 0.12, 0.05)} material={mat('#b45309', 0.5)} position={[-w / 2 - 0.5, 2.5, -2.6]} />
+      <Sign text="SERVİS PARKI" bg="#d97706" w={2.2} h={0.5} pos={[-w / 2 - 0.5, 2.5, -2.53]} />
+    </group>
+  )
+}
+
 // Yazıhane: terminal ofisi — saçaklı çatı, kapı, çerçeveli pencere, klima
 function Office() {
   return (
@@ -918,6 +951,7 @@ export function World() {
       <FuelPump />
       <TerminalBuildings />
       <RentACarLot />
+      <SprinterLot />
 
       {Array.from({ length: spots }, (_, i) => (
         <ParkingSpot key={i} index={i} />

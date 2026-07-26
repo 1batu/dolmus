@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useGame, BANKS, BUILDING_COSTS, MOD_COSTS, bankLimitOf, capacityOf, fleetAssetValue, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
 import { CONFIG, VEHICLE_SPECS, clockOf, contractSlotsOf, queueCapOf } from '../game/config'
+import { SPRINTER_LOT } from '../game/paths'
 import {
   AlertTriangle,
   Landmark,
@@ -429,6 +430,8 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
   const pendF = pendFStr === '1'
   const pendR = pendRStr === '1'
   const isVito = kindStr === 'vito'
+  // Servis sprinteri peron kuyruğuna girmez: koltuk sayacı ve nöbet düğmesi anlamsız
+  const isServis = kindStr === 'sprinter'
   const spec = VEHICLE_SPECS[kindStr] ?? VEHICLE_SPECS.dolmus
   const fuelPct = (fuel / spec.tank) * 100
   const stateText = t.state[state as keyof typeof t.state]
@@ -473,9 +476,9 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
         >
           {warn && <AlertTriangle className="mr-0.5 inline h-2.5 w-2.5" />}
           {stateText}
-          {!warn && !isVito && ` · ${t.seats(Number(count), cap)}`}
+          {!warn && !isVito && !isServis && ` · ${t.seats(Number(count), cap)}`}
         </span>
-        {!isVito && (
+        {!isVito && !isServis && (
           <button
             onClick={() => toggleNightShift(id)}
             title={t.nightShift}
@@ -548,7 +551,7 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
         onSell={sellShare}
         onBuyBack={buyBackShare}
       />
-      <div className={`mt-1.5 items-center gap-1.5 ${isVito ? 'hidden' : 'flex'}`}>
+      <div className={`mt-1.5 items-center gap-1.5 ${isVito || isServis ? 'hidden' : 'flex'}`}>
         {kahya === 0 ? (
           <MiniButton
             label={<><HardHat className="h-3 w-3" /> {t.hireKahya} ₺{fmt(CONFIG.kahyaHireCost)}</>}
@@ -673,6 +676,10 @@ export function HUD() {
   const toasts = useGame((s) => s.toasts)
   const vehicleCount = useGame((s) => s.vehicles.length)
   const vitoCount = useGame((s) => s.vehicles.filter((v) => v.kind === 'vito').length)
+  const sprinterCount = useGame((s) => s.vehicles.filter((v) => v.kind === 'sprinter').length)
+  const sprinterActive = useGame(
+    (s) => s.vehicles.filter((v) => v.kind === 'sprinter' && v.hasDriver).length,
+  )
   const busCount = useGame((s) => s.vehicles.filter((v) => v.kind === 'bus').length)
   const articCount = useGame((s) => s.vehicles.filter((v) => v.kind === 'artic').length)
   const ebusCount = useGame((s) => s.vehicles.filter((v) => v.kind === 'ebus').length)
@@ -692,6 +699,7 @@ export function HUD() {
   const sellRental = useGame((s) => s.sellRental)
   const buyVehicle = useGame((s) => s.buyVehicle)
   const buyVito = useGame((s) => s.buyVito)
+  const buySprinter = useGame((s) => s.buySprinter)
   const buyBus = useGame((s) => s.buyBus)
   const buyRentalOffice = useGame((s) => s.buyRentalOffice)
   const buyRentalCar = useGame((s) => s.buyRentalCar)
@@ -707,10 +715,12 @@ export function HUD() {
       ? `${s.charter.id}|${s.charter.kind}|${s.charter.km}|${s.charter.payout}|${Math.ceil(s.charter.expiresAt - s.time)}`
       : '',
   )
+  // Özel servise yalnız sprinter çıkar: hat araçları peronda kalır
   const charterVehicleReady = useGame((s) =>
     s.charter
       ? s.vehicles.some(
           (v) =>
+            v.kind === 'sprinter' &&
             (v.state === 'parked' || v.state === 'returning' || v.state === 'fromPump') &&
             v.hasDriver &&
             v.charterPayout === 0 &&
@@ -855,7 +865,9 @@ export function HUD() {
 
   const vehicleCost = CONFIG.vehicleBaseCost + CONFIG.vehicleCostStep * (vehicleCount - 1)
   const spotCost = CONFIG.spotBaseCost * (spots - CONFIG.startSpots + 1)
-  const hasFreeSpot = vehicleCount < spots
+  // Sprinterler ana cepleri kullanmaz: kendi servis otoparkı vardır
+  const hasFreeSpot = vehicleCount - sprinterCount < spots
+  const hasFreeSprinterSpot = sprinterCount < SPRINTER_LOT.max
   const hasIdleVehicle = fleetKey.includes('|noDriver|')
   // İnşaat butonundaki yeşil nokta: alınabilecek bir şey var mı?
   const canBuySomething =
@@ -1295,6 +1307,30 @@ export function HUD() {
                   </ModalCard>
                 )
               })()}
+              {buildTab === 'arac' && (() => {
+                const sprPrice = CONFIG.sprinterCost + CONFIG.sprinterCostStep * sprinterCount
+                const sprDown = Math.ceil(sprPrice * CONFIG.loanDownRate)
+                return (
+                  <ModalCard
+                    icon={<School className="h-7 w-7 text-amber-300" />}
+                    title={t.buySprinter}
+                    badge={t.sprinterBadge}
+                    badgeClass="bg-amber-400/15 text-amber-300"
+                    desc={t.sprinterDesc}
+                  >
+                    <PriceButton
+                      label={<><Banknote className="h-3.5 w-3.5" /> {t.payCash} ₺{fmt(sprPrice)}</>}
+                      enabled={money >= sprPrice && hasFreeSprinterSpot}
+                      onClick={() => buySprinter('cash')}
+                    />
+                    <PriceButton
+                      label={<><ScrollText className="h-3.5 w-3.5" /> {t.payLoan} ₺{fmt(sprDown)}</>}
+                      enabled={money >= sprDown && hasFreeSprinterSpot}
+                      onClick={() => buySprinter('loan')}
+                    />
+                  </ModalCard>
+                )
+              })()}
               {buildTab === 'arac' && (
                 <ModalCard
                   icon={<Bus className="h-7 w-7 text-sky-300" />}
@@ -1465,7 +1501,7 @@ export function HUD() {
                       >
                         <PriceButton
                           label={`${t.accept} · ${t.contractPerDay(Number(payStr))}`}
-                          enabled={contractCount < contractSlotsOf(drivers)}
+                          enabled={contractCount < contractSlotsOf(drivers, sprinterActive)}
                           onClick={acceptContract}
                         />
                       </ModalCard>

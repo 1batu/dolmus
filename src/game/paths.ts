@@ -29,6 +29,25 @@ export function spotPos(i: number): P2 {
   ]
 }
 
+// Servis otoparkı: sprinterlerin ayrı park alanı — ana ceplerin batısında,
+// rent-a-car mantığıyla kendi şeridi var ama araçlar buradan fiilen sefere çıkar.
+// Kolon x'leri şarj koridorunun (x=-4) batısında kalır; kuzeye, servis yoluna bakar.
+export const SPRINTER_LOT = {
+  startX: -18.5,
+  gapX: 2.4,
+  z: -3.8,
+  max: 6,
+}
+
+export function sprinterSpotPos(i: number): P2 {
+  return [SPRINTER_LOT.startX + i * SPRINTER_LOT.gapX, SPRINTER_LOT.z]
+}
+
+// Araç sınıfına göre park pozisyonu: sprinter kendi otoparkında, gerisi ana ceplerde
+export function vehicleSpotPos(kind: string, i: number): P2 {
+  return kind === 'sprinter' ? sprinterSpotPos(i) : spotPos(i)
+}
+
 // Peron durakları: 1. ana peron (güney platform), 2-3. kuzey cebindeki ek
 // duraklar — satın alındıkça açılır, aynı anda birden çok araç yolcu alır.
 // Kuzey cebi (z 10) servis yolunun dışında: bekleyen araç trafiği kapatmaz.

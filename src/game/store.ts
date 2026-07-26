@@ -11,11 +11,12 @@ import {
   pathLength,
   returnPath,
   spotDepartPath,
-  spotPos,
+  SPRINTER_LOT,
   toChargePath,
   toPeronPath,
   toPumpPath,
   toRepairPath,
+  vehicleSpotPos,
 } from './paths'
 import { t } from '../i18n'
 import { sfx } from './sound'
@@ -34,16 +35,22 @@ export type VehicleState =
   | 'inRepair'
   | 'fromRepair'
 
-// dolmus/bus/artic/ebus hat araçlarıdır (peron kullanır); vito çağrı bazlı çalışır
-export type VehicleKind = 'dolmus' | 'vito' | 'bus' | 'artic' | 'ebus'
+// dolmus/bus/artic/ebus hat araçlarıdır (peron kullanır); vito çağrı bazlı çalışır;
+// sprinter servis aracıdır: peron kullanmaz, kontrat + özel servis işi koşar
+export type VehicleKind = 'dolmus' | 'vito' | 'bus' | 'artic' | 'ebus' | 'sprinter'
 export type BusKind = 'bus' | 'artic' | 'ebus'
 
 export function specOf(kind: VehicleKind): VehicleSpec {
   return VEHICLE_SPECS[kind] ?? VEHICLE_SPECS.dolmus
 }
 
-// Hat aracı mı: peron kuyruğundan yolcu alır, kontrat/servise çıkabilir
+// Hat aracı mı: peron kuyruğundan yolcu alır, talep/görev hesabına girer
 export function isHatVehicle(kind: VehicleKind): boolean {
+  return kind !== 'vito' && kind !== 'sprinter'
+}
+
+// Kontrat/özel servise çıkabilir mi (sprinter dahil, vito hariç)
+export function canServisRun(kind: VehicleKind): boolean {
   return kind !== 'vito'
 }
 
@@ -116,7 +123,8 @@ export const MOD_COSTS: Record<VehicleMod, number> = {
 }
 export const WRAP_COUNT = 4 // sahnedeki reklam kampanyası sayısı (Vehicle.tsx WRAPS)
 
-// Servis kontratı: her gün sabah + akşam birer sefer, günlük sabit ödeme
+// Servis kontratı: her gün sabah + akşam birer sefer, günlük sabit ödeme.
+// Seferi sprinter koşarsa o yarım ödeme konfor primiyle büyür.
 export type Contract = {
   id: number
   kind: number
@@ -126,6 +134,8 @@ export type Contract = {
   eveningDone: boolean
   morningMissed: boolean
   eveningMissed: boolean
+  morningSprinter: boolean
+  eveningSprinter: boolean
 }
 export type ContractOffer = { id: number; kind: number; dailyPay: number; expiresAt: number }
 
@@ -220,13 +230,15 @@ export function valuationOf(v: Vehicle, fleetSize: number, rep: number): number 
   const base =
     v.kind === 'vito'
       ? CONFIG.vitoCost
-      : v.kind === 'bus'
-        ? CONFIG.busCost
-        : v.kind === 'artic'
-          ? CONFIG.articCost
-          : v.kind === 'ebus'
-            ? CONFIG.ebusCost
-            : CONFIG.vehicleBaseCost + CONFIG.vehicleCostStep * (fleetSize - 1)
+      : v.kind === 'sprinter'
+        ? CONFIG.sprinterCost
+        : v.kind === 'bus'
+          ? CONFIG.busCost
+          : v.kind === 'artic'
+            ? CONFIG.articCost
+            : v.kind === 'ebus'
+              ? CONFIG.ebusCost
+              : CONFIG.vehicleBaseCost + CONFIG.vehicleCostStep * (fleetSize - 1)
   return Math.round(
     base * (v.old ? CONFIG.rivalBuyFactor : 1) * (1 - v.wear / 250) * (0.85 + rep * 0.06),
   )
@@ -338,6 +350,7 @@ export const MILESTONES: MilestoneDef[] = [
   { id: 'filo5', reward: 25000, cond: (s) => s.vehicles.length >= 5 },
   { id: 'filo8', reward: 60000, cond: (s) => s.vehicles.length >= 8 },
   { id: 'ilkVito', reward: 20000, cond: (s) => s.vehicles.some((v) => v.kind === 'vito') },
+  { id: 'ilkSprinter', reward: 30000, cond: (s) => s.vehicles.some((v) => v.kind === 'sprinter') },
   {
     id: 'ilkOtobus',
     reward: 100000,
@@ -413,7 +426,8 @@ export const BUILDING_COSTS: Record<BuildingKind, number> = {
 let nextId = 1
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
 
-// İstanbul plakaları: dolmuş "34 M 1234", otobüs "34 O 1234", VIP "34 SYF 5454", taksi "34 T 1234"
+// İstanbul plakaları: dolmuş "34 M 1234", otobüs "34 O 1234", servis "34 S 1234",
+// VIP "34 SYF 5454", taksi "34 T 1234"
 const PLATE_LETTERS = 'ABCDEFGHJKLMNPRSTUVYZ'
 function genPlate(kind: VehicleKind = 'dolmus'): string {
   const num = 1000 + Math.floor(Math.random() * 9000)
@@ -425,6 +439,7 @@ function genPlate(kind: VehicleKind = 'dolmus'): string {
     return `34 ${seri} ${num}`
   }
   if (kind === 'bus' || kind === 'artic' || kind === 'ebus') return `34 O ${num}`
+  if (kind === 'sprinter') return `34 S ${num}`
   return `34 M ${num}`
 }
 let bufeStreetTimer = 0 // yoldan geçen müşteri sayacı (kalıcı olması gerekmez)
@@ -647,6 +662,10 @@ function loadSave(): Partial<GameState> | null {
       }
     }
 
+    // Sprinterler kendi otoparkına indekslenir: eski kayıtta ana cep indeksi
+    // taşıyan sprinter varsa sırayla servis otoparkı ceplerine dizilir
+    let sprinterSlot = 0
+
     return {
       offlineEarned,
       offlineSecs,
@@ -674,6 +693,7 @@ function loadSave(): Partial<GameState> | null {
         charterQueued: v.charterQueued ?? false,
         charterDuration: v.charterDuration ?? 0,
         kind: v.kind ?? 'dolmus',
+        spotIdx: v.kind === 'sprinter' ? sprinterSlot++ : v.spotIdx,
         callIn: v.callIn ?? 20,
         contractRun: v.contractRun ?? false,
         driverName: v.driverName ?? (v.hasDriver ? genDriver().name : ''),
@@ -712,7 +732,13 @@ function loadSave(): Partial<GameState> | null {
           }))
         : [makeRival(7), makeRival(12)],
       rivalRespawn: d.rivalRespawn ?? 0,
-      contracts: Array.isArray(d.contracts) ? d.contracts : [],
+      contracts: Array.isArray(d.contracts)
+        ? d.contracts.map((c: Contract) => ({
+            ...c,
+            morningSprinter: c.morningSprinter ?? false,
+            eveningSprinter: c.eveningSprinter ?? false,
+          }))
+        : [],
       taxis: Array.isArray(d.taxis)
         ? d.taxis.map((tx: Taxi) => ({ ...tx, nightShift: tx.nightShift ?? false }))
         : [],
@@ -889,6 +915,7 @@ type GameState = {
   spotCost: () => number
   buyVehicle: (mode: 'cash' | 'loan') => void
   buyVito: (mode: 'cash' | 'loan') => void
+  buySprinter: (mode: 'cash' | 'loan') => void
   buyBus: (kind: BusKind, mode: 'cash' | 'loan') => void
   buyMod: (vehicleId: number, mod: VehicleMod) => void
   toggleWrap: (vehicleId: number) => void
@@ -984,10 +1011,10 @@ export const useGame = create<GameState>((set, get) => ({
   buyVehicle: (mode: 'cash' | 'loan') => {
     const s = get()
     const price = s.vehicleCost()
-    if (s.vehicles.length >= s.spots) return
+    if (s.vehicles.filter((v) => v.kind !== 'sprinter').length >= s.spots) return
     const no = s.vehicles.length + 1
     // İlk boş park yerine konur; şoförü yoksa orada bekler
-    const usedSpots = new Set(s.vehicles.map((v) => v.spotIdx))
+    const usedSpots = new Set(s.vehicles.filter((v) => v.kind !== 'sprinter').map((v) => v.spotIdx))
     let spotIdx = 0
     while (usedSpots.has(spotIdx)) spotIdx++
     const veh = makeVehicle(no, spotIdx, false)
@@ -1022,11 +1049,49 @@ export const useGame = create<GameState>((set, get) => ({
     const s = get()
     const vitoCount = s.vehicles.filter((v) => v.kind === 'vito').length
     const price = CONFIG.vitoCost + CONFIG.vitoCostStep * vitoCount
-    if (s.vehicles.length >= s.spots) return
-    const usedSpots = new Set(s.vehicles.map((v) => v.spotIdx))
+    if (s.vehicles.filter((v) => v.kind !== 'sprinter').length >= s.spots) return
+    const usedSpots = new Set(s.vehicles.filter((v) => v.kind !== 'sprinter').map((v) => v.spotIdx))
     let spotIdx = 0
     while (usedSpots.has(spotIdx)) spotIdx++
     const veh = makeVehicle(s.vehicles.length + 1, spotIdx, false, undefined, 'vito')
+    const vehicles = [...s.vehicles, veh]
+
+    if (mode === 'cash') {
+      if (s.money < price) return
+      set({ money: s.money - price, vehicles })
+      return
+    }
+    const down = Math.ceil(price * CONFIG.loanDownRate)
+    if (s.money < down) return
+    const remaining = Math.round(price * (1 + CONFIG.loanMarkupRate)) - down
+    set({
+      money: s.money - down,
+      vehicles,
+      debts: [
+        ...s.debts,
+        {
+          id: nextId++,
+          no: veh.no,
+          plate: veh.plate,
+          remaining,
+          daily: Math.ceil(remaining / CONFIG.loanTermDays),
+        },
+      ],
+    })
+  },
+
+  // Servis sprinteri: hat işine girmez — kontrat seferlerini öncelikli koşar,
+  // özel servisleri yalnız o kapar; şoförlü her sprinter +1 kontrat slotu.
+  // Ana park ceplerini kullanmaz: kendi servis otoparkına park eder.
+  buySprinter: (mode: 'cash' | 'loan') => {
+    const s = get()
+    const sprinters = s.vehicles.filter((v) => v.kind === 'sprinter')
+    const price = CONFIG.sprinterCost + CONFIG.sprinterCostStep * sprinters.length
+    if (sprinters.length >= SPRINTER_LOT.max) return
+    const usedSpots = new Set(sprinters.map((v) => v.spotIdx))
+    let spotIdx = 0
+    while (usedSpots.has(spotIdx)) spotIdx++
+    const veh = makeVehicle(s.vehicles.length + 1, spotIdx, false, undefined, 'sprinter')
     const vehicles = [...s.vehicles, veh]
 
     if (mode === 'cash') {
@@ -1065,8 +1130,8 @@ export const useGame = create<GameState>((set, get) => ({
         : kind === 'artic'
           ? CONFIG.articCost + CONFIG.articCostStep * count
           : CONFIG.ebusCost + CONFIG.ebusCostStep * count
-    if (s.vehicles.length >= s.spots) return
-    const usedSpots = new Set(s.vehicles.map((v) => v.spotIdx))
+    if (s.vehicles.filter((v) => v.kind !== 'sprinter').length >= s.spots) return
+    const usedSpots = new Set(s.vehicles.filter((v) => v.kind !== 'sprinter').map((v) => v.spotIdx))
     let spotIdx = 0
     while (usedSpots.has(spotIdx)) spotIdx++
     const veh = makeVehicle(s.vehicles.length + 1, spotIdx, false, undefined, kind)
@@ -1253,7 +1318,7 @@ export const useGame = create<GameState>((set, get) => ({
           ? {
               ...veh,
               state: 'toPump' as const,
-              path: isEV ? toChargePath(spotPos(veh.spotIdx)) : toPumpPath(spotPos(veh.spotIdx)),
+              path: isEV ? toChargePath(vehicleSpotPos(veh.kind, veh.spotIdx)) : toPumpPath(vehicleSpotPos(veh.kind, veh.spotIdx)),
               dist: 0,
             }
           : veh,
@@ -1299,7 +1364,7 @@ export const useGame = create<GameState>((set, get) => ({
   buyRival: (rivalId: number) => {
     const s = get()
     const r = s.rivals.find((rv) => rv.id === rivalId)
-    if (!r || s.vehicles.length >= s.spots) return
+    if (!r || s.vehicles.filter((v) => v.kind !== 'sprinter').length >= s.spots) return
     // Devren: yeni araçtan ucuz ama yıpranmış eski kasa gelir.
     // Ortaklık varsa kalan hisse %10 primle alınır.
     const fullPrice = Math.ceil(s.vehicleCost() * CONFIG.rivalBuyFactor)
@@ -1308,7 +1373,7 @@ export const useGame = create<GameState>((set, get) => ({
         ? Math.ceil((fullPrice * (100 - r.playerShare)) / 100 * CONFIG.shareBuyBackPremium)
         : fullPrice
     if (s.money < price) return
-    const usedSpots = new Set(s.vehicles.map((v) => v.spotIdx))
+    const usedSpots = new Set(s.vehicles.filter((v) => v.kind !== 'sprinter').map((v) => v.spotIdx))
     let spotIdx = 0
     while (usedSpots.has(spotIdx)) spotIdx++
     // Devren alınan araç rakibin plakasını taşır
@@ -1527,11 +1592,12 @@ export const useGame = create<GameState>((set, get) => ({
     const s = get()
     const c = s.charter
     if (!c) return
-    // Uygun araç: şoförlü, yakıtı yeter, bakımı gelmemiş — parktaki hemen çıkar,
-    // dönüş yolundaki park edince servise yönlenir
+    // Özel servis artık sprinterin işi: hat araçları peron/hat işinden çekilmez.
+    // Uygun sprinter: şoförlü, yakıtı yeter, bakımı gelmemiş — parktaki hemen
+    // çıkar, dönüş yolundaki park edince servise yönlenir
     const fuelNeed = Math.ceil(c.km * CONFIG.charterFuelPerKm)
     const eligible = (veh: Vehicle) =>
-      isHatVehicle(veh.kind) &&
+      veh.kind === 'sprinter' &&
       veh.brokenUntilDay === 0 &&
       veh.hasDriver &&
       veh.fuel >= fuelNeed &&
@@ -1556,7 +1622,7 @@ export const useGame = create<GameState>((set, get) => ({
               ...(immediate
                 ? {
                     state: 'departing' as const,
-                    path: spotDepartPath(spotPos(veh.spotIdx)),
+                    path: spotDepartPath(vehicleSpotPos(veh.kind, veh.spotIdx)),
                     dist: 0,
                     tripLeft: c.duration,
                   }
@@ -1581,8 +1647,11 @@ export const useGame = create<GameState>((set, get) => ({
   acceptContract: () => {
     const s = get()
     const o = s.contractOffer
-    if (!o || s.contracts.length >= contractSlotsOf(s.vehicles.filter((v) => v.hasDriver).length))
-      return
+    const slots = contractSlotsOf(
+      s.vehicles.filter((v) => v.hasDriver).length,
+      s.vehicles.filter((v) => v.hasDriver && v.kind === 'sprinter').length,
+    )
+    if (!o || s.contracts.length >= slots) return
     set({
       contractOffer: null,
       contracts: [
@@ -1596,6 +1665,8 @@ export const useGame = create<GameState>((set, get) => ({
           eveningDone: false,
           morningMissed: false,
           eveningMissed: false,
+          morningSprinter: false,
+          eveningSprinter: false,
         },
       ],
     })
@@ -1921,6 +1992,8 @@ export const useGame = create<GameState>((set, get) => ({
           eveningDone: false,
           morningMissed: false,
           eveningMissed: false,
+          morningSprinter: false,
+          eveningSprinter: false,
         }))
         .filter((c) => {
           if (c.daysLeft > 0) return true
@@ -2107,11 +2180,15 @@ export const useGame = create<GameState>((set, get) => ({
           return rr
         })
       }
-      // Kontrat gelirleri: koşulan sefer başına günlük ödemenin yarısı
+      // Kontrat gelirleri: koşulan sefer başına günlük ödemenin yarısı —
+      // sprinter koşan sefer konfor primiyle öder
+      const sprBonus = 1 + CONFIG.sprinterContractBonus
       const contractIncome = Math.round(
         contracts.reduce(
           (sum, c) =>
-            sum + (c.morningDone ? c.dailyPay / 2 : 0) + (c.eveningDone ? c.dailyPay / 2 : 0),
+            sum +
+            (c.morningDone ? (c.dailyPay / 2) * (c.morningSprinter ? sprBonus : 1) : 0) +
+            (c.eveningDone ? (c.dailyPay / 2) * (c.eveningSprinter ? sprBonus : 1) : 0),
           0,
         ),
       )
@@ -2229,7 +2306,11 @@ export const useGame = create<GameState>((set, get) => ({
     if (
       !contractOffer &&
       !isNight &&
-      contracts.length < contractSlotsOf(s.vehicles.filter((v) => v.hasDriver).length)
+      contracts.length <
+        contractSlotsOf(
+          s.vehicles.filter((v) => v.hasDriver).length,
+          s.vehicles.filter((v) => v.hasDriver && v.kind === 'sprinter').length,
+        )
     ) {
       contractOfferTimer -= dt
       if (contractOfferTimer <= 0) {
@@ -2393,7 +2474,7 @@ export const useGame = create<GameState>((set, get) => ({
           if (v.charterQueued) {
             v.charterQueued = false
             v.state = 'departing'
-            v.path = spotDepartPath(spotPos(v.spotIdx))
+            v.path = spotDepartPath(vehicleSpotPos(v.kind, v.spotIdx))
             v.dist = 0
             v.tripLeft = v.charterDuration
             break
@@ -2431,8 +2512,8 @@ export const useGame = create<GameState>((set, get) => ({
                 v.state = 'toPump'
                 v.path =
                   v.kind === 'ebus'
-                    ? toChargePath(spotPos(v.spotIdx))
-                    : toPumpPath(spotPos(v.spotIdx))
+                    ? toChargePath(vehicleSpotPos(v.kind, v.spotIdx))
+                    : toPumpPath(vehicleSpotPos(v.kind, v.spotIdx))
                 v.dist = 0
                 break
               }
@@ -2468,8 +2549,8 @@ export const useGame = create<GameState>((set, get) => ({
               v.state = 'toPump'
               v.path =
                 v.kind === 'ebus'
-                  ? toChargePath(spotPos(v.spotIdx))
-                  : toPumpPath(spotPos(v.spotIdx))
+                  ? toChargePath(vehicleSpotPos(v.kind, v.spotIdx))
+                  : toPumpPath(vehicleSpotPos(v.kind, v.spotIdx))
               v.dist = 0
               break
             }
@@ -2494,7 +2575,7 @@ export const useGame = create<GameState>((set, get) => ({
                   )
                   v.tripLeft = CONFIG.vitoDurationBase + km * CONFIG.vitoDurationPerKm
                   v.state = 'departing'
-                  v.path = spotDepartPath(spotPos(v.spotIdx))
+                  v.path = spotDepartPath(vehicleSpotPos(v.kind, v.spotIdx))
                   v.dist = 0
                 }
                 v.callIn =
@@ -2504,6 +2585,8 @@ export const useGame = create<GameState>((set, get) => ({
             }
             break
           }
+          // Servis sprinteri hat işine girmez: parkta kontrat/özel servis bekler
+          if (v.kind === 'sprinter') break
           // Gece (00-06) nöbetçi veya ortaklı araç çalışır (ortağın şoförü sürer)
           const onDuty = !isNight || v.nightShift || v.share < 100
           const freeSlot = peronSlots.findIndex((used) => !used)
@@ -2511,7 +2594,7 @@ export const useGame = create<GameState>((set, get) => ({
             peronSlots[freeSlot] = true
             v.peronIdx = freeSlot
             v.state = 'toPeron'
-            v.path = toPeronPath(spotPos(v.spotIdx), freeSlot)
+            v.path = toPeronPath(vehicleSpotPos(v.kind, v.spotIdx), freeSlot)
             v.dist = 0
           }
           break
@@ -2619,7 +2702,7 @@ export const useGame = create<GameState>((set, get) => ({
             v.contractRun = false
             pushToast(t.contractRunDone(v.plate))
             v.state = 'returning'
-            v.path = returnPath(spotPos(v.spotIdx))
+            v.path = returnPath(vehicleSpotPos(v.kind, v.spotIdx))
             v.dist = 0
             v.passengers = 0
             break
@@ -2636,7 +2719,7 @@ export const useGame = create<GameState>((set, get) => ({
             sfx('coin')
             v.charterPayout = 0
             v.state = 'returning'
-            v.path = returnPath(spotPos(v.spotIdx))
+            v.path = returnPath(vehicleSpotPos(v.kind, v.spotIdx))
             v.dist = 0
             v.passengers = 0
             break
@@ -2676,7 +2759,7 @@ export const useGame = create<GameState>((set, get) => ({
             )
             pushToast(t.returned(v.plate, extra))
             v.state = 'returning'
-            v.path = returnPath(spotPos(v.spotIdx))
+            v.path = returnPath(vehicleSpotPos(v.kind, v.spotIdx))
             v.dist = 0
             v.passengers = 0
           }
@@ -2702,8 +2785,8 @@ export const useGame = create<GameState>((set, get) => ({
             v.state = 'fromPump'
             v.path =
               v.kind === 'ebus'
-                ? fromChargePath(spotPos(v.spotIdx))
-                : fromPumpPath(spotPos(v.spotIdx))
+                ? fromChargePath(vehicleSpotPos(v.kind, v.spotIdx))
+                : fromPumpPath(vehicleSpotPos(v.kind, v.spotIdx))
             v.dist = 0
           }
           break
@@ -2726,7 +2809,7 @@ export const useGame = create<GameState>((set, get) => ({
             v.wear = 0
             pushToast(t.bigRepairDone(v.plate))
             v.state = 'fromRepair'
-            v.path = fromRepairPath(spotPos(v.spotIdx))
+            v.path = fromRepairPath(vehicleSpotPos(v.kind, v.spotIdx))
             v.dist = 0
           }
           break
@@ -2791,7 +2874,7 @@ export const useGame = create<GameState>((set, get) => ({
               ...vehicles[idx],
               brokenUntilDay: day + days,
               state: 'toRepair',
-              path: toRepairPath(spotPos(vehicles[idx].spotIdx)),
+              path: toRepairPath(vehicleSpotPos(vehicles[idx].kind, vehicles[idx].spotIdx)),
               dist: 0,
             }
             pushToast(t.bigBreakdown(vehicles[idx].plate, days, bill))
@@ -2875,39 +2958,42 @@ export const useGame = create<GameState>((set, get) => ({
       pushToast(t.haciz(seized.plate))
     }
 
-    // Kontrat seferleri: sabah/akşam penceresinde parktaki bir dolmuş servise çıkar,
-    // pencere kaçarsa itibar cezası
+    // Kontrat seferleri: sabah/akşam penceresinde parktaki bir araç servise çıkar,
+    // pencere kaçarsa itibar cezası. Sprinter varsa önce o gider: masrafı düşük,
+    // ödemesi konfor primli — hat araçları ancak sprinter yetmezse çekilir
     if (contracts.length > 0) {
       const h = clock.hour
-      const dispatchContract = (): boolean => {
-        const idx = vehicles.findIndex(
-          (veh) =>
-            isHatVehicle(veh.kind) &&
-            veh.brokenUntilDay === 0 &&
-            veh.state === 'parked' &&
-            veh.hasDriver &&
-            veh.fuel >= CONFIG.contractFuel &&
-            veh.wear < 100 &&
-            veh.charterPayout === 0 &&
-            !veh.charterQueued,
-        )
-        if (idx < 0) return false
+      const dispatchContract = (): 'sprinter' | 'other' | null => {
+        const ready = (veh: Vehicle) =>
+          canServisRun(veh.kind) &&
+          veh.brokenUntilDay === 0 &&
+          veh.state === 'parked' &&
+          veh.hasDriver &&
+          veh.fuel >= CONFIG.contractFuel &&
+          veh.wear < 100 &&
+          veh.charterPayout === 0 &&
+          !veh.charterQueued
+        let idx = vehicles.findIndex((veh) => veh.kind === 'sprinter' && ready(veh))
+        if (idx < 0) idx = vehicles.findIndex(ready)
+        if (idx < 0) return null
         const veh = vehicles[idx]
+        const costFactor = veh.kind === 'sprinter' ? CONFIG.sprinterContractFactor : 1
         vehicles[idx] = {
           ...veh,
           state: 'departing',
-          path: spotDepartPath(spotPos(veh.spotIdx)),
+          path: spotDepartPath(vehicleSpotPos(veh.kind, veh.spotIdx)),
           dist: 0,
           tripLeft: CONFIG.contractRunDuration,
           contractRun: true,
-          fuel: Math.max(0, veh.fuel - CONFIG.contractFuel),
+          fuel: Math.max(0, veh.fuel - CONFIG.contractFuel * costFactor),
           wear: Math.min(
             100,
-            veh.wear + CONFIG.contractWear * (veh.old ? CONFIG.oldBusWearFactor : 1),
+            veh.wear +
+              CONFIG.contractWear * costFactor * (veh.old ? CONFIG.oldBusWearFactor : 1),
           ),
         }
         pushToast(t.contractRunOut(veh.plate))
-        return true
+        return veh.kind === 'sprinter' ? 'sprinter' : 'other'
       }
       let changed = false
       const next = contracts.map((c) => {
@@ -2915,8 +3001,10 @@ export const useGame = create<GameState>((set, get) => ({
         let dirty = false
         if (!cc.morningDone && !cc.morningMissed && h >= CONFIG.contractMorningHour) {
           if (h < CONFIG.contractMorningHour + CONFIG.contractGraceHours) {
-            if (dispatchContract()) {
+            const ran = dispatchContract()
+            if (ran) {
               cc.morningDone = true
+              cc.morningSprinter = ran === 'sprinter'
               dirty = true
             }
           } else {
@@ -2928,8 +3016,10 @@ export const useGame = create<GameState>((set, get) => ({
         }
         if (!cc.eveningDone && !cc.eveningMissed && h >= CONFIG.contractEveningHour) {
           if (h < CONFIG.contractEveningHour + CONFIG.contractGraceHours) {
-            if (dispatchContract()) {
+            const ran = dispatchContract()
+            if (ran) {
               cc.eveningDone = true
+              cc.eveningSprinter = ran === 'sprinter'
               dirty = true
             }
           } else {
