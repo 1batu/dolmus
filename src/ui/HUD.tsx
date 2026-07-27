@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useGame, BANKS, BUILDING_COSTS, MOD_COSTS, bankLimitOf, capacityOf, fleetAssetValue, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
+import { useGame, BANKS, BUILDING_COSTS, MILESTONES, MOD_COSTS, bankLimitOf, capacityOf, fleetAssetValue, netWorthOf, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
 import { CONFIG, VEHICLE_SPECS, clockOf, contractSlotsOf, queueCapOf } from '../game/config'
 import { SPRINTER_LOT } from '../game/paths'
 import {
@@ -853,7 +853,7 @@ export function HUD() {
   const buyRivalShare = useGame((s) => s.buyRivalShare)
   const sellRivalShare = useGame((s) => s.sellRivalShare)
   const [buildOpen, setBuildOpen] = useState(false)
-  const [buildTab, setBuildTab] = useState<'arac' | 'personel' | 'tesis' | 'kontrat' | 'taksi' | 'kiralama' | 'devren' | 'stats' | 'prestij'>('arac')
+  const [buildTab, setBuildTab] = useState<'arac' | 'personel' | 'tesis' | 'kontrat' | 'taksi' | 'kiralama' | 'devren' | 'stats' | 'basarim' | 'prestij'>('arac')
   const streak = useGame((s) => s.streak)
   const creditScore = useGame((s) => Math.round(s.creditScore))
   const depositsKey = useGame((s) =>
@@ -884,6 +884,11 @@ export function HUD() {
   const driverMarket = useGame((s) => s.driverMarket)
   const hireFromMarket = useGame((s) => s.hireFromMarket)
   const statsHistory = useGame((s) => s.statsHistory)
+  const milestonesKey = useGame((s) => s.milestonesDone.join(','))
+  // Canlı net varlık: kasa + filo + mevduat + taksi/kiralık − borç
+  const netWorthNow = useGame((s) =>
+    netWorthOf(s.money, s.vehicles, s.rep, s.deposits, s.debts, s.taxis, s.rentals),
+  )
   // Hipotek: banka limitine eklenen filo değeri (hisse ağırlıklı)
   const assetValue = useGame((s) => fleetAssetValue(s.vehicles, s.rep))
   // Bugünün özel günü (varsa üst barda çip olarak görünür)
@@ -1323,6 +1328,7 @@ export function HUD() {
                   ['kiralama', <><KeyRound className="h-3.5 w-3.5" /> {t.tabRental}</>],
                   ['devren', <><Handshake className="h-3.5 w-3.5" /> {t.devren}</>],
                   ['stats', <><BarChart3 className="h-3.5 w-3.5" /> {t.tabStats}</>],
+                  ['basarim', <><Trophy className="h-3.5 w-3.5" /> {t.tabAchievements}</>],
                   ['prestij', <><Star className="h-3.5 w-3.5" /> {t.tabPrestige}</>],
                 ] as const
               ).map(([key, label]) => (
@@ -1874,6 +1880,106 @@ export function HUD() {
                           })}
                         </div>
                       )}
+                    </div>
+                    {/* Net varlık: gün kapanışları + canlı değer tek çizgide */}
+                    <div>
+                      <div className="mb-1.5 flex items-baseline justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
+                          {t.statsNetWorth}
+                        </span>
+                        <span className="text-[11px] font-black tabular-nums text-[#2c3e50]">
+                          {t.statsNetWorthNow}: ₺{fmt(netWorthNow)}
+                        </span>
+                      </div>
+                      {(() => {
+                        const series = [
+                          ...statsHistory
+                            .filter((d) => typeof d.netWorth === 'number')
+                            .map((d) => ({ day: d.day, v: d.netWorth as number })),
+                          { day: -1, v: netWorthNow },
+                        ]
+                        if (series.length < 2) {
+                          return (
+                            <div className="py-3 text-center text-[11px] font-bold text-[#93a5af]">{t.statsEmpty}</div>
+                          )
+                        }
+                        const vals = series.map((p) => p.v)
+                        const min = Math.min(...vals)
+                        const max = Math.max(...vals)
+                        const range = max - min || 1
+                        const pts = series
+                          .map((p, i) => {
+                            const x = (i / (series.length - 1)) * 100
+                            const y = 28 - ((p.v - min) / range) * 24
+                            return `${x},${y}`
+                          })
+                          .join(' ')
+                        return (
+                          <>
+                            <svg viewBox="0 0 100 32" preserveAspectRatio="none" className="h-16 w-full">
+                              <polyline
+                                points={pts}
+                                fill="none"
+                                stroke="#3498db"
+                                strokeWidth="2"
+                                strokeLinejoin="round"
+                                strokeLinecap="round"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            </svg>
+                            <div className="flex items-baseline justify-between text-[9px] font-bold tabular-nums text-[#93a5af]">
+                              <span>₺{fmtShort(min)} – ₺{fmtShort(max)}</span>
+                              <span>{t.statsNetWorthDesc}</span>
+                            </div>
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                )
+              })()}
+              {buildTab === 'basarim' && (() => {
+                const doneSet = new Set(milestonesKey.split(',').filter(Boolean))
+                return (
+                  <div className="col-span-full flex flex-col gap-2">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
+                      <Trophy className="mr-1 inline h-3 w-3" /> {t.achievementsProgress(doneSet.size, MILESTONES.length)}
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {MILESTONES.map((m) => {
+                        const done = doneSet.has(m.id)
+                        return (
+                          <div
+                            key={m.id}
+                            className={`flex items-center gap-2.5 rounded-xl border p-2.5 ${
+                              done ? 'border-emerald-200 bg-emerald-50' : 'border-[#d5dee4] bg-white'
+                            }`}
+                          >
+                            <span
+                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                                done ? 'bg-[#2ecc71] text-white' : 'bg-[#e2e9ed] text-[#adbac2]'
+                              }`}
+                            >
+                              <Trophy className="h-4 w-4" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className={`block truncate text-[12px] font-extrabold ${done ? 'text-[#2c3e50]' : 'text-[#5b7383]'}`}>
+                                {t.milestoneNames[m.id] ?? m.id}
+                              </span>
+                              <span className="block text-[10px] font-bold text-[#93a5af]">
+                                {t.milestoneDescs[m.id] ?? t.achievementLocked}
+                              </span>
+                            </span>
+                            <span
+                              className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-extrabold tabular-nums ${
+                                done ? 'bg-emerald-400/15 text-emerald-600' : 'bg-[#e2e9ed] text-[#93a5af]'
+                              }`}
+                            >
+                              {done ? '✓ ' : ''}₺{fmt(m.reward)}
+                            </span>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )

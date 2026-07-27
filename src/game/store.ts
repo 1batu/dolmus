@@ -500,8 +500,34 @@ export function fleetAssetValue(vehicles: Vehicle[], rep: number): number {
   )
 }
 
+// Net varlık: kasa + filo (hisse ağırlıklı) + mevduat + taksi/kiralık varlıklar − borçlar
+export function netWorthOf(
+  money: number,
+  vehicles: Vehicle[],
+  rep: number,
+  deposits: Deposit[],
+  debts: Debt[],
+  taxis: Taxi[],
+  rentals: Rental[],
+): number {
+  const dep = deposits.reduce((a, d) => a + d.amount, 0)
+  const debt = debts.reduce((a, d) => a + d.remaining, 0)
+  // Taksi: plaka değeri + (varsa) aracın ikinci el değeri
+  const taxi = taxis.reduce(
+    (a, tx) => a + CONFIG.taxiPlateCost + (tx.hasCar ? CONFIG.taxiCarCost * 0.8 : 0),
+    0,
+  )
+  // Kiralık araç: satış değeriyle aynı formül (yıpranma düşer)
+  const rental = rentals.reduce(
+    (a, r) => a + CONFIG.rentalCarCost * Math.max(0.4, 1 - r.wear / 180),
+    0,
+  )
+  return Math.round(money + fleetAssetValue(vehicles, rep) + dep + taxi + rental - debt)
+}
+
 // Günlük istatistik biriktiricileri (kalıcı değil, gün dönümünde tarihe yazılır)
-export type DayStats = { day: number; income: Record<string, number>; expense: number }
+// netWorth: gün kapanışındaki net varlık (eski kayıtlarda olmayabilir)
+export type DayStats = { day: number; income: Record<string, number>; expense: number; netWorth?: number }
 let dayIncome: Record<string, number> = {}
 let dayExpense = 0
 function trackIncome(src: string, amt: number) {
@@ -1929,7 +1955,12 @@ export const useGame = create<GameState>((set, get) => ({
       if (specialDay) pushToast(t.specialDayToast[specialDay])
       statsHistory = [
         ...statsHistory,
-        { day: day - 1, income: dayIncome, expense: dayExpense },
+        {
+          day: day - 1,
+          income: dayIncome,
+          expense: dayExpense,
+          netWorth: netWorthOf(money, s.vehicles, rep, deposits, s.debts, s.taxis, rentals),
+        },
       ].slice(-14)
       dayIncome = {}
       dayExpense = 0
