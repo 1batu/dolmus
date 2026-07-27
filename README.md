@@ -106,3 +106,4 @@ npm run dev
 31. **Net varlık grafiği** — kasa + filo değeri + mevduat − borç; İstatistik sekmesine tek çizgi
 32. **Skor kartı paylaşımı + Yayın** — tek tuşla şık skor görseli + Vercel deploy → oynanabilir link (oyun paylaşılabilir olmadan twit tam vurmaz); sonrasında Capacitor ile mağaza
 33. **Onboarding** — ilk oyuncu rehberi
+34. **Google ile giriş + bulut kayıt** — Google hesabıyla oturum aç, oyun kaydı Google altyapısında tutulsun (Firebase Auth + Firestore): localStorage tek gerçek kaynak olmaktan çıkar, mevcut kayıt ilk girişte buluta taşınır, cihazlar arası senkron (telefonda başla masaüstünde devam et), hesap silinirse anonim moda düş
