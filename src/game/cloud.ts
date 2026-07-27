@@ -102,8 +102,11 @@ async function flush() {
   if (!db || !user || !payload) return
   useCloud.setState({ status: 'syncing' })
   try {
+    // Kayıt tek JSON metni olarak yazılır: Firestore doküman alanlarında
+    // undefined kabul etmez (senetlerin opsiyonel alanları invalid-argument
+    // veriyordu) ve iç içe tip kısıtları da böyle tamamen aşılır
     await setDoc(doc(db, 'saves', user.uid), {
-      payload,
+      data: JSON.stringify(payload),
       savedAt: payload.savedAt ?? Date.now(),
       day: payload.day ?? 0,
       money: payload.money ?? 0,
@@ -122,11 +125,21 @@ export function pushCloudSave(payload: Record<string, unknown>) {
   timer ??= setTimeout(flush, CLOUD_WRITE_INTERVAL)
 }
 
+// Buluttaki dokümandan kayıt metnini çıkar ('data' yeni biçim, 'payload' ilk
+// sürümün nesne biçimi)
+function rawFromDoc(d: Record<string, unknown> | undefined): string | null {
+  if (!d) return null
+  if (typeof d.data === 'string') return d.data
+  if (d.payload) return JSON.stringify(d.payload)
+  return null
+}
+
 // Yerel kaydı buluttakiyle değiştirip oyunu yeniden yükler: kısmi hidrasyon
 // hatalarına yer bırakmaz, mevcut yükleme yolu aynen çalışır
-function applyCloudPayload(payload: unknown) {
+function applyCloudRaw(raw: string | null) {
+  if (!raw) return
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(payload))
+    localStorage.setItem(SAVE_KEY, raw)
   } catch {
     return
   }
@@ -160,7 +173,7 @@ export function resolveConflict(pick: 'cloud' | 'local') {
       const user = useCloud.getState().user
       if (!db || !user) return
       const snap = await getDoc(doc(db, 'saves', user.uid))
-      applyCloudPayload(snap.data()?.payload)
+      applyCloudRaw(rawFromDoc(snap.data()))
     })()
   } else {
     // Yerel kayıt kazanır: hemen buluta yaz
@@ -184,8 +197,9 @@ async function reconcile(uid: string) {
     fail('getDoc', e)
     return
   }
-  const cloudPayload = cloudDoc.data()?.payload
-  if (!cloudPayload) {
+  const cloudRaw = rawFromDoc(cloudDoc.data())
+  if (!cloudRaw) {
+    // Bulutta kayıt yok: yereli yükle
     if (local) {
       pending = local
       void flush()
@@ -193,10 +207,19 @@ async function reconcile(uid: string) {
     return
   }
   if (!local) {
-    applyCloudPayload(cloudPayload)
+    applyCloudRaw(cloudRaw)
     return
   }
-  const c = summarize(cloudPayload)
+  let cloudParsed: unknown
+  try {
+    cloudParsed = JSON.parse(cloudRaw)
+  } catch {
+    // Bozuk bulut kaydı: yereli doğru kabul et
+    pending = local
+    void flush()
+    return
+  }
+  const c = summarize(cloudParsed)
   const l = summarize(local)
   // 30 sn eşiği: aynı oturumun kendi yazması çakışma sayılmasın
   if (Math.abs(c.savedAt - l.savedAt) < 30000) {
