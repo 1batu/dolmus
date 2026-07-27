@@ -36,6 +36,7 @@ const DAY_SUN = new THREE.Color('#ffffff')
 const NIGHT_SUN = new THREE.Color('#5a6fa8')
 const DUSK_SUN = new THREE.Color('#ffb46b')
 const RAIN_SKY = new THREE.Color('#78838f')
+const SNOW_SKY = new THREE.Color('#c2ccd4')
 
 // 0 = gece, 1 = gündüz; 05-07 şafak, 18-21 gün batımı
 function dayFactor(hour: number): number {
@@ -103,14 +104,15 @@ function DayNight() {
   const scene = useThree((s) => s.scene)
   const sky = useMemo(() => new THREE.Color(), [])
 
-  useFrame(() => {
+  useFrame((_, dt) => {
     const st = useGame.getState()
     const { hour } = clockOf(st.time)
     const f = dayFactor(hour)
     const raining = st.rainUntil > st.time
+    const snowing = st.snowUntil > st.time
 
     if (dir.current) {
-      dir.current.intensity = (0.12 + 1.28 * f) * (raining ? 0.7 : 1)
+      dir.current.intensity = (0.12 + 1.28 * f) * (raining ? 0.7 : snowing ? 0.8 : 1)
       // Alacakaranlıkta güneş turunculaşır
       const dusk = f > 0 && f < 1 ? Math.sin(f * Math.PI) : 0
       dir.current.color.lerpColors(NIGHT_SUN, DAY_SUN, f).lerp(DUSK_SUN, dusk * 0.6)
@@ -119,10 +121,16 @@ function DayNight() {
     if (hemi.current) hemi.current.intensity = 0.12 + 0.38 * f
     sky.lerpColors(NIGHT_SKY, DAY_SKY, f)
     if (raining) sky.lerp(RAIN_SKY, 0.45)
+    if (snowing) sky.lerp(SNOW_SKY, 0.6)
     scene.background = sky
-    // Uzaklık sisi: sahneye derinlik katar, gökyüzüyle aynı tona akar
+    // Uzaklık sisi: sahneye derinlik katar, gökyüzüyle aynı tona akar.
+    // Karda sis çöker: görüş mesafesi daralır (yumuşak geçiş)
     if (!scene.fog) scene.fog = new THREE.Fog(sky, 130, 320)
-    ;(scene.fog as THREE.Fog).color.copy(sky)
+    const fog = scene.fog as THREE.Fog
+    fog.color.copy(sky)
+    const ease = Math.min(1, dt * 0.8)
+    fog.near += ((snowing ? 40 : 130) - fog.near) * ease
+    fog.far += ((snowing ? 170 : 320) - fog.far) * ease
   })
 
   return (
@@ -186,6 +194,60 @@ function RainFX() {
   })
   return (
     <points ref={points} visible={false} material={rainMat}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[data.positions, 3]} />
+      </bufferGeometry>
+    </points>
+  )
+}
+
+// Kar: yavaş süzülen, rüzgarda salınan beyaz taneler + buzlanan asfalt + sis
+// (sis DayNight içinde, yol beyazlaması burada)
+function SnowFX() {
+  const points = useRef<THREE.Points>(null)
+  const N = 550
+  const data = useMemo(() => {
+    const positions = new Float32Array(N * 3)
+    const speeds = new Float32Array(N)
+    const phases = new Float32Array(N)
+    for (let i = 0; i < N; i++) {
+      positions[i * 3] = -80 + Math.random() * 170
+      positions[i * 3 + 1] = Math.random() * 42
+      positions[i * 3 + 2] = -28 + Math.random() * 60
+      speeds[i] = 3.5 + Math.random() * 3
+      phases[i] = Math.random() * Math.PI * 2
+    }
+    return { positions, speeds, phases }
+  }, [])
+  const snowMat = useMemo(
+    () =>
+      new THREE.PointsMaterial({ color: '#ffffff', size: 0.26, transparent: true, opacity: 0.85 }),
+    [],
+  )
+  useFrame(({ clock: threeClock }, dt) => {
+    const s = useGame.getState()
+    const snowing = s.snowUntil > s.time
+    if (points.current) points.current.visible = snowing
+    // Buzlanan asfalt: renk kırağı beyazına kayar (yağmurun ıslaklığından farklı)
+    const ease = Math.min(1, dt * 1.5)
+    const c = roadMaterial.color
+    c.r += ((snowing ? 0.82 : 1) - c.r) * ease
+    c.g += ((snowing ? 0.84 : 1) - c.g) * ease
+    c.b += ((snowing ? 0.87 : 1) - c.b) * ease
+    if (!snowing || !points.current) return
+    const et = threeClock.elapsedTime
+    const pos = points.current.geometry.getAttribute('position') as THREE.BufferAttribute
+    for (let i = 0; i < N; i++) {
+      let y = pos.getY(i) - data.speeds[i] * dt
+      if (y < 0) y = 40 + Math.random() * 4
+      pos.setY(i, y)
+      // Rüzgar salınımı: tane yatayda hafifçe sürüklenir
+      pos.setX(i, pos.getX(i) + Math.sin(et * 0.8 + data.phases[i]) * dt * 1.2)
+    }
+    pos.needsUpdate = true
+  })
+  return (
+    <points ref={points} visible={false} material={snowMat}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[data.positions, 3]} />
       </bufferGeometry>
@@ -904,6 +966,7 @@ export function World() {
       <DayNight />
       <NightLights />
       <RainFX />
+      <SnowFX />
 
       {/* Zemin */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>

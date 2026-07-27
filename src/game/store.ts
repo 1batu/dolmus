@@ -915,6 +915,7 @@ type GameState = {
   streak: number // art arda oynanan gerçek gün sayısı
   lastPlayDate: string
   rainUntil: number // yağmur bitiş zamanı (oyun sn)
+  snowUntil: number // kar/sis bitiş zamanı (oyun sn)
   korsanUntil: number // korsan dolmuş bitiş zamanı
   prestige: number // devir sayısı: kalıcı bonuslar
   offlineEarned: number // açılışta gösterilen "sen yokken" kazancı (kalıcı değil)
@@ -1018,6 +1019,7 @@ function initialState() {
     streak: 1,
     lastPlayDate: localDateStr(),
     rainUntil: 0,
+    snowUntil: 0,
     korsanUntil: 0,
     prestige: 0,
     offlineEarned: 0,
@@ -1888,7 +1890,7 @@ export const useGame = create<GameState>((set, get) => ({
     // Gece simülasyon hızlanır: saat, araçlar, yolcular — her şey aynı çarpanla
     if (clockOf(s.time).hour < CONFIG.nightEndHour) dt *= CONFIG.nightTimeScale
     const time = s.time + dt
-    let { money, totalCarried, queue, spawnTimer, wageDay, rep, task, taskDay, bufeToday, rivalRespawn, charter, contractOffer, rainUntil, korsanUntil, celebrateAt, fuelPrice, fare } = s
+    let { money, totalCarried, queue, spawnTimer, wageDay, rep, task, taskDay, bufeToday, rivalRespawn, charter, contractOffer, rainUntil, snowUntil, korsanUntil, celebrateAt, fuelPrice, fare } = s
     let contracts = s.contracts
     let statsHistory = s.statsHistory
     let deposits = s.deposits
@@ -2290,6 +2292,7 @@ export const useGame = create<GameState>((set, get) => ({
         (buildings.hat2 ? 1 + CONFIG.hat2SpawnBonus : 1)
       const weatherFactor =
         (time < rainUntil ? CONFIG.rainSpawnFactor : 1) *
+        (time < snowUntil ? CONFIG.snowSpawnFactor : 1) *
         (time < korsanUntil ? CONFIG.korsanSpawnFactor : 1) *
         // Özel gün: maç akşamı yolcu patlar, bayramda ayak seyrekleşir
         (special === 'mac' && clock.hour >= 16 ? 0.5 : 1) *
@@ -2703,10 +2706,13 @@ export const useGame = create<GameState>((set, get) => ({
                     CONFIG.driverSkillFuelBonus *
                       ((v.driverMoral < CONFIG.moralLowThreshold ? 1 : v.driverSkill) - 1)),
             )
-            // Eski kasa (devren) daha hızlı yıpranır
+            // Eski kasa (devren) daha hızlı yıpranır; karda yol kaygan, yıpranma artar
             v.wear = Math.min(
               100,
-              v.wear + specOf(v.kind).wearPerTrip * (v.old ? CONFIG.oldBusWearFactor : 1),
+              v.wear +
+                specOf(v.kind).wearPerTrip *
+                  (v.old ? CONFIG.oldBusWearFactor : 1) *
+                  (time < snowUntil ? CONFIG.snowWearFactor : 1),
             )
             pushToast(t.departed(v.plate, v.passengers, tripFare))
             v.state = 'departing'
@@ -2939,8 +2945,14 @@ export const useGame = create<GameState>((set, get) => ({
             pushToast(t.tireBlow(vehicles[idx].plate))
           }
         } else if (roll === 2) {
-          rainUntil = time + CONFIG.rainDuration
-          pushToast(t.rainStart)
+          // Hava: çoğu kez yağmur, bazen kar bastırır (sis çöker, yol kayganlaşır)
+          if (Math.random() < 0.35) {
+            snowUntil = time + CONFIG.snowDuration
+            pushToast(t.snowStart)
+          } else {
+            rainUntil = time + CONFIG.rainDuration
+            pushToast(t.rainStart)
+          }
         } else {
           korsanUntil = time + CONFIG.korsanDuration
           pushToast(t.korsanStart)
@@ -3076,7 +3088,7 @@ export const useGame = create<GameState>((set, get) => ({
       })
     }
 
-    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay, bufeToday, rivals, rivalRespawn, charter, contracts, contractOffer, rainUntil, korsanUntil, celebrateAt, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, driverMarket, rentals, specialDay, specialDayFor })
+    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay, bufeToday, rivals, rivalRespawn, charter, contracts, contractOffer, rainUntil, snowUntil, korsanUntil, celebrateAt, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, driverMarket, rentals, specialDay, specialDayFor })
 
     // ~2.5 sn'de bir kaydet — her frame localStorage'a yazmak gereksiz
     saveAcc += dt

@@ -267,6 +267,9 @@ export const CONFIG = {
   tireBlowWear: 18, // lastik patlaması yıpranması (%)
   rainDuration: 45, // sn
   rainSpawnFactor: 0.55, // yağmurda yolcu aralığı çarpanı (daha sık)
+  snowDuration: 75, // sn — kar yağmurdan uzun sürer
+  snowSpawnFactor: 0.8, // karda yolcu aralığı çarpanı (soğukta dolmuşa binen artar)
+  snowWearFactor: 1.7, // karda sefer başına yıpranma çarpanı (kaygan yol)
   korsanDuration: 40, // sn
   korsanSpawnFactor: 1.6, // korsan varken yolcu aralığı çarpanı (seyrek)
 

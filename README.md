@@ -98,7 +98,7 @@ npm run dev
 
 ### Kalan — Takvim & atmosfer
 27. ~~**Özel günler**~~ ✅ — her sabah zar atılır (%12 derbi, %8 okul açılışı, %5 bayram), üst barda "BUGÜN" çipi + sabah duyurusu. Derbi: akşam 16:00 sonrası yolcu 2×, servis teklifleri sık ve ×1,5 dolgun, zabıta sahada. Bayram: yarım tarife ama itibar 2 kat. Okul açılışı: öğrenci oranı 3×, okul servisi kontratları sık ve +%20
-28. **Kar + sis** — yağmur altyapısı hazır, kış görselleri kolay; karda kaza riski artar (sigortayla birleşir)
+28. ~~**Kar + sis**~~ ✅ — hava olayı zarına kar eklendi (%35 kar / %65 yağmur): yavaş süzülen rüzgarda salınan taneler, beyazlaşan gök, çöken sis (görüş 320→170), kırağılı asfalt; oyun etkisi: yolcu +%25 sıklık, kaygan yolda sefer yıpranması ×1,7
 29. **Minibüs radyosu** — WebAudio ile hafif arabesk-vari loop + klakson kültürü, sessize almaya bağlı
 
 ### Kalan — Cila & meta

@@ -296,6 +296,7 @@ const dicts = {
     zabitaClean: 'Zabıta denetimi temiz geçti — itibar arttı',
     tireBlow: (plate: string) => `${plate} lastik patlattı — yıpranma arttı`,
     rainStart: 'Yağmur başladı — durağa yolcu akıyor!',
+    snowStart: 'Kar bastırdı — sis çöktü, yollar kaygan!',
     korsanStart: 'Korsan dolmuş türedi — yolcu akışı yavaşladı',
     milestone: (name: string, reward: number) => `${name}! Ödül: +₺${fmt(reward)}`,
     milestoneNames: {
@@ -662,6 +663,7 @@ const dicts = {
     zabitaClean: 'Inspection passed clean — reputation up',
     tireBlow: (plate: string) => `${plate} blew a tire — wear increased`,
     rainStart: 'Rain started — passengers flooding in!',
+    snowStart: 'Snow is falling — fog rolls in, roads are slick!',
     korsanStart: 'Pirate dolmuş around — passenger flow slowed',
     milestone: (name: string, reward: number) => `${name}! Reward: +₺${fmt(reward)}`,
     milestoneNames: {
