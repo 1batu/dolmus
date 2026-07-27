@@ -19,6 +19,7 @@ Idle/tycoon game about running a Turkish dolmuş (shared minibus) terminal. Web-
 | 📢 Özel servisler | **Sprinteri olana** gündüz ekran ortasına mesafeli teklif düşer (düğün/havalimanı/maç/okul/piknik, 5-60 km): fiyat-süre-masraf mesafeyle ölçekli, 40 sn içinde kabul edilmezse uçar. Parktaki veya dönüşteki araç atanır |
 | 🚐 Servis Sprinteri | Kontrat işine adanmış panelvan (₺1,25M, "34 S" plaka): hat/peron işine girmez, okul-fabrika kontrat seferlerine öncelikli çıkar (%40 düşük masraf + ödemeye %20 konfor primi), boşken özel servis tekliflerini kapar. Şoförlü her sprinter +1 kontrat slotu açar (azami +4) |
 | 🪪 Plakalar | Her araç kalıcı "34 M XXXX" plakası taşır — kartlarda gerçek plaka görünümü (TR bandı), 3D modelde ön/arka tampon dokusu, devren alınan araç rakibin plakasını getirir |
+| 🛡 Filo sigortası | Tesisler'de üç kademe: **Poliçe yok** (zabıta cezası ×1,8, temiz denetimde bile poliçesizlik cezası, tüm hasar senden), **Trafik/zorunlu** (₺900/araç/gün × sınıf katsayısı), **Kasko** (₺2.600/araç/gün): kaza yıpranmasının %70'i ve ağır arıza faturasının %70'i sigortadan. Prim her akşam yevmiyelerle düşer, ortaklı araçta payın kadar |
 | ⛽ Pompa & planlı bakım | "Doldur" basınca araç fiilen terminaldeki pompaya sürer. Araç seferdeyken basılırsa ⏳ planlanır, parka dönünce uygulanır |
 | 📈 Filo talebi | Şoförlü araç başına: yolcu gelişi +%25, kuyruk kapasitesi +6, hat indi-bindisi +%10 |
 | 🗂 Kompakt filo kartları | Alt şeritte plaka + durum + barlar; tıklayınca tek kart genişleyip tüm yönetimi açar |

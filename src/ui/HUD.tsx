@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useGame, BANKS, BUILDING_COSTS, MILESTONES, MOD_COSTS, TUTORIAL_DONE, bankLimitOf, capacityOf, fleetAssetValue, netWorthOf, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
+import { useGame, BANKS, BUILDING_COSTS, MILESTONES, MOD_COSTS, TUTORIAL_DONE, bankLimitOf, capacityOf, fleetAssetValue, insuranceDailyOf, netWorthOf, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
 import { CONFIG, VEHICLE_SPECS, clockOf, contractSlotsOf, queueCapOf } from '../game/config'
 import { SPRINTER_LOT } from '../game/paths'
 import {
@@ -17,6 +17,7 @@ import {
   PartyPopper,
   Plane,
   School,
+  ShieldCheck,
   Target,
   Trash2,
   TreePine,
@@ -979,6 +980,12 @@ export function HUD() {
   const hireFromMarket = useGame((s) => s.hireFromMarket)
   const statsHistory = useGame((s) => s.statsHistory)
   const milestonesKey = useGame((s) => s.milestonesDone.join(','))
+  const insurance = useGame((s) => s.insurance)
+  const setInsurance = useGame((s) => s.setInsurance)
+  // Poliçe kademelerinin günlük primi: filo büyüdükçe artar
+  const premiumDaily = useGame((s) => insuranceDailyOf(s.insurance, s.vehicles))
+  const trafikDaily = useGame((s) => insuranceDailyOf('trafik', s.vehicles))
+  const kaskoDaily = useGame((s) => insuranceDailyOf('kasko', s.vehicles))
   // Canlı net varlık: kasa + filo + mevduat + taksi/kiralık − borç
   const netWorthNow = useGame((s) =>
     netWorthOf(s.money, s.vehicles, s.rep, s.deposits, s.debts, s.taxis, s.rentals),
@@ -1635,6 +1642,53 @@ export function HUD() {
                     </ModalCard>
                   ))}
                 </>
+              )}
+              {buildTab === 'tesis' && (
+                <ModalCard
+                  icon={<ShieldCheck className={`h-7 w-7 ${insurance === 'none' ? 'text-[#adbac2]' : insurance === 'kasko' ? 'text-emerald-600' : 'text-sky-600'}`} />}
+                  title={t.insuranceTitle}
+                  badge={
+                    insurance === 'none'
+                      ? t.insuranceNone
+                      : `${insurance === 'kasko' ? t.insuranceKasko : t.insuranceTrafik} · ${t.insuranceDaily(premiumDaily)}`
+                  }
+                  badgeClass={
+                    insurance === 'none'
+                      ? 'bg-red-400/15 text-red-600'
+                      : insurance === 'kasko'
+                        ? 'bg-emerald-400/15 text-emerald-600'
+                        : 'bg-sky-400/15 text-sky-600'
+                  }
+                  desc={t.insuranceDesc}
+                >
+                  <div className="mb-0.5 text-center text-[10px] font-bold leading-tight text-[#7f929e]">
+                    {insurance === 'none'
+                      ? t.insuranceNoneWarn
+                      : insurance === 'kasko'
+                        ? t.insuranceKaskoNote
+                        : t.insuranceTrafikNote}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <MiniButton
+                      label={t.insuranceNone}
+                      enabled={insurance !== 'none'}
+                      active={insurance === 'none'}
+                      onClick={() => setInsurance('none')}
+                    />
+                    <MiniButton
+                      label={`${t.insuranceTrafik} ${t.insuranceDaily(trafikDaily)}`}
+                      enabled={insurance !== 'trafik'}
+                      active={insurance === 'trafik'}
+                      onClick={() => setInsurance('trafik')}
+                    />
+                    <MiniButton
+                      label={`${t.insuranceKasko} ${t.insuranceDaily(kaskoDaily)}`}
+                      enabled={insurance !== 'kasko'}
+                      active={insurance === 'kasko'}
+                      onClick={() => setInsurance('kasko')}
+                    />
+                  </div>
+                </ModalCard>
               )}
               {buildTab === 'tesis' &&
                 (Object.keys(BUILDING_ICONS) as BuildingKind[]).map((kind) => (

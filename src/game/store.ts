@@ -54,6 +54,18 @@ export function canServisRun(kind: VehicleKind): boolean {
   return kind !== 'vito'
 }
 
+// Sigorta kademesi: yok / zorunlu trafik / kasko (filo geneli poliçe)
+export type InsuranceTier = 'none' | 'trafik' | 'kasko'
+
+// Günlük prim: araç sınıfı primi büyütür, ortaklı araçta payın kadarını ödersin
+export function insuranceDailyOf(tier: InsuranceTier, vehicles: Vehicle[]): number {
+  if (tier === 'none') return 0
+  const base = tier === 'kasko' ? CONFIG.kaskoDailyPerVehicle : CONFIG.trafikDailyPerVehicle
+  return Math.round(
+    vehicles.reduce((sum, v) => sum + base * specOf(v.kind).repairMult * (v.share / 100), 0),
+  )
+}
+
 // Pompa birim fiyatı: elektrikli şebekeden (güneş varsa depodan) şarj olur,
 // dizel araçlar yakıt tankı varsa toptan fiyattan, LPG'li araç otogaz fiyatından doldurur
 export function fuelUnitPrice(
@@ -595,11 +607,12 @@ type SavedFields = Pick<
   | 'specialDay'
   | 'specialDayFor'
   | 'tutorialStep'
+  | 'insurance'
 >
 
 function persist(s: SavedFields) {
   try {
-    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, streak, lastPlayDate, rentalOffice, rentals, perons, specialDay, specialDayFor, tutorialStep } = s
+    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, streak, lastPlayDate, rentalOffice, rentals, perons, specialDay, specialDayFor, tutorialStep, insurance } = s
     localStorage.setItem(
       SAVE_KEY,
       JSON.stringify({
@@ -642,6 +655,7 @@ function persist(s: SavedFields) {
         specialDay,
         specialDayFor,
         tutorialStep,
+        insurance,
       }),
     )
   } catch {
@@ -787,6 +801,9 @@ function loadSave(): Partial<GameState> | null {
       specialDayFor: Number.isFinite(d.specialDayFor) ? d.specialDayFor : 0,
       // Süregelen kayıtta rehber gösterilmez: oyuncu oyunu zaten biliyor
       tutorialStep: Number.isFinite(d.tutorialStep) ? d.tutorialStep : TUTORIAL_DONE,
+      insurance: (['none', 'trafik', 'kasko'] as const).includes(d.insurance)
+        ? (d.insurance as InsuranceTier)
+        : 'none',
       // Eski kayıt: sayı olarak tutulan filo, plakalı gerçek araçlara çevrilir
       rentals: Array.isArray(d.rentals)
         ? d.rentals.map((r: Partial<Rental>) => ({
@@ -921,6 +938,8 @@ type GameState = {
   takeBankLoan: (bankIdx: number, amount: number) => void
   streak: number // art arda oynanan gerçek gün sayısı
   lastPlayDate: string
+  insurance: InsuranceTier // filo poliçesi: primi her akşam düşer
+  setInsurance: (tier: InsuranceTier) => void
   tutorialStep: number // açılış rehberi adımı; TUTORIAL_DONE = bitti/atlandı
   tutorialAdvance: (step: number) => void // adımı tamamla (yalnız ileri gider)
   tutorialSkip: () => void
@@ -1029,6 +1048,7 @@ function initialState() {
     specialDayFor: 0,
     streak: 1,
     lastPlayDate: localDateStr(),
+    insurance: 'none' as InsuranceTier,
     tutorialStep: 0,
     rainUntil: 0,
     snowUntil: 0,
@@ -1758,6 +1778,8 @@ export const useGame = create<GameState>((set, get) => ({
   tutorialSkip: () => set({ tutorialStep: TUTORIAL_DONE }),
   replayTutorial: () => set({ tutorialStep: 0 }),
 
+  setInsurance: (tier: InsuranceTier) => set({ insurance: tier }),
+
   openDeposit: (bankIdx: number, amount: number, termIdx: number) => {
     const s = get()
     const bank = BANKS[bankIdx]
@@ -1920,7 +1942,7 @@ export const useGame = create<GameState>((set, get) => ({
     let missedPayDays = s.missedPayDays
     let hacizPending = false
     let moralDecayNow = 0
-    const { buildings } = s
+    const { buildings, insurance } = s
 
     const clock = clockOf(time)
     const day = clock.day
@@ -2071,6 +2093,13 @@ export const useGame = create<GameState>((set, get) => ({
       money -= wages
       trackExpense(wages)
       pushToast(t.wagesPaid(wages))
+      // Sigorta primi: poliçe varsa yevmiyelerle aynı akşam düşer
+      const premium = insuranceDailyOf(insurance, s.vehicles)
+      if (premium > 0) {
+        money -= premium
+        trackExpense(premium)
+        pushToast(t.premiumPaid(premium))
+      }
       // Moral günlük yıpranır; çay ocağı varsa yarı hızda (araç döngüsünde uygulanır)
       moralDecayNow =
         CONFIG.moralDecayPerDay * (buildings.cayOcagi ? CONFIG.moralDecayCayFactor : 1)
@@ -2926,13 +2955,22 @@ export const useGame = create<GameState>((set, get) => ({
             (v) => v.state === 'onTrip' || v.state === 'departing' || v.state === 'returning',
           )
           if (idx >= 0) {
+            // Kaskoluysa hasarın çoğu şirkette kalır, itibar bedeli değişmez
+            const kasko = insurance === 'kasko'
+            const dmg = Math.round(
+              CONFIG.slipWear * (kasko ? CONFIG.kaskoDamageFactor : 1),
+            )
             vehicles[idx] = {
               ...vehicles[idx],
-              wear: Math.min(100, vehicles[idx].wear + CONFIG.slipWear),
+              wear: Math.min(100, vehicles[idx].wear + dmg),
             }
             rep = clampRep(rep - CONFIG.slipRepPenalty)
             pushToast(
-              time < snowUntil ? t.snowSlip(vehicles[idx].plate) : t.rainSlip(vehicles[idx].plate),
+              kasko
+                ? t.slipKasko(vehicles[idx].plate)
+                : time < snowUntil
+                  ? t.snowSlip(vehicles[idx].plate)
+                  : t.rainSlip(vehicles[idx].plate),
             )
           }
         }
@@ -2949,11 +2987,13 @@ export const useGame = create<GameState>((set, get) => ({
             )
             if (idx >= 0) {
               const days = 2 + Math.floor(rand(0, 2))
+              // Kasko ağır arıza faturasının çoğunu karşılar
               const bill = Math.ceil(
                 CONFIG.repairCostPerUnit *
                   60 *
                   specOf(vehicles[idx].kind).repairMult *
-                  (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
+                  (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1) *
+                  (insurance === 'kasko' ? 1 - CONFIG.kaskoBreakdownCover : 1),
               )
               money -= bill
               trackExpense(bill)
@@ -2973,13 +3013,30 @@ export const useGame = create<GameState>((set, get) => ({
                 v.passengers > specOf(v.kind).seats &&
                 (v.state === 'departing' || v.state === 'onTrip'),
             )
+            // Zorunlu trafik sigortası yoksa denetim ağır biter: ceza katlanır,
+            // temiz araçta bile poliçesizlik cezası yazılır
+            const uninsured = insurance === 'none'
             if (overloaded) {
               const standing = overloaded.passengers - specOf(overloaded.kind).seats
-              const fine = standing * CONFIG.zabitaFinePerStanding
+              const fine = Math.round(
+                standing *
+                  CONFIG.zabitaFinePerStanding *
+                  (uninsured ? CONFIG.uninsuredFineFactor : 1),
+              )
               money -= fine
               trackExpense(fine)
               rep = clampRep(rep - 0.1)
-              pushToast(t.zabitaFine(overloaded.plate, fine))
+              pushToast(
+                uninsured
+                  ? t.zabitaFineUninsured(overloaded.plate, fine)
+                  : t.zabitaFine(overloaded.plate, fine),
+              )
+            } else if (uninsured && vehicles.length > 0) {
+              const fine = Math.round(CONFIG.zabitaFinePerStanding * CONFIG.uninsuredFineFactor)
+              money -= fine
+              trackExpense(fine)
+              rep = clampRep(rep - 0.05)
+              pushToast(t.zabitaNoPolicy(fine))
             } else {
               rep = clampRep(rep + CONFIG.zabitaCleanRep)
               pushToast(t.zabitaClean)

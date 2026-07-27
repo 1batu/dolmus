@@ -275,6 +275,14 @@ export const CONFIG = {
   rainSlipChance: 0.18,
   slipWear: 22, // kaymada yıpranma (%)
   slipRepPenalty: 0.05, // kazanın itibar bedeli
+
+  // Sigorta: filo geneli poliçe, primi her akşam yevmiyelerle düşer.
+  // Araç sınıfı primi büyütür (repairMult değer göstergesi olarak kullanılır)
+  trafikDailyPerVehicle: 900, // zorunlu trafik sigortası günlük prim (₺/araç)
+  kaskoDailyPerVehicle: 2600, // kasko günlük prim (₺/araç)
+  kaskoDamageFactor: 0.3, // kaskoluysa kaza yıpranmasının kalan payı (%70 karşılanır)
+  kaskoBreakdownCover: 0.7, // ağır arıza faturasının kasko payı
+  uninsuredFineFactor: 1.8, // sigortasız yakalanınca zabıta cezası çarpanı
   korsanDuration: 40, // sn
   korsanSpawnFactor: 1.6, // korsan varken yolcu aralığı çarpanı (seyrek)
 

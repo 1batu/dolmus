@@ -333,6 +333,23 @@ const dicts = {
     snowStart: 'Kar bastırdı — sis çöktü, yollar kaygan!',
     snowSlip: (plate: string) => `${plate} karda kaydı — hasar aldı, itibar sarsıldı`,
     rainSlip: (plate: string) => `${plate} ıslak zeminde kaydı — hasar aldı`,
+    slipKasko: (plate: string) => `${plate} kaydı ama kasko hasarı karşıladı`,
+    premiumPaid: (amount: number) => `Sigorta primi: -₺${fmt(amount)}`,
+    zabitaFineUninsured: (plate: string, fine: number) =>
+      `Zabıta! ${plate} sigortasız ve ayakta yolcu taşıyor: -₺${fmt(fine)}`,
+    zabitaNoPolicy: (fine: number) => `Zabıta! Trafik sigortası yok: -₺${fmt(fine)}`,
+    // Sigorta kartı
+    insuranceTitle: 'Filo Sigortası',
+    insuranceDesc:
+      'Poliçe filonun tamamını kapsar, primi her akşam yevmiyelerle düşer. Trafik zorunlu: yoksa zabıta cezası katlanır. Kasko kaza ve ağır arıza masrafını üstlenir.',
+    insuranceNone: 'Poliçe yok',
+    insuranceTrafik: 'Trafik (zorunlu)',
+    insuranceKasko: 'Kasko',
+    insuranceDaily: (amount: number) => `₺${fmt(amount)}/gün`,
+    insuranceActive: '✓ Yürürlükte',
+    insuranceNoneWarn: 'Poliçesiz: zabıta cezası ×1,8 ve tüm hasar senden',
+    insuranceTrafikNote: 'Zabıta cezası normal; kaza hasarı yine senden',
+    insuranceKaskoNote: 'Kaza hasarının %70’i ve ağır arıza faturasının %70’i sigortadan',
     korsanStart: 'Korsan dolmuş türedi — yolcu akışı yavaşladı',
     milestone: (name: string, reward: number) => `${name}! Ödül: +₺${fmt(reward)}`,
     milestoneNames: {
@@ -736,6 +753,22 @@ const dicts = {
     snowStart: 'Snow is falling — fog rolls in, roads are slick!',
     snowSlip: (plate: string) => `${plate} skidded in the snow — damaged, reputation hit`,
     rainSlip: (plate: string) => `${plate} skidded on wet asphalt — damaged`,
+    slipKasko: (plate: string) => `${plate} skidded but the policy covered the damage`,
+    premiumPaid: (amount: number) => `Insurance premium: -₺${fmt(amount)}`,
+    zabitaFineUninsured: (plate: string, fine: number) =>
+      `Inspection! ${plate} is uninsured and overloaded: -₺${fmt(fine)}`,
+    zabitaNoPolicy: (fine: number) => `Inspection! No liability insurance: -₺${fmt(fine)}`,
+    insuranceTitle: 'Fleet Insurance',
+    insuranceDesc:
+      'A policy covers the whole fleet; the premium is deducted each evening with wages. Liability is mandatory — without it fines multiply. Comprehensive absorbs accident and breakdown costs.',
+    insuranceNone: 'No policy',
+    insuranceTrafik: 'Liability (required)',
+    insuranceKasko: 'Comprehensive',
+    insuranceDaily: (amount: number) => `₺${fmt(amount)}/day`,
+    insuranceActive: '✓ Active',
+    insuranceNoneWarn: 'Uninsured: fines ×1.8 and every repair is on you',
+    insuranceTrafikNote: 'Normal fines; accident damage still on you',
+    insuranceKaskoNote: '70% of accident damage and major breakdown bills covered',
     korsanStart: 'Pirate dolmuş around — passenger flow slowed',
     milestone: (name: string, reward: number) => `${name}! Reward: +₺${fmt(reward)}`,
     milestoneNames: {
