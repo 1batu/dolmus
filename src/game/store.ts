@@ -2358,11 +2358,13 @@ export const useGame = create<GameState>((set, get) => ({
       }
     }
 
-    // Kontrat teklifleri: boş slot varsa gündüz arada bir düşer
-    if (contractOffer && contractOffer.expiresAt <= time) contractOffer = null
+    // Kontrat teklifleri: boş slot varsa gündüz arada bir düşer.
+    // Kontrat işi servis sprinterine bağlı: sprinteri olmayana teklif gelmez
+    if (contractOffer && (contractOffer.expiresAt <= time || !hasSprinter)) contractOffer = null
     if (
       !contractOffer &&
       !isNight &&
+      hasSprinter &&
       contracts.length <
         contractSlotsOf(
           s.vehicles.filter((v) => v.hasDriver).length,

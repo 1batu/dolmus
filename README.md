@@ -63,7 +63,7 @@ npm run dev
 
 ### Yeni iş kolları (gelir çeşitliliği)
 1. ~~**🖤 VIP transfer (Uber tarzı)**~~ ✅ — siyah minivan (₺900k, senetli olur): çağrı bazlı 3-40 km transferler, peron beklemez, gece de çalışır
-2. ~~**📑 Servis kontratları**~~ ✅ — okul/fabrika/otel/plaza: 30 günlük kontrat, her gün 07:00 ve 17:00 seferi (kaçarsa itibar cezası), sefer başına günlük ödemenin yarısı akşam yatar
+2. ~~**📑 Servis kontratları**~~ ✅ — okul/fabrika/otel/plaza: 30 günlük kontrat, her gün 07:00 ve 17:00 seferi (kaçarsa itibar cezası), sefer başına günlük ödemenin yarısı akşam yatar. **Sprinter şartı**: kontrat teklifi yalnız servis sprinteri olan işletmeye düşer (sprintersiz Kontrat sekmesi bunu açıklar); sefere sprinter yoksa uygun başka araç da gönderilir
 3. ~~**🚕 Taksi işletmesi**~~ ✅ — plaka ₺11,5M (Tem 2026 gerçek borsa!): kirada ₺2.200/gün pasif ya da taksi al (₺750k) + işlet (₺6-12k/gün, sahnede sarı taksin dolaşır); maks 3 plaka
 4. ~~**🚐 Servis Sprinteri**~~ ✅ — kontrat/özel servis işine adanmış panelvan: +1 kontrat slotu, sefer masrafı düşük, ödemeye konfor primi
 

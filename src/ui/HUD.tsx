@@ -1706,7 +1706,14 @@ export function HUD() {
                     })}
                   {!contractOfferKey && !contractsKey && (
                     <div className="col-span-full py-6 text-center text-[11px] font-bold text-[#93a5af]">
-                      {t.noContracts}
+                      {sprinterCount === 0 ? (
+                        <span className="flex flex-col items-center gap-1.5">
+                          <School className="h-6 w-6 text-[#adbac2]" />
+                          <span className="max-w-xs leading-snug">{t.contractNeedSprinter}</span>
+                        </span>
+                      ) : (
+                        t.noContracts
+                      )}
                     </div>
                   )}
                 </>

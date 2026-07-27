@@ -162,6 +162,8 @@ const dicts = {
     contractIncome: (total: number) => `Kontrat geliri: +₺${fmt(total)}`,
     contractEnded: (name: string) => `${name} kontratı sona erdi`,
     noContracts: 'Aktif kontrat yok — teklif bekleniyor',
+    contractNeedSprinter:
+      'Kontrat işi servis sprinterine bağlı: Araçlar sekmesinden bir Servis Sprinteri alınca teklifler gelmeye başlar',
     tabTaxi: 'Taksi',
     buyTaxiPlate: 'Taksi Plakası',
     taxiPlateDesc: 'İstanbul taksi plakası — kirada pasif gelir, kendi taksinle daha fazlası',
@@ -561,6 +563,8 @@ const dicts = {
     contractIncome: (total: number) => `Contract income: +₺${fmt(total)}`,
     contractEnded: (name: string) => `${name} contract ended`,
     noContracts: 'No active contracts — waiting for offers',
+    contractNeedSprinter:
+      'Contract work runs on shuttle Sprinters: buy one from the Vehicles tab and offers start coming in',
     tabTaxi: 'Taxi',
     buyTaxiPlate: 'Taxi Plate',
     taxiPlateDesc: 'Istanbul taxi plate — passive rent income, or operate your own cab',
