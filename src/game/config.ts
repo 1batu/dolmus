@@ -283,6 +283,25 @@ export const CONFIG = {
   kaskoDamageFactor: 0.3, // kaskoluysa kaza yıpranmasının kalan payı (%70 karşılanır)
   kaskoBreakdownCover: 0.7, // ağır arıza faturasının kasko payı
   uninsuredFineFactor: 1.8, // sigortasız yakalanınca zabıta cezası çarpanı
+
+  // Araç muayenesi: dönemsel, yıpranma sınırı ve trafik sigortası şartlı
+  inspectionPeriod: 30, // gün — oyunun "yılı" (senetler de 30 günlük)
+  inspectionFee: 2200, // muayene ücreti (₺, araç sınıfıyla ölçeklenir)
+  inspectionMaxWear: 60, // bu yıpranmanın üstünde muayeneden çıkamaz
+  inspectionWarnDays: 5, // kaç gün kala arayüz uyarır
+  inspectionOverdueFine: 6500, // süresi geçmiş araç denetimde yakalanırsa ceza
+  inspectionOverdueRep: 0.08, // süresi geçmiş araç cezasının itibar bedeli
+  devrenInspectionDays: 4, // devren alınan kasanın muayenesi kapıda gelir
+
+  // Vergi: her dönem sonunda beyan. Muhasebeci yoksa "basit usul" ciro
+  // üzerinden, muhasebeciyle "gerçek usul" net kâr üzerinden hesaplanır —
+  // giderleri yazdırmak masrafı yüksek işletmede belirgin kazandırır
+  taxPeriodDays: 30,
+  taxGrossRate: 0.09, // muhasebecisiz: dönem cirosunun %9'u
+  taxNetRate: 0.15, // muhasebeciyle: (ciro - gider) %15'i
+  accountantDailyWage: 4200, // muhasebeci yevmiyesi
+  accountantScoreBonus: 0.6, // temiz günde kredi skoruna ek katkı
+  accountantHacizGraceDays: 2, // haciz eşiğine eklenen gün (kayıtlar düzgün)
   korsanDuration: 40, // sn
   korsanSpawnFactor: 1.6, // korsan varken yolcu aralığı çarpanı (seyrek)
 

@@ -119,6 +119,7 @@ export type Vehicle = {
   brokenUntilDay: number // ağır arıza: bu güne kadar tamirhanede (0 = sağlam)
   mods: VehicleMod[] // tek seferlik yükseltmeler: motor/lpg/klima/ses
   wrap: number // reklam giydirme: 0 = yok, 1+ = kampanya indeksi (gövde rengi değişir)
+  inspectionDay: number // muayenenin son günü; bu gün geçilince araç sigortasız sayılır
 }
 
 export type VehicleMod = 'engine' | 'lpg' | 'ac' | 'sound'
@@ -608,11 +609,15 @@ type SavedFields = Pick<
   | 'specialDayFor'
   | 'tutorialStep'
   | 'insurance'
+  | 'accountant'
+  | 'taxDay'
+  | 'taxIncomeAcc'
+  | 'taxExpenseAcc'
 >
 
 function persist(s: SavedFields) {
   try {
-    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, streak, lastPlayDate, rentalOffice, rentals, perons, specialDay, specialDayFor, tutorialStep, insurance } = s
+    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, streak, lastPlayDate, rentalOffice, rentals, perons, specialDay, specialDayFor, tutorialStep, insurance, accountant, taxDay, taxIncomeAcc, taxExpenseAcc } = s
     localStorage.setItem(
       SAVE_KEY,
       JSON.stringify({
@@ -656,6 +661,10 @@ function persist(s: SavedFields) {
         specialDayFor,
         tutorialStep,
         insurance,
+        accountant,
+        taxDay,
+        taxIncomeAcc,
+        taxExpenseAcc,
       }),
     )
   } catch {
@@ -748,6 +757,10 @@ function loadSave(): Partial<GameState> | null {
         brokenUntilDay: v.brokenUntilDay ?? 0,
         mods: v.mods ?? [],
         wrap: v.wrap ?? 0,
+        // Muayene sistemi öncesi kayıtlar: taze bir dönem tanınır, oyuncu
+        // açılışta hazırlıksız ceza yemesin
+        inspectionDay:
+          v.inspectionDay ?? clockOf(d.time ?? 0).day + CONFIG.inspectionPeriod,
         partners:
           v.partners ?? (v.share != null && v.share < 100 ? [{ name: genPartner(), pct: 100 - v.share }] : []),
       })),
@@ -804,6 +817,13 @@ function loadSave(): Partial<GameState> | null {
       insurance: (['none', 'trafik', 'kasko'] as const).includes(d.insurance)
         ? (d.insurance as InsuranceTier)
         : 'none',
+      accountant: d.accountant ?? false,
+      // Vergi sistemi öncesi kayıt: dönem bugünden başlar, geçmiş ciro vergilenmez
+      taxDay: Number.isFinite(d.taxDay)
+        ? d.taxDay
+        : clockOf(d.time ?? 0).day + CONFIG.taxPeriodDays,
+      taxIncomeAcc: Number.isFinite(d.taxIncomeAcc) ? d.taxIncomeAcc : 0,
+      taxExpenseAcc: Number.isFinite(d.taxExpenseAcc) ? d.taxExpenseAcc : 0,
       // Eski kayıt: sayı olarak tutulan filo, plakalı gerçek araçlara çevrilir
       rentals: Array.isArray(d.rentals)
         ? d.rentals.map((r: Partial<Rental>) => ({
@@ -878,7 +898,25 @@ function makeVehicle(
     brokenUntilDay: 0,
     mods: [],
     wrap: 0,
+    // Sıfır araç fabrika muayenesiyle gelir: ilk muayene bir dönem sonra
+    inspectionDay: CONFIG.inspectionPeriod,
   }
+}
+
+// Muayene damgası: araç filoya girdiği anda son geçerlilik günü yazılır.
+// Devren kasa kapıda muayeneyle gelir (days kısa verilir)
+function stampInspection(v: Vehicle, time: number, days = CONFIG.inspectionPeriod): Vehicle {
+  return { ...v, inspectionDay: clockOf(time).day + days }
+}
+
+// Muayenesi geçmiş mi? Süresi dolan araç denetimde ceza yazdırır
+export function inspectionOverdue(v: Vehicle, day: number): boolean {
+  return day > v.inspectionDay
+}
+
+// Muayene ücreti: araç sınıfı büyüdükçe artar
+export function inspectionFeeOf(v: Vehicle): number {
+  return Math.ceil(CONFIG.inspectionFee * specOf(v.kind ?? 'dolmus').repairMult)
 }
 
 // Sefere çıkabilir mi: yakıt yetmeli, bakım sınırına dayanmamış olmalı
@@ -940,6 +978,15 @@ type GameState = {
   lastPlayDate: string
   insurance: InsuranceTier // filo poliçesi: primi her akşam düşer
   setInsurance: (tier: InsuranceTier) => void
+  doInspection: (vehicleId: number) => void
+  accountant: boolean // muhasebeci tutuldu mu (yevmiyeli)
+  toggleAccountant: () => void
+  taxDay: number // sıradaki beyan günü
+  taxIncomeAcc: number // dönem cirosu
+  taxExpenseAcc: number // dönem gideri (muhasebeciyle yazdırılır)
+  // Dönem kapanış beyanı: modal olarak gösterilir, kapatılınca temizlenir
+  taxNotice: { day: number; amount: number; income: number; expense: number; net: boolean } | null
+  dismissTaxNotice: () => void
   tutorialStep: number // açılış rehberi adımı; TUTORIAL_DONE = bitti/atlandı
   tutorialAdvance: (step: number) => void // adımı tamamla (yalnız ileri gider)
   tutorialSkip: () => void
@@ -1049,6 +1096,11 @@ function initialState() {
     streak: 1,
     lastPlayDate: localDateStr(),
     insurance: 'none' as InsuranceTier,
+    accountant: false,
+    taxDay: CONFIG.taxPeriodDays,
+    taxIncomeAcc: 0,
+    taxExpenseAcc: 0,
+    taxNotice: null as GameState['taxNotice'],
     tutorialStep: 0,
     rainUntil: 0,
     snowUntil: 0,
@@ -1077,7 +1129,7 @@ export const useGame = create<GameState>((set, get) => ({
     const usedSpots = new Set(s.vehicles.filter((v) => v.kind !== 'sprinter').map((v) => v.spotIdx))
     let spotIdx = 0
     while (usedSpots.has(spotIdx)) spotIdx++
-    const veh = makeVehicle(no, spotIdx, false)
+    const veh = stampInspection(makeVehicle(no, spotIdx, false), s.time)
     const vehicles = [...s.vehicles, veh]
 
     if (mode === 'cash') {
@@ -1113,7 +1165,7 @@ export const useGame = create<GameState>((set, get) => ({
     const usedSpots = new Set(s.vehicles.filter((v) => v.kind !== 'sprinter').map((v) => v.spotIdx))
     let spotIdx = 0
     while (usedSpots.has(spotIdx)) spotIdx++
-    const veh = makeVehicle(s.vehicles.length + 1, spotIdx, false, undefined, 'vito')
+    const veh = stampInspection(makeVehicle(s.vehicles.length + 1, spotIdx, false, undefined, 'vito'), s.time)
     const vehicles = [...s.vehicles, veh]
 
     if (mode === 'cash') {
@@ -1151,7 +1203,7 @@ export const useGame = create<GameState>((set, get) => ({
     const usedSpots = new Set(sprinters.map((v) => v.spotIdx))
     let spotIdx = 0
     while (usedSpots.has(spotIdx)) spotIdx++
-    const veh = makeVehicle(s.vehicles.length + 1, spotIdx, false, undefined, 'sprinter')
+    const veh = stampInspection(makeVehicle(s.vehicles.length + 1, spotIdx, false, undefined, 'sprinter'), s.time)
     const vehicles = [...s.vehicles, veh]
 
     if (mode === 'cash') {
@@ -1194,7 +1246,7 @@ export const useGame = create<GameState>((set, get) => ({
     const usedSpots = new Set(s.vehicles.filter((v) => v.kind !== 'sprinter').map((v) => v.spotIdx))
     let spotIdx = 0
     while (usedSpots.has(spotIdx)) spotIdx++
-    const veh = makeVehicle(s.vehicles.length + 1, spotIdx, false, undefined, kind)
+    const veh = stampInspection(makeVehicle(s.vehicles.length + 1, spotIdx, false, undefined, kind), s.time)
     const vehicles = [...s.vehicles, veh]
 
     if (mode === 'cash') {
@@ -1438,7 +1490,7 @@ export const useGame = create<GameState>((set, get) => ({
     while (usedSpots.has(spotIdx)) spotIdx++
     // Devren alınan araç rakibin plakasını taşır
     const vehicle = {
-      ...makeVehicle(s.vehicles.length + 1, spotIdx, false, r.plate),
+      ...stampInspection(makeVehicle(s.vehicles.length + 1, spotIdx, false, r.plate), s.time, CONFIG.devrenInspectionDays),
       wear: r.wear,
       old: true,
     }
@@ -1780,6 +1832,43 @@ export const useGame = create<GameState>((set, get) => ({
 
   setInsurance: (tier: InsuranceTier) => set({ insurance: tier }),
 
+  toggleAccountant: () => set({ accountant: !get().accountant }),
+
+  dismissTaxNotice: () => set({ taxNotice: null }),
+
+  // Muayene: ücret peşin, geçmek için yıpranma sınırın altında olmalı ve
+  // zorunlu trafik sigortası bulunmalı. Geçerse yeni dönem başlar
+  doInspection: (vehicleId: number) => {
+    const s = get()
+    const v = s.vehicles.find((x) => x.id === vehicleId)
+    if (!v) return
+    const toast = (text: string) =>
+      [...s.toasts, { id: nextId++, text, expireAt: s.time + CONFIG.toastLifetime }].slice(-5)
+    // Trafik sigortası olmadan muayeneye girilmez (gerçek kural)
+    if (s.insurance === 'none') {
+      set({ toasts: toast(t.inspectionNeedsInsurance) })
+      return
+    }
+    const fee = inspectionFeeOf(v)
+    if (s.money < fee) return
+    const day = clockOf(s.time).day
+    // Ağır yıpranmış araç muayeneden çıkmaz: ücret yanar, önce bakım gerekir
+    if (v.wear >= CONFIG.inspectionMaxWear) {
+      set({
+        money: s.money - fee,
+        toasts: toast(t.inspectionFailed(v.plate, CONFIG.inspectionMaxWear)),
+      })
+      return
+    }
+    set({
+      money: s.money - fee,
+      vehicles: s.vehicles.map((x) =>
+        x.id === vehicleId ? { ...x, inspectionDay: day + CONFIG.inspectionPeriod } : x,
+      ),
+      toasts: toast(t.inspectionPassed(v.plate, day + CONFIG.inspectionPeriod)),
+    })
+  },
+
   openDeposit: (bankIdx: number, amount: number, termIdx: number) => {
     const s = get()
     const bank = BANKS[bankIdx]
@@ -1942,7 +2031,8 @@ export const useGame = create<GameState>((set, get) => ({
     let missedPayDays = s.missedPayDays
     let hacizPending = false
     let moralDecayNow = 0
-    const { buildings, insurance } = s
+    const { buildings, insurance, accountant } = s
+    let { taxDay, taxIncomeAcc, taxExpenseAcc, taxNotice } = s
 
     const clock = clockOf(time)
     const day = clock.day
@@ -2007,8 +2097,35 @@ export const useGame = create<GameState>((set, get) => ({
           netWorth: netWorthOf(money, s.vehicles, rep, deposits, s.debts, s.taxis, rentals),
         },
       ].slice(-14)
+      // Vergi matrahı: kapanan günün ciro/gideri döneme eklenir
+      taxIncomeAcc += Object.values(dayIncome).reduce((a, b) => a + b, 0)
+      taxExpenseAcc += dayExpense
       dayIncome = {}
       dayExpense = 0
+      // Dönem sonu beyanı: muhasebeci varsa gerçek usul (net kâr), yoksa
+      // basit usul (ciro) üzerinden hesaplanır
+      if (day >= taxDay) {
+        const tax = accountant
+          ? Math.round(Math.max(0, taxIncomeAcc - taxExpenseAcc) * CONFIG.taxNetRate)
+          : Math.round(taxIncomeAcc * CONFIG.taxGrossRate)
+        if (tax > 0) {
+          money -= tax
+          trackExpense(tax)
+          pushToast(accountant ? t.taxPaidNet(tax) : t.taxPaidGross(tax))
+          // Dönem kapanışı modalla özetlenir: matrah, usul ve ödenen tutar
+          taxNotice = {
+            day,
+            amount: tax,
+            income: Math.round(taxIncomeAcc),
+            expense: Math.round(taxExpenseAcc),
+            net: accountant,
+          }
+          sfx('coin')
+        }
+        taxIncomeAcc = 0
+        taxExpenseAcc = 0
+        taxDay = day + CONFIG.taxPeriodDays
+      }
       // Şoför pazarı yenilenir, moraller günlük düşer
       marketRefreshPending = true
       // Kiralama sabahı: boştaki uygun araçlar dolulukla kiraya çıkar.
@@ -2099,6 +2216,11 @@ export const useGame = create<GameState>((set, get) => ({
         money -= premium
         trackExpense(premium)
         pushToast(t.premiumPaid(premium))
+      }
+      // Muhasebeci yevmiyesi
+      if (accountant) {
+        money -= CONFIG.accountantDailyWage
+        trackExpense(CONFIG.accountantDailyWage)
       }
       // Moral günlük yıpranır; çay ocağı varsa yarı hızda (araç döngüsünde uygulanır)
       moralDecayNow =
@@ -2288,11 +2410,18 @@ export const useGame = create<GameState>((set, get) => ({
       } else {
         missedPayDays = 0
         if (debts.length > 0 || deposits.length > 0) {
-          creditScore = Math.min(100, creditScore + CONFIG.creditScoreGoodDay)
+          // Muhasebeci düzgün kayıt tutar: sicil daha hızlı toparlar
+          creditScore = Math.min(
+            100,
+            creditScore +
+              CONFIG.creditScoreGoodDay +
+              (accountant ? CONFIG.accountantScoreBonus : 0),
+          )
         }
       }
-      // HACİZ bayrağı: araç dizisi kurulduktan sonra infaz edilir
-      if (missedPayDays >= 3 && debts.length > 0) {
+      // HACİZ bayrağı: araç dizisi kurulduktan sonra infaz edilir.
+      // Muhasebeci alacaklıyla konuşur: eşik birkaç gün ötelenir
+      if (missedPayDays >= 3 + (accountant ? CONFIG.accountantHacizGraceDays : 0) && debts.length > 0) {
         hacizPending = true
         missedPayDays = 0
       }
@@ -3031,6 +3160,14 @@ export const useGame = create<GameState>((set, get) => ({
                   ? t.zabitaFineUninsured(overloaded.plate, fine)
                   : t.zabitaFine(overloaded.plate, fine),
               )
+            } else if (vehicles.some((v) => inspectionOverdue(v, day))) {
+              // Muayenesiz araç trafikte: denetim bunu affetmez
+              const caught = vehicles.find((v) => inspectionOverdue(v, day))!
+              const fine = CONFIG.inspectionOverdueFine
+              money -= fine
+              trackExpense(fine)
+              rep = clampRep(rep - CONFIG.inspectionOverdueRep)
+              pushToast(t.inspectionFine(caught.plate, fine))
             } else if (uninsured && vehicles.length > 0) {
               const fine = Math.round(CONFIG.zabitaFinePerStanding * CONFIG.uninsuredFineFactor)
               money -= fine
@@ -3196,7 +3333,7 @@ export const useGame = create<GameState>((set, get) => ({
       })
     }
 
-    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay, bufeToday, rivals, rivalRespawn, charter, contracts, contractOffer, rainUntil, snowUntil, korsanUntil, celebrateAt, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, driverMarket, rentals, specialDay, specialDayFor })
+    set({ time, day, wageDay, money, totalCarried, queue, spawnTimer, vehicles, debts, toasts, rep, task, taskDay, bufeToday, rivals, rivalRespawn, charter, contracts, contractOffer, rainUntil, snowUntil, korsanUntil, celebrateAt, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, driverMarket, rentals, specialDay, specialDayFor, taxDay, taxIncomeAcc, taxExpenseAcc, taxNotice })
 
     // ~2.5 sn'de bir kaydet — her frame localStorage'a yazmak gereksiz
     saveAcc += dt

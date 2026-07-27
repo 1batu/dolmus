@@ -350,6 +350,59 @@ const dicts = {
     insuranceNoneWarn: 'Poliçesiz: zabıta cezası ×1,8 ve tüm hasar senden',
     insuranceTrafikNote: 'Zabıta cezası normal; kaza hasarı yine senden',
     insuranceKaskoNote: 'Kaza hasarının %70’i ve ağır arıza faturasının %70’i sigortadan',
+    // Muayene
+    inspectionLabel: 'Muayene',
+    inspectionBtn: 'Muayene',
+    inspectionDue: (days: number) =>
+      days > 0 ? `Muayeneye ${days} gün` : days === 0 ? 'Muayene bugün son gün' : `Muayene ${-days} gün geçti`,
+    inspectionPassed: (plate: string, until: number) =>
+      `${plate} muayeneden geçti — ${until}. güne kadar geçerli`,
+    inspectionFailed: (plate: string, maxWear: number) =>
+      `${plate} muayeneden çıkamadı: yıpranma %${maxWear} altına inmeli`,
+    inspectionNeedsInsurance: 'Muayene için trafik sigortası şart — Tesisler’den poliçe al',
+    inspectionFine: (plate: string, fine: number) =>
+      `Denetim! ${plate} muayenesiz: -₺${fmt(fine)}`,
+    // Vergi + muhasebeci
+    taxPaidGross: (amount: number) => `Vergi beyanı (basit usul): -₺${fmt(amount)}`,
+    taxPaidNet: (amount: number) => `Vergi beyanı (gerçek usul): -₺${fmt(amount)}`,
+    accountantTitle: 'Muhasebeci',
+    accountantDesc:
+      'Defteri tutar, giderleri yazdırır. Vergi ciro üzerinden değil net kâr üzerinden hesaplanır; sicil daha hızlı toparlar, haciz eşiği ötelenir.',
+    accountantHire: 'Muhasebeci tut',
+    accountantFire: 'Çıkışını ver',
+    accountantWage: (wage: number) => `₺${fmt(wage)}/gün yevmiye`,
+    accountantOn: '✓ Kadroda',
+    taxNextLabel: (days: number) => `Beyana ${days} gün`,
+    taxEstimate: (amount: number) => `Tahmini vergi: ₺${fmt(amount)}`,
+    taxModeGross: (rate: number) => `Basit usul: cironun %${rate}'i`,
+    taxModeNet: (rate: number) => `Gerçek usul: net kârın %${rate}'i`,
+    // Beyan modalı
+    taxNoticeTitle: 'Vergi Beyanı',
+    taxNoticePeriod: (day: number) => `${day}. gün · 30 günlük dönem kapandı`,
+    taxNoticeIncome: 'Dönem cirosu',
+    taxNoticeExpense: 'Yazılan gider',
+    taxNoticeBase: 'Matrah',
+    taxNoticePaid: 'Ödenen vergi',
+    taxNoticeUpsell: (saved: number) =>
+      `Muhasebeci tutsaydın gerçek usulden ₺${fmt(saved)} daha az vergi ödeyecektin`,
+    taxNoticeGoodJob: 'Giderler yazıldığı için matrah düştü — muhasebeci kendini ödüyor',
+    taxNoticeOk: 'Tamam',
+    // Kasa özeti paneli (üst bardaki Kasa çipine basınca)
+    cashPanelTitle: 'Kasa Akışı',
+    cashToday: 'Bugün',
+    cashIncome: 'Gelir',
+    cashExpense: 'Gider',
+    cashNet: 'Net',
+    cashTonight: 'Akşam kesintisi (20:00)',
+    cashWages: 'Yevmiyeler',
+    cashPremium: 'Sigorta primi',
+    cashAccountant: 'Muhasebeci',
+    cashInstallments: 'Taksitler',
+    cashTonightTotal: 'Toplam',
+    cashTaxSection: 'Vergi dönemi',
+    cashTaxBase: 'Matrah',
+    cashTaxEstimate: 'Tahmini vergi',
+    cashAfterTonight: 'Kesinti sonrası kasa',
     korsanStart: 'Korsan dolmuş türedi — yolcu akışı yavaşladı',
     milestone: (name: string, reward: number) => `${name}! Ödül: +₺${fmt(reward)}`,
     milestoneNames: {
@@ -769,6 +822,59 @@ const dicts = {
     insuranceNoneWarn: 'Uninsured: fines ×1.8 and every repair is on you',
     insuranceTrafikNote: 'Normal fines; accident damage still on you',
     insuranceKaskoNote: '70% of accident damage and major breakdown bills covered',
+    inspectionLabel: 'Inspection',
+    inspectionBtn: 'Inspect',
+    inspectionDue: (days: number) =>
+      days > 0
+        ? `Inspection in ${days}d`
+        : days === 0
+          ? 'Inspection due today'
+          : `Inspection ${-days}d overdue`,
+    inspectionPassed: (plate: string, until: number) =>
+      `${plate} passed inspection — valid through day ${until}`,
+    inspectionFailed: (plate: string, maxWear: number) =>
+      `${plate} failed inspection: wear must drop below ${maxWear}%`,
+    inspectionNeedsInsurance: 'Inspection requires liability insurance — buy a policy in Facilities',
+    inspectionFine: (plate: string, fine: number) =>
+      `Inspection! ${plate} has no valid certificate: -₺${fmt(fine)}`,
+    taxPaidGross: (amount: number) => `Tax filing (flat-rate): -₺${fmt(amount)}`,
+    taxPaidNet: (amount: number) => `Tax filing (actual basis): -₺${fmt(amount)}`,
+    accountantTitle: 'Accountant',
+    accountantDesc:
+      'Keeps the books and writes off expenses. Tax is computed on net profit instead of gross revenue; your credit recovers faster and the seizure threshold is pushed back.',
+    accountantHire: 'Hire accountant',
+    accountantFire: 'Let go',
+    accountantWage: (wage: number) => `₺${fmt(wage)}/day wage`,
+    accountantOn: '✓ On payroll',
+    taxNextLabel: (days: number) => `Filing in ${days}d`,
+    taxEstimate: (amount: number) => `Estimated tax: ₺${fmt(amount)}`,
+    taxModeGross: (rate: number) => `Flat-rate: ${rate}% of gross`,
+    taxModeNet: (rate: number) => `Actual basis: ${rate}% of net profit`,
+    taxNoticeTitle: 'Tax Filing',
+    taxNoticePeriod: (day: number) => `Day ${day} · 30-day period closed`,
+    taxNoticeIncome: 'Period revenue',
+    taxNoticeExpense: 'Deducted expenses',
+    taxNoticeBase: 'Taxable base',
+    taxNoticePaid: 'Tax paid',
+    taxNoticeUpsell: (saved: number) =>
+      `With an accountant you would have paid ₺${fmt(saved)} less on the actual basis`,
+    taxNoticeGoodJob: 'Deductions shrank the base — the accountant pays for itself',
+    taxNoticeOk: 'Got it',
+    cashPanelTitle: 'Cash Flow',
+    cashToday: 'Today',
+    cashIncome: 'Income',
+    cashExpense: 'Expenses',
+    cashNet: 'Net',
+    cashTonight: 'Tonight’s deductions (20:00)',
+    cashWages: 'Wages',
+    cashPremium: 'Insurance premium',
+    cashAccountant: 'Accountant',
+    cashInstallments: 'Installments',
+    cashTonightTotal: 'Total',
+    cashTaxSection: 'Tax period',
+    cashTaxBase: 'Taxable base',
+    cashTaxEstimate: 'Estimated tax',
+    cashAfterTonight: 'Cash after deductions',
     korsanStart: 'Pirate dolmuş around — passenger flow slowed',
     milestone: (name: string, reward: number) => `${name}! Reward: +₺${fmt(reward)}`,
     milestoneNames: {

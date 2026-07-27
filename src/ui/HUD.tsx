@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useGame, BANKS, BUILDING_COSTS, MILESTONES, MOD_COSTS, TUTORIAL_DONE, bankLimitOf, capacityOf, fleetAssetValue, insuranceDailyOf, netWorthOf, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
+import { useGame, BANKS, BUILDING_COSTS, MILESTONES, MOD_COSTS, TUTORIAL_DONE, bankLimitOf, capacityOf, fleetAssetValue, insuranceDailyOf, kahyaWageOf, netWorthOf, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
 import { CONFIG, VEHICLE_SPECS, clockOf, contractSlotsOf, queueCapOf } from '../game/config'
 import { SPRINTER_LOT } from '../game/paths'
 import {
@@ -25,12 +25,14 @@ import {
   Trophy,
   Building2,
   Bus,
+  Calculator,
   CalendarDays,
   CarTaxiFront,
   Coffee,
   Cog,
   BusFront,
   CarFront,
+  ClipboardCheck,
   CupSoda,
   Droplets,
   FileSignature,
@@ -51,6 +53,7 @@ import {
   Users,
   UserRound,
   PlugZap,
+  Receipt,
   Volume2,
   VolumeX,
   Wallet,
@@ -457,8 +460,9 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
   const upgradeKahya = useGame((s) => s.upgradeKahya)
   const buyMod = useGame((s) => s.buyMod)
   const toggleWrap = useGame((s) => s.toggleWrap)
+  const doInspection = useGame((s) => s.doInspection)
 
-  const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr, kindStr, driverName, driverSkillStr, moralStr, partnersStr, modsStr, wrapStr] = entry.split('|')
+  const [idStr, plate, state, count, fuelStr, wearStr, nightStr, kahyaStr, capStr, oldStr, shareStr, valuationStr, pendFStr, pendRStr, kindStr, driverName, driverSkillStr, moralStr, partnersStr, modsStr, wrapStr, inspStr] = entry.split('|')
   const id = Number(idStr)
   const fuel = Number(fuelStr)
   const wear = Number(wearStr)
@@ -614,6 +618,34 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
           </>
         )}
       </div>
+      {/* Muayene: dönem sonu yaklaşınca sararır, geçince kırmızı yanar */}
+      {(() => {
+        const daysLeft = Number(inspStr ?? 0)
+        const overdue = daysLeft < 0
+        const soon = daysLeft >= 0 && daysLeft <= CONFIG.inspectionWarnDays
+        const fee = Math.ceil(CONFIG.inspectionFee * spec.repairMult)
+        return (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <span
+              className={`flex-1 rounded-lg px-1.5 py-1 text-center text-[10px] font-bold ${
+                overdue
+                  ? 'animate-pulse bg-red-400/15 text-red-600'
+                  : soon
+                    ? 'bg-amber-400/15 text-amber-600'
+                    : 'bg-[#edf2f5] text-[#7f929e]'
+              }`}
+            >
+              <ClipboardCheck className="mr-0.5 inline h-3 w-3" />
+              {t.inspectionDue(daysLeft)}
+            </span>
+            <MiniButton
+              label={<><ClipboardCheck className="h-3 w-3" /> {t.inspectionBtn} ₺{fmt(fee)}</>}
+              enabled={money >= fee}
+              onClick={() => doInspection(id)}
+            />
+          </div>
+        )
+      })()}
       {/* Modifiye: tek seferlik yükseltmeler + reklam giydirme */}
       {(() => {
         const mods = (modsStr ?? '').split('+').filter(Boolean)
@@ -919,7 +951,7 @@ export function HUD() {
               : v.state === 'parked' && v.wear >= 100
                 ? 'wornOut'
                 : v.state
-        return `${v.id}|${v.plate}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}|${v.share}|${valuationOf(v, s.vehicles.length, s.rep)}|${v.pendingRefuel ? 1 : 0}|${v.pendingRepair ? 1 : 0}|${v.kind}|${v.hasDriver ? v.driverName : ''}|${v.driverSkill}|${Math.round(v.driverMoral)}|${v.partners.map((pt) => `${pt.name}~${pt.pct}`).join(';')}|${v.mods.join('+')}|${v.wrap}`
+        return `${v.id}|${v.plate}|${state}|${v.passengers}|${Math.round(v.fuel)}|${Math.round(v.wear)}|${v.nightShift ? 1 : 0}|${v.kahya}|${capacityOf(v)}|${v.old ? 1 : 0}|${v.share}|${valuationOf(v, s.vehicles.length, s.rep)}|${v.pendingRefuel ? 1 : 0}|${v.pendingRepair ? 1 : 0}|${v.kind}|${v.hasDriver ? v.driverName : ''}|${v.driverSkill}|${Math.round(v.driverMoral)}|${v.partners.map((pt) => `${pt.name}~${pt.pct}`).join(';')}|${v.mods.join('+')}|${v.wrap}|${v.inspectionDay - clockOf(s.time).day}`
       })
       .join(','),
   )
@@ -935,6 +967,19 @@ export function HUD() {
   const payInstallment = useGame((s) => s.payInstallment)
   const payOffDebt = useGame((s) => s.payOffDebt)
   const [debtsOpen, setDebtsOpen] = useState(false)
+  const [cashOpen, setCashOpen] = useState(false)
+  // Kasa özeti: akşam kesintisi kalemleri (tick'teki hesapla aynı formüller)
+  const wagesDaily = useGame((s) =>
+    Math.round(
+      s.vehicles.reduce(
+        (sum, v) => sum + ((v.hasDriver ? CONFIG.driverWage : 0) + kahyaWageOf(v)) * (v.share / 100),
+        0,
+      ),
+    ),
+  )
+  const installmentsDaily = useGame((s) =>
+    s.debts.reduce((sum, d) => sum + Math.min(d.daily, d.remaining), 0),
+  )
   const rivalsKey = useGame((s) =>
     s.rivals.map((r) => `${r.id}|${r.no}|${r.wear}|${r.playerShare}|${r.plate}`).join(','),
   )
@@ -982,6 +1027,21 @@ export function HUD() {
   const milestonesKey = useGame((s) => s.milestonesDone.join(','))
   const insurance = useGame((s) => s.insurance)
   const setInsurance = useGame((s) => s.setInsurance)
+  const accountant = useGame((s) => s.accountant)
+  const toggleAccountant = useGame((s) => s.toggleAccountant)
+  const taxNotice = useGame((s) => s.taxNotice)
+  const dismissTaxNotice = useGame((s) => s.dismissTaxNotice)
+  const taxDaysLeft = useGame((s) => s.taxDay - clockOf(s.time).day)
+  // Matrah: usule göre ciro ya da net kâr
+  const taxBase = useGame((s) =>
+    Math.round(s.accountant ? Math.max(0, s.taxIncomeAcc - s.taxExpenseAcc) : s.taxIncomeAcc),
+  )
+  // Dönem sonunda ödenecek tahmini vergi: usul muhasebeciye göre değişir
+  const taxEstimate = useGame((s) =>
+    s.accountant
+      ? Math.round(Math.max(0, s.taxIncomeAcc - s.taxExpenseAcc) * CONFIG.taxNetRate)
+      : Math.round(s.taxIncomeAcc * CONFIG.taxGrossRate),
+  )
   // Poliçe kademelerinin günlük primi: filo büyüdükçe artar
   const premiumDaily = useGame((s) => insuranceDailyOf(s.insurance, s.vehicles))
   const trafikDaily = useGame((s) => insuranceDailyOf('trafik', s.vehicles))
@@ -1078,10 +1138,22 @@ export function HUD() {
         </div>
         <Stat icon={<CalendarDays className="h-4 w-4" />} label={t.day} value={`${day}`} />
         <Stat icon={isNightHour ? <Moon className="h-4 w-4 text-indigo-600" /> : <Sun className="h-4 w-4 text-amber-600" />} label={t.clock} value={clock} />
-        <Stat icon={<Wallet className="h-4 w-4 text-emerald-600" />} label={t.cash} value={`₺${fmt(money)}`} short={`₺${fmtShort(money)}`} accent={money < 0 ? 'text-red-600' : 'text-emerald-600'} />
+        <button
+          onClick={() => {
+            // İki finans paneli aynı yerde durur: biri açılırken diğeri kapanır
+            setCashOpen((o) => !o)
+            setDebtsOpen(false)
+          }}
+          className={`pointer-events-auto cursor-pointer transition hover:bg-white max-sm:flex-1 ${cashOpen ? 'bg-[#e2e9ed]' : ''}`}
+        >
+          <Stat icon={<Wallet className="h-4 w-4 text-emerald-600" />} label={t.cash} value={`₺${fmt(money)}`} short={`₺${fmtShort(money)}`} accent={money < 0 ? 'text-red-600' : 'text-emerald-600'} />
+        </button>
         {totalDebt > 0 && (
           <button
-            onClick={() => setDebtsOpen((o) => !o)}
+            onClick={() => {
+              setDebtsOpen((o) => !o)
+              setCashOpen(false)
+            }}
             className={`pointer-events-auto cursor-pointer transition hover:bg-white max-sm:flex-1 ${debtsOpen ? 'bg-[#e2e9ed]' : ''}`}
           >
             <Stat icon={<ScrollText className="h-4 w-4 text-red-600" />} label={t.debt} value={`₺${fmt(totalDebt)}`} short={`₺${fmtShort(totalDebt)}`} accent="text-red-600" />
@@ -1116,6 +1188,100 @@ export function HUD() {
           accent={rep >= 4 ? 'text-emerald-600' : rep < 2 ? 'text-red-600' : 'text-[#2c3e50]'}
         />
       </div>
+
+      {/* Kasa akışı paneli: bugünün hasılatı, akşam kesintisi, vergi dönemi */}
+      {cashOpen && (() => {
+        const today = getTodayStats()
+        const sources = Object.entries(today.income).sort((a, b) => b[1] - a[1])
+        const incomeTotal = sources.reduce((sum, [, v]) => sum + v, 0)
+        const tonight = wagesDaily + premiumDaily + (accountant ? CONFIG.accountantDailyWage : 0) + installmentsDaily
+        const row = (label: string, value: string, tone = 'text-[#2c3e50]') => (
+          <div className="flex items-baseline justify-between text-[11px] font-bold">
+            <span className="text-[#5b7383]">{label}</span>
+            <span className={`tabular-nums ${tone}`}>{value}</span>
+          </div>
+        )
+        return (
+          <div className={`pointer-events-auto absolute left-[320px] top-[72px] z-10 flex max-h-[76dvh] w-72 flex-col gap-2 overflow-y-auto p-3 max-sm:left-2 max-sm:right-2 max-sm:top-16 max-sm:max-h-[60dvh] max-sm:w-auto ${PANEL}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
+                <Wallet className="mr-1 inline h-3 w-3" /> {t.cashPanelTitle}
+              </span>
+              <button
+                onClick={() => setCashOpen(false)}
+                className="cursor-pointer rounded-md bg-[#e2e9ed] px-1.5 text-[#5b7383] transition hover:bg-[#cfdae1]"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+
+            <div>
+              <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-[#adbac2]">
+                {t.cashToday}
+              </div>
+              {incomeTotal === 0 && today.expense === 0 ? (
+                <div className="py-2 text-center text-[10px] font-bold text-[#93a5af]">{t.statsEmpty}</div>
+              ) : (
+                <div className="flex flex-col gap-0.5">
+                  {sources.slice(0, 5).map(([src, val]) => (
+                    <div key={src} className="flex items-baseline justify-between text-[10px] font-bold">
+                      <span className="text-[#7f929e]">{t.statsSources[src] ?? src}</span>
+                      <span className="tabular-nums text-[#5b7383]">₺{fmt(Math.round(val))}</span>
+                    </div>
+                  ))}
+                  <div className="mt-0.5 border-t border-[#d5dee4] pt-0.5" />
+                  {row(t.cashIncome, `₺${fmt(Math.round(incomeTotal))}`, 'text-emerald-600')}
+                  {row(t.cashExpense, `−₺${fmt(Math.round(today.expense))}`, 'text-red-600')}
+                  {row(
+                    t.cashNet,
+                    `₺${fmt(Math.round(incomeTotal - today.expense))}`,
+                    incomeTotal - today.expense >= 0 ? 'text-emerald-600' : 'text-red-600',
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-[#d5dee4] pt-1.5">
+              <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-[#adbac2]">
+                {t.cashTonight}
+              </div>
+              <div className="flex flex-col gap-0.5">
+                {row(t.cashWages, `−₺${fmt(wagesDaily)}`)}
+                {premiumDaily > 0 && row(t.cashPremium, `−₺${fmt(premiumDaily)}`)}
+                {accountant && row(t.cashAccountant, `−₺${fmt(CONFIG.accountantDailyWage)}`)}
+                {installmentsDaily > 0 && row(t.cashInstallments, `−₺${fmt(installmentsDaily)}`)}
+                <div className="mt-0.5 border-t border-[#d5dee4] pt-0.5" />
+                {row(t.cashTonightTotal, `−₺${fmt(tonight)}`, 'text-red-600')}
+                {row(
+                  t.cashAfterTonight,
+                  `₺${fmt(money - tonight)}`,
+                  money - tonight >= 0 ? 'text-[#2c3e50]' : 'text-red-600',
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-[#d5dee4] pt-1.5">
+              <div className="mb-1 flex items-baseline justify-between">
+                <span className="text-[9px] font-black uppercase tracking-widest text-[#adbac2]">
+                  {t.cashTaxSection}
+                </span>
+                <span className="text-[9px] font-bold tabular-nums text-[#93a5af]">
+                  {t.taxNextLabel(Math.max(0, taxDaysLeft))}
+                </span>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <div className="text-[9px] font-bold text-[#7f929e]">
+                  {accountant
+                    ? t.taxModeNet(Math.round(CONFIG.taxNetRate * 100))
+                    : t.taxModeGross(Math.round(CONFIG.taxGrossRate * 100))}
+                </div>
+                {row(t.cashTaxBase, `₺${fmt(taxBase)}`)}
+                {row(t.cashTaxEstimate, `−₺${fmt(taxEstimate)}`, 'text-red-600')}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Senet paneli: taksit öde / erken kapat */}
       {debtsOpen && debtsKey && (
@@ -1195,7 +1361,7 @@ export function HUD() {
       {/* Günlük görev */}
       {taskKey && <DailyTask taskKey={taskKey} />}
 
-      <Tutorial modalOpen={buildOpen || bankOpen || filoOpen || offlineEarned > 0} />
+      <Tutorial modalOpen={buildOpen || bankOpen || filoOpen || offlineEarned > 0 || taxNotice != null} />
 
       <Confetti token={celebrateAt} />
 
@@ -1214,6 +1380,78 @@ export function HUD() {
             </div>
             <div className="mt-3">
               <PriceButton label={t.continueBtn} enabled onClick={dismissOffline} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Vergi beyanı: dönem kapanışında dökümlü modal */}
+      {taxNotice && (
+        <div className="pointer-events-auto fixed inset-0 z-20 flex items-center justify-center">
+          <div className="absolute inset-0 bg-[#22313f]/65" />
+          <div className={`relative w-80 max-w-[92vw] p-5 ${PANEL}`}>
+            <div className="flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#e74c3c]">
+                <Receipt className="h-5 w-5 text-white" />
+              </span>
+              <span>
+                <span className="block text-sm font-black text-[#2c3e50]">{t.taxNoticeTitle}</span>
+                <span className="block text-[10px] font-bold text-[#93a5af]">
+                  {t.taxNoticePeriod(taxNotice.day)}
+                </span>
+              </span>
+            </div>
+            <div className="mt-3 flex flex-col gap-1 border-t border-[#d5dee4] pt-2 text-[11px] font-bold">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[#5b7383]">{t.taxNoticeIncome}</span>
+                <span className="tabular-nums text-[#2c3e50]">₺{fmt(taxNotice.income)}</span>
+              </div>
+              {taxNotice.net && (
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[#5b7383]">{t.taxNoticeExpense}</span>
+                  <span className="tabular-nums text-emerald-600">−₺{fmt(taxNotice.expense)}</span>
+                </div>
+              )}
+              <div className="flex items-baseline justify-between">
+                <span className="text-[#5b7383]">{t.taxNoticeBase}</span>
+                <span className="tabular-nums text-[#2c3e50]">
+                  ₺{fmt(taxNotice.net ? Math.max(0, taxNotice.income - taxNotice.expense) : taxNotice.income)}
+                </span>
+              </div>
+              <div className="mt-0.5 flex items-baseline justify-between border-t border-[#d5dee4] pt-1.5">
+                <span className="font-black text-[#5b7383]">
+                  {t.taxNoticePaid} ·{' '}
+                  {taxNotice.net
+                    ? `%${Math.round(CONFIG.taxNetRate * 100)}`
+                    : `%${Math.round(CONFIG.taxGrossRate * 100)}`}
+                </span>
+                <span className="text-lg font-black tabular-nums text-[#e74c3c]">
+                  −₺{fmt(taxNotice.amount)}
+                </span>
+              </div>
+            </div>
+            {/* Usul karşılaştırması: muhasebecinin değerini somut gösterir */}
+            {(() => {
+              if (taxNotice.net) {
+                return (
+                  <div className="mt-2 rounded-lg bg-emerald-50 px-2 py-1.5 text-center text-[10px] font-bold leading-snug text-emerald-700">
+                    {t.taxNoticeGoodJob}
+                  </div>
+                )
+              }
+              const netTax = Math.round(
+                Math.max(0, taxNotice.income - taxNotice.expense) * CONFIG.taxNetRate,
+              )
+              const saved = taxNotice.amount - netTax
+              if (saved <= 0) return null
+              return (
+                <div className="mt-2 rounded-lg bg-amber-50 px-2 py-1.5 text-center text-[10px] font-bold leading-snug text-amber-700">
+                  {t.taxNoticeUpsell(saved)}
+                </div>
+              )
+            })()}
+            <div className="mt-3">
+              <PriceButton label={t.taxNoticeOk} enabled onClick={dismissTaxNotice} />
             </div>
           </div>
         </div>
@@ -1624,6 +1862,32 @@ export function HUD() {
                       enabled={perons < CONFIG.peronMax && money >= (CONFIG.peronCosts[perons - 1] ?? Infinity)}
                       onClick={buyPeron}
                     />
+                  </ModalCard>
+                  <ModalCard
+                    icon={<Calculator className={`h-7 w-7 ${accountant ? 'text-emerald-600' : 'text-[#adbac2]'}`} />}
+                    title={t.accountantTitle}
+                    badge={accountant ? t.accountantOn : t.accountantWage(CONFIG.accountantDailyWage)}
+                    badgeClass={accountant ? 'bg-emerald-400/15 text-emerald-600' : 'bg-[#e2e9ed] text-[#5b7383]'}
+                    desc={t.accountantDesc}
+                  >
+                    <div className="flex flex-col gap-0.5 text-center text-[10px] font-bold leading-tight text-[#7f929e]">
+                      <span>{t.taxNextLabel(Math.max(0, taxDaysLeft))}</span>
+                      <span>
+                        {accountant
+                          ? t.taxModeNet(Math.round(CONFIG.taxNetRate * 100))
+                          : t.taxModeGross(Math.round(CONFIG.taxGrossRate * 100))}
+                      </span>
+                      <span className="text-[#5b7383]">{t.taxEstimate(taxEstimate)}</span>
+                    </div>
+                    {accountant ? (
+                      <MiniButton label={t.accountantFire} enabled onClick={toggleAccountant} />
+                    ) : (
+                      <PriceButton
+                        label={`${t.accountantHire} · ${t.accountantWage(CONFIG.accountantDailyWage)}`}
+                        enabled
+                        onClick={toggleAccountant}
+                      />
+                    )}
                   </ModalCard>
                   {driverMarket.map((cand, i) => (
                     <ModalCard
