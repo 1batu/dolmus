@@ -103,6 +103,14 @@ function Confetti({ token }: { token: number }) {
 
 const fmt = (n: number) => n.toLocaleString('tr-TR')
 
+// Mobil üst bar için kısa para yazımı: 15.918.670 → 15,9M
+const fmtShort = (n: number) => {
+  const abs = Math.abs(n)
+  if (abs >= 1_000_000) return `${(n / 1_000_000).toLocaleString('tr-TR', { maximumFractionDigits: 1 })}M`
+  if (abs >= 10_000) return `${Math.round(n / 1_000)}K`
+  return fmt(n)
+}
+
 // Özel servis türü ikonları (charterKinds sırasıyla)
 const CHARTER_ICONS = [PartyPopper, Plane, Trophy, School, TreePine]
 
@@ -110,13 +118,38 @@ const CHARTER_ICONS = [PartyPopper, Plane, Trophy, School, TreePine]
 const PANEL =
   'rounded-2xl border-2 border-[#c9d4da] bg-[#eef2f5] shadow-[0_5px_0_rgba(44,62,80,0.16)]'
 
-function Stat({ icon, label, value, accent = 'text-[#2c3e50]' }: { icon: ReactNode; label: string; value: string; accent?: string }) {
+// Mobil oyun kuralı: üst barda az ve öz — ikincil değerler telefonda gizlenir,
+// uzun sayılar kısa yazılır (₺15,9M)
+function Stat({
+  icon,
+  label,
+  value,
+  short,
+  accent = 'text-[#2c3e50]',
+  hideMobile = false,
+}: {
+  icon: ReactNode
+  label: string
+  value: string
+  short?: string
+  accent?: string
+  hideMobile?: boolean
+}) {
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5">
-      <span className="flex items-center leading-none text-[#4a6076]">{icon}</span>
+    <div className={`flex items-center gap-2 px-3 py-1.5 max-sm:flex-1 max-sm:gap-1.5 max-sm:px-2 ${hideMobile ? 'max-sm:hidden' : ''}`}>
+      <span className="flex items-center leading-none text-[#4a6076] max-sm:hidden">{icon}</span>
       <div>
         <div className="text-[9px] font-bold uppercase tracking-widest text-[#93a5af]">{label}</div>
-        <div className={`text-sm font-extrabold tabular-nums leading-tight ${accent}`}>{value}</div>
+        <div className={`text-sm font-extrabold tabular-nums leading-tight ${accent}`}>
+          {short ? (
+            <>
+              <span className="sm:hidden">{short}</span>
+              <span className="max-sm:hidden">{value}</span>
+            </>
+          ) : (
+            value
+          )}
+        </div>
       </div>
     </div>
   )
@@ -460,7 +493,7 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
       className={
         floating
           ? `pointer-events-auto absolute bottom-14 left-4 w-64 p-3 ${PANEL}`
-          : 'w-64 shrink-0 self-start rounded-xl bg-white p-3 ring-1 ring-inset ring-[#d5dee4]'
+          : 'w-64 shrink-0 self-start rounded-xl bg-white p-3 ring-1 ring-inset ring-[#d5dee4] max-sm:w-full'
       }
     >
       <div className="relative flex items-center justify-center">
@@ -644,6 +677,50 @@ function ResetButton({ onReset }: { onReset: () => void }) {
     >
       {armed ? <><AlertTriangle className="h-3 w-3" /> {t.resetConfirm}</> : <><Trash2 className="h-3 w-3" /> {t.reset}</>}
     </button>
+  )
+}
+
+// Günlük görev paneli: tamamlanınca kısa bir "✓ Tamam" gösterir, sonra
+// kendini kapatır — yeni görev gelince tekrar açılır
+function DailyTask({ taskKey }: { taskKey: string }) {
+  const [hidden, setHidden] = useState(false)
+  const [kind, targetStr, progressStr, doneStr, rewardStr] = taskKey.split('|')
+  const target = Number(targetStr)
+  const progress = Number(progressStr)
+  const done = doneStr === '1'
+  // Görev kimliği: tür + hedef değişince yeni görev sayılır
+  const taskId = `${kind}|${targetStr}`
+  useEffect(() => setHidden(false), [taskId])
+  useEffect(() => {
+    if (!done) return
+    const id = setTimeout(() => setHidden(true), 4000)
+    return () => clearTimeout(id)
+  }, [done, taskId])
+  if (hidden) return null
+  const desc = t.taskDesc[kind as keyof typeof t.taskDesc](target)
+  return (
+    <div className={`absolute left-4 top-[72px] w-72 p-3 max-sm:left-2 max-sm:right-2 max-sm:top-16 max-sm:w-auto ${PANEL} ${done ? '!border-[#2ecc71]' : ''}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
+          <Target className="mr-1 inline h-3 w-3" /> {t.dailyTask}
+        </span>
+        <span className={`text-[10px] font-extrabold tabular-nums ${done ? 'text-emerald-600' : 'text-[#6f8694]'}`}>
+          {done ? `✓ ${t.taskDoneLabel}` : `${t.taskReward} ₺${fmt(Number(rewardStr))}`}
+        </span>
+      </div>
+      <div className="mt-1 text-[13px] font-extrabold text-[#2c3e50]">{desc}</div>
+      <div className="mt-1.5 flex items-center gap-2">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e2e9ed]">
+          <div
+            className={`h-full rounded-full bg-gradient-to-r transition-all ${done ? 'from-emerald-500 to-green-400' : 'from-sky-500 to-cyan-400'}`}
+            style={{ width: `${Math.min(100, (progress / target) * 100)}%` }}
+          />
+        </div>
+        <span className="text-[10px] font-bold tabular-nums text-[#6f8694]">
+          {fmt(Math.min(progress, target))}/{fmt(target)}
+        </span>
+      </div>
+    </div>
   )
 }
 
@@ -888,27 +965,27 @@ export function HUD() {
     <div className="pointer-events-none absolute inset-0 select-none font-sans">
       {/* Üst bar */}
       <div
-        className={`pointer-events-auto absolute left-4 top-4 flex max-w-[calc(100vw-200px)] items-stretch divide-x divide-[#d5dee4] overflow-x-auto ${PANEL}`}
+        className={`pointer-events-auto absolute left-4 top-4 flex max-w-[calc(100vw-440px)] flex-wrap items-stretch divide-x divide-[#d5dee4] max-sm:left-2 max-sm:right-2 max-sm:top-2 max-sm:max-w-none ${PANEL}`}
       >
-        <div className="flex items-center px-3 text-lg font-black tracking-tight text-[#2c3e50]">
+        <div className="flex items-center px-3 text-lg font-black tracking-tight text-[#2c3e50] max-sm:px-2">
           <img src="/favicon.svg" alt={t.appTitle} title={t.appTitle} className="h-6 w-6 rounded-md" />
         </div>
         <Stat icon={<CalendarDays className="h-4 w-4" />} label={t.day} value={`${day}`} />
         <Stat icon={isNightHour ? <Moon className="h-4 w-4 text-indigo-600" /> : <Sun className="h-4 w-4 text-amber-600" />} label={t.clock} value={clock} />
-        <Stat icon={<Wallet className="h-4 w-4 text-emerald-600" />} label={t.cash} value={`₺${fmt(money)}`} accent={money < 0 ? 'text-red-600' : 'text-emerald-600'} />
+        <Stat icon={<Wallet className="h-4 w-4 text-emerald-600" />} label={t.cash} value={`₺${fmt(money)}`} short={`₺${fmtShort(money)}`} accent={money < 0 ? 'text-red-600' : 'text-emerald-600'} />
         {totalDebt > 0 && (
           <button
             onClick={() => setDebtsOpen((o) => !o)}
-            className={`pointer-events-auto cursor-pointer transition hover:bg-white ${debtsOpen ? 'bg-[#e2e9ed]' : ''}`}
+            className={`pointer-events-auto cursor-pointer transition hover:bg-white max-sm:flex-1 ${debtsOpen ? 'bg-[#e2e9ed]' : ''}`}
           >
-            <Stat icon={<ScrollText className="h-4 w-4 text-red-600" />} label={t.debt} value={`₺${fmt(totalDebt)}`} accent="text-red-600" />
+            <Stat icon={<ScrollText className="h-4 w-4 text-red-600" />} label={t.debt} value={`₺${fmt(totalDebt)}`} short={`₺${fmtShort(totalDebt)}`} accent="text-red-600" />
           </button>
         )}
-        <Stat icon={<Users className="h-4 w-4" />} label={t.waiting} value={`${queue}`} accent={queue >= queueCap ? 'text-amber-600' : 'text-[#2c3e50]'} />
-        <Stat icon={<UserRound className="h-4 w-4" />} label={t.drivers} value={`${drivers}`} />
-        <Stat icon={<Fuel className="h-4 w-4 text-amber-600" />} label={t.fuelLabel} value={`₺${fuelPrice.toFixed(0)}/L`} />
-        <Stat icon={<Ticket className="h-4 w-4 text-sky-600" />} label={t.fareLabel} value={`₺${fareNow}`} />
-        {streak >= 2 && <Stat icon={<Flame className="h-4 w-4 text-orange-400" />} label={t.streakLabel} value={`${streak}`} accent="text-orange-600" />}
+        <Stat icon={<Users className="h-4 w-4" />} label={t.waiting} value={`${queue}`} accent={queue >= queueCap ? 'text-amber-600' : 'text-[#2c3e50]'} hideMobile />
+        <Stat icon={<UserRound className="h-4 w-4" />} label={t.drivers} value={`${drivers}`} hideMobile />
+        <Stat icon={<Fuel className="h-4 w-4 text-amber-600" />} label={t.fuelLabel} value={`₺${fuelPrice.toFixed(0)}/L`} hideMobile />
+        <Stat icon={<Ticket className="h-4 w-4 text-sky-600" />} label={t.fareLabel} value={`₺${fareNow}`} hideMobile />
+        {streak >= 2 && <Stat icon={<Flame className="h-4 w-4 text-orange-400" />} label={t.streakLabel} value={`${streak}`} accent="text-orange-600" hideMobile />}
         {specialToday && (
           <Stat
             icon={
@@ -923,6 +1000,7 @@ export function HUD() {
             label={t.specialLabel}
             value={t.specialNames[specialToday]}
             accent="text-pink-600"
+            hideMobile
           />
         )}
         <Stat
@@ -935,7 +1013,7 @@ export function HUD() {
 
       {/* Senet paneli: taksit öde / erken kapat */}
       {debtsOpen && debtsKey && (
-        <div className={`pointer-events-auto absolute left-[320px] top-[72px] flex max-h-[72dvh] w-80 flex-col p-3 ${PANEL}`}>
+        <div className={`pointer-events-auto absolute left-[320px] top-[72px] z-10 flex max-h-[72dvh] w-80 flex-col p-3 max-sm:left-2 max-sm:right-2 max-sm:top-16 max-sm:max-h-[55dvh] max-sm:w-auto ${PANEL}`}>
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
               <ScrollText className="mr-1 inline h-3 w-3" /> {t.debtsTitle}
@@ -1009,37 +1087,7 @@ export function HUD() {
       )}
 
       {/* Günlük görev */}
-      {taskKey && (() => {
-        const [kind, targetStr, progressStr, doneStr, rewardStr] = taskKey.split('|')
-        const target = Number(targetStr)
-        const progress = Number(progressStr)
-        const done = doneStr === '1'
-        const desc = t.taskDesc[kind as keyof typeof t.taskDesc](target)
-        return (
-          <div className={`absolute left-4 top-[72px] w-72 p-3 ${PANEL} ${done ? '!border-[#2ecc71]' : ''}`}>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
-                <Target className="mr-1 inline h-3 w-3" /> {t.dailyTask}
-              </span>
-              <span className={`text-[10px] font-extrabold tabular-nums ${done ? 'text-emerald-600' : 'text-[#6f8694]'}`}>
-                {done ? `✓ ${t.taskDoneLabel}` : `${t.taskReward} ₺${fmt(Number(rewardStr))}`}
-              </span>
-            </div>
-            <div className="mt-1 text-[13px] font-extrabold text-[#2c3e50]">{desc}</div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e2e9ed]">
-                <div
-                  className={`h-full rounded-full bg-gradient-to-r transition-all ${done ? 'from-emerald-500 to-green-400' : 'from-sky-500 to-cyan-400'}`}
-                  style={{ width: `${Math.min(100, (progress / target) * 100)}%` }}
-                />
-              </div>
-              <span className="text-[10px] font-bold tabular-nums text-[#6f8694]">
-                {fmt(Math.min(progress, target))}/{fmt(target)}
-              </span>
-            </div>
-          </div>
-        )
-      })()}
+      {taskKey && <DailyTask taskKey={taskKey} />}
 
       <Confetti token={celebrateAt} />
 
@@ -1047,7 +1095,7 @@ export function HUD() {
       {offlineEarned > 0 && (
         <div className="pointer-events-auto fixed inset-0 z-20 flex items-center justify-center">
           <div className="absolute inset-0 bg-[#22313f]/65" />
-          <div className={`relative w-80 p-5 text-center ${PANEL}`}>
+          <div className={`relative w-80 max-w-[92vw] p-5 text-center ${PANEL}`}>
             <div className="flex items-center justify-center gap-2 text-[#4a6076]"><BedDouble className="h-7 w-7" /><span className="text-[#93a5af]">→</span><Banknote className="h-7 w-7 text-emerald-600" /></div>
             <div className="mt-2 text-sm font-black text-[#2c3e50]">{t.offlineTitle}</div>
             <div className="mt-1 text-[11px] font-bold text-[#6f8694]">
@@ -1064,8 +1112,8 @@ export function HUD() {
       )}
 
       {/* İşletme paneli: sağ üstte İnşaat + ses düğmesi */}
-      <div className="absolute right-4 top-4 flex flex-col items-end gap-2">
-        <div className="flex items-center gap-2">
+      <div className="absolute right-4 top-4 flex flex-col items-end gap-2 max-sm:bottom-4 max-sm:left-2 max-sm:right-2 max-sm:top-auto">
+        <div className="flex items-center gap-2 max-sm:w-full">
           <button
             onClick={() => setMutedUi(toggleMute())}
             className={`pointer-events-auto cursor-pointer rounded-xl px-2.5 py-3 text-sm text-[#2c3e50] shadow-lg transition active:scale-95 ${PANEL} ${mutedUi ? 'opacity-50' : ''}`}
@@ -1074,7 +1122,7 @@ export function HUD() {
           </button>
           <button
             onClick={() => setFiloOpen((o) => !o)}
-            className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold text-white shadow-[0_4px_0_#2980b9] transition active:translate-y-[2px] active:shadow-[0_2px_0_#2980b9]
+            className={`pointer-events-auto relative flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold text-white shadow-[0_4px_0_#2980b9] transition active:translate-y-[2px] active:shadow-[0_2px_0_#2980b9] max-sm:flex-1 max-sm:px-2
               ${filoOpen ? 'bg-[#5dade2]' : 'bg-[#3498db] hover:bg-[#4aa3df]'}`}
           >
             <Bus className="h-4 w-4" /> {t.fleetBtn}
@@ -1084,14 +1132,14 @@ export function HUD() {
           </button>
           <button
             onClick={() => setBankOpen((o) => !o)}
-            className={`pointer-events-auto flex cursor-pointer items-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold text-white shadow-[0_4px_0_#27ae60] transition active:translate-y-[2px] active:shadow-[0_2px_0_#27ae60]
+            className={`pointer-events-auto flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold text-white shadow-[0_4px_0_#27ae60] transition active:translate-y-[2px] active:shadow-[0_2px_0_#27ae60] max-sm:flex-1 max-sm:px-2
               ${bankOpen ? 'bg-[#58d68d]' : 'bg-[#2ecc71] hover:bg-[#40d47e]'}`}
           >
             <Landmark className="h-4 w-4" /> {t.tabBank}
           </button>
         <button
           onClick={() => setBuildOpen((o) => !o)}
-          className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white shadow-[0_4px_0_#c0392b] transition active:translate-y-[2px] active:shadow-[0_2px_0_#c0392b]
+          className={`pointer-events-auto relative flex cursor-pointer items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white shadow-[0_4px_0_#c0392b] transition active:translate-y-[2px] active:shadow-[0_2px_0_#c0392b] max-sm:flex-1 max-sm:px-2
             ${buildOpen ? 'bg-[#ec7063]' : 'bg-[#e74c3c] hover:bg-[#eb6152]'}`}
         >
           <Hammer className="h-4 w-4" /> {t.construction}
@@ -1160,7 +1208,7 @@ export function HUD() {
                       ))}
                     </div>
                     <div className="text-[10px] font-bold text-[#7f929e]">{t.bankDescs[bank.id]}</div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <ModalCard
                         icon={<PiggyBank className="h-7 w-7 text-emerald-600" />}
                         title={t.depositTitle}
@@ -1288,7 +1336,7 @@ export function HUD() {
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-2 overflow-y-auto p-4">
+            <div className="grid grid-cols-1 gap-2 overflow-y-auto p-4 sm:grid-cols-2">
               {buildTab === 'arac' && (() => {
                 const vitoPrice = CONFIG.vitoCost + CONFIG.vitoCostStep * vitoCount
                 const vitoDown = Math.ceil(vitoPrice * CONFIG.loanDownRate)
@@ -1545,7 +1593,7 @@ export function HUD() {
                       )
                     })}
                   {!contractOfferKey && !contractsKey && (
-                    <div className="col-span-2 py-6 text-center text-[11px] font-bold text-[#93a5af]">
+                    <div className="col-span-full py-6 text-center text-[11px] font-bold text-[#93a5af]">
                       {t.noContracts}
                     </div>
                   )}
@@ -1759,7 +1807,7 @@ export function HUD() {
                   ...week.map((d) => Math.abs(Object.values(d.income).reduce((a, b) => a + b, 0) - d.expense)),
                 )
                 return (
-                  <div className="col-span-2 flex flex-col gap-3">
+                  <div className="col-span-full flex flex-col gap-3">
                     <div>
                       <div className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
                         {t.statsToday}
@@ -1773,7 +1821,7 @@ export function HUD() {
                               <div key={src} className={colors[i % colors.length]} style={{ width: `${(val / totalIn) * 100}%` }} />
                             ))}
                           </div>
-                          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+                          <div className="mt-2 grid grid-cols-1 gap-x-3 gap-y-1 sm:grid-cols-2">
                             {entries.map(([src, val], i) => (
                               <div key={src} className="flex items-center justify-between text-[11px] font-bold">
                                 <span className="flex items-center gap-1.5 text-[#5b7383]">
@@ -1831,7 +1879,7 @@ export function HUD() {
                 )
               })()}
               {buildTab === 'prestij' && (
-                <div className="col-span-2">
+                <div className="col-span-full">
                   <ModalCard
                     icon={<Star className="h-7 w-7 text-yellow-600" />}
                     title={t.prestigeTitle}
@@ -2024,11 +2072,11 @@ export function HUD() {
                 </button>
               ))}
             </div>
-            <div className="flex gap-3 overflow-hidden p-4">
+            <div className="flex gap-3 overflow-hidden p-4 max-sm:flex-col max-sm:overflow-y-auto">
               {filoTab === 'hat' && (
                 <>
                   {/* Araç listesi: tıklayınca detay sağda aynı panelde açılır */}
-                  <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto max-sm:overflow-visible">
                     {!fleetKey && <div className="text-xs text-[#93a5af]">{t.fleetEmpty}</div>}
                     {fleetKey &&
                       fleetKey.split(',').map((entry) => {
@@ -2045,7 +2093,7 @@ export function HUD() {
                           >
                             <PlateBadge plate={vPlate} small />
                             <span className={`h-2 w-2 shrink-0 rounded-full ${DOT_STYLE[vState] ?? 'bg-[#aebbc3]'}`} />
-                            <span className="w-14 shrink-0 text-[10px] font-bold text-[#5b7383]">{t.kindNames[vKindStr] ?? ''}</span>
+                            <span className="w-14 shrink-0 text-[10px] font-bold text-[#5b7383] max-sm:hidden">{t.kindNames[vKindStr] ?? ''}</span>
                             <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-[#3d5568]">
                               {vDriver || t.state.noDriver}
                             </span>
@@ -2055,19 +2103,19 @@ export function HUD() {
                             <span className="shrink-0 text-[10px] font-bold tabular-nums text-sky-600/90">
                               <Wrench className="mr-0.5 inline h-3 w-3" />%{vWearStr}
                             </span>
-                            <span className="shrink-0 text-[10px] font-bold text-[#6f8694]">{t.state[vState as keyof typeof t.state]}</span>
+                            <span className="shrink-0 text-[10px] font-bold text-[#6f8694] max-sm:hidden">{t.state[vState as keyof typeof t.state]}</span>
                           </button>
                         )
                       })}
                   </div>
                   {/* Seçili aracın detayı: aynı modalın içinde */}
                   {selectedEntry ? (
-                    <div className="overflow-y-auto">
+                    <div className="overflow-y-auto max-sm:order-first max-sm:overflow-visible">
                       <VehicleDetailBody entry={selectedEntry} onClose={() => selectVehicle(null)} />
                     </div>
                   ) : (
                     fleetKey && (
-                      <div className="flex w-64 shrink-0 items-center justify-center rounded-xl bg-white/60 p-3 text-center text-[11px] font-bold text-[#adbac2] ring-1 ring-inset ring-[#dee6ea]">
+                      <div className="flex w-64 shrink-0 items-center justify-center rounded-xl bg-white/60 p-3 text-center text-[11px] font-bold text-[#adbac2] ring-1 ring-inset ring-[#dee6ea] max-sm:hidden">
                         {t.fleetPickHint}
                       </div>
                     )
@@ -2084,7 +2132,7 @@ export function HUD() {
                       return (
                         <div key={idStr} className="flex items-center gap-2.5 rounded-xl bg-white px-2.5 py-1.5">
                           <PlateBadge plate={txPlate} small />
-                          <span className="w-14 shrink-0 text-[10px] font-bold text-[#5b7383]">{t.kindNames.taxi}</span>
+                          <span className="w-14 shrink-0 text-[10px] font-bold text-[#5b7383] max-sm:hidden">{t.kindNames.taxi}</span>
                           <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-[#3d5568]">
                             {txHasCar === '1'
                               ? operating
@@ -2094,7 +2142,7 @@ export function HUD() {
                                 : t.taxiRentMode
                               : t.taxiRentMode}
                           </span>
-                          <span className="shrink-0 text-[10px] font-bold text-[#6f8694]">
+                          <span className="shrink-0 text-[10px] font-bold text-[#6f8694] max-sm:hidden">
                             {operating && txHasCar === '1'
                               ? t.taxiOperateNote(CONFIG.taxiOperateMin, CONFIG.taxiOperateMax)
                               : t.taxiRentNote(CONFIG.taxiRentDaily)}
@@ -2116,7 +2164,7 @@ export function HUD() {
                       return (
                         <div key={idStr} className="flex items-center gap-2.5 rounded-xl bg-white px-2.5 py-1.5">
                           <PlateBadge plate={rPlate} small />
-                          <span className="w-14 shrink-0 text-[10px] font-bold text-[#5b7383]">{t.kindNames.rental}</span>
+                          <span className="w-14 shrink-0 text-[10px] font-bold text-[#5b7383] max-sm:hidden">{t.kindNames.rental}</span>
                           <span
                             className={`min-w-0 flex-1 truncate text-[11px] font-bold ${
                               rDays > 0 ? 'text-teal-600' : rOut ? 'text-red-600' : 'text-[#5b7383]'

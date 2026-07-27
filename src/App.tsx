@@ -110,6 +110,8 @@ export default function App() {
         orthographic
         camera={{ position: [70, 62, 64], zoom: 16, near: -200, far: 500 }}
         onCreated={({ camera }) => camera.lookAt(10, 0, 4)}
+        // Mobil: dokunma jestleri tarayıcıya değil kameraya gitsin (sürükle/pinch)
+        style={{ touchAction: 'none' }}
       >
         <CameraRig />
         <World />
