@@ -1031,6 +1031,23 @@ export function HUD() {
   const toggleAccountant = useGame((s) => s.toggleAccountant)
   const taxNotice = useGame((s) => s.taxNotice)
   const dismissTaxNotice = useGame((s) => s.dismissTaxNotice)
+  // Araç kârlılığı: string anahtar sayesinde her frame re-render olmaz
+  const vehicleReportKey = useGame((s) =>
+    s.accountant
+      ? s.vehicles
+          .map((v) => `${v.id}|${v.plate}|${v.kind}|${Math.round(v.earned - v.spent)}|${v.trips}`)
+          .join(',')
+      : '',
+  )
+  const vehicleReport = vehicleReportKey
+    ? vehicleReportKey
+        .split(',')
+        .map((e) => {
+          const [id, plate, kind, net, trips] = e.split('|')
+          return { id, plate, kind, net: Number(net), trips: Number(trips) }
+        })
+        .sort((a, b) => b.net - a.net)
+    : []
   const taxDaysLeft = useGame((s) => s.taxDay - clockOf(s.time).day)
   // Matrah: usule göre ciro ya da net kâr
   const taxBase = useGame((s) =>
@@ -2310,6 +2327,69 @@ export function HUD() {
                             )
                           })}
                         </div>
+                      )}
+                    </div>
+                    {/* Araç kârlılığı: muhasebeci tutulunca açılan rapor */}
+                    <div>
+                      <div className="mb-1.5 flex items-baseline justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
+                          <Calculator className="mr-1 inline h-3 w-3" /> {t.vehicleReportTitle}
+                        </span>
+                        {!accountant && (
+                          <span className="text-[9px] font-bold text-amber-600">🔒</span>
+                        )}
+                      </div>
+                      {!accountant ? (
+                        <div className="rounded-lg bg-[#edf2f5] px-2 py-3 text-center text-[10px] font-bold leading-snug text-[#7f929e]">
+                          {t.vehicleReportLocked}
+                        </div>
+                      ) : vehicleReport.length === 0 ? (
+                        <div className="py-3 text-center text-[11px] font-bold text-[#93a5af]">
+                          {t.vehicleReportEmpty}
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex flex-col gap-1">
+                            {vehicleReport.map((r) => {
+                              // Çubuk uzunluğu en kârlı araca göre ölçeklenir
+                              const peak = Math.max(
+                                ...vehicleReport.map((x) => Math.abs(x.net)),
+                                1,
+                              )
+                              const width = `${(Math.abs(r.net) / peak) * 100}%`
+                              return (
+                                <div key={r.id} className="flex items-center gap-2">
+                                  <span className="w-[86px] shrink-0">
+                                    <PlateBadge plate={r.plate} small />
+                                  </span>
+                                  <span className="w-10 shrink-0 text-[9px] font-bold text-[#93a5af]">
+                                    {t.kindNames[r.kind] ?? ''}
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block h-1.5 overflow-hidden rounded-full bg-[#e2e9ed]">
+                                      <span
+                                        className={`block h-full rounded-full ${r.net >= 0 ? 'bg-[#2ecc71]' : 'bg-[#e74c3c]'}`}
+                                        style={{ width }}
+                                      />
+                                    </span>
+                                    <span className="mt-0.5 block text-[9px] font-bold text-[#adbac2]">
+                                      {t.vehicleReportTrips(r.trips)}
+                                      {r.trips > 0 && ` · ₺${fmt(Math.round(r.net / r.trips))}/${t.vehicleReportPerTrip}`}
+                                    </span>
+                                  </span>
+                                  <span
+                                    className={`w-20 shrink-0 text-right text-[11px] font-black tabular-nums ${r.net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                                  >
+                                    {r.net >= 0 ? '+' : '−'}₺{fmtShort(Math.abs(r.net))}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <div className="mt-1.5 text-[9px] font-bold leading-snug text-[#adbac2]">
+                            {t.vehicleReportNote}
+                          </div>
+                        </>
                       )}
                     </div>
                     {/* Net varlık: gün kapanışları + canlı değer tek çizgide */}

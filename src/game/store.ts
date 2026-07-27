@@ -120,6 +120,11 @@ export type Vehicle = {
   mods: VehicleMod[] // tek seferlik yükseltmeler: motor/lpg/klima/ses
   wrap: number // reklam giydirme: 0 = yok, 1+ = kampanya indeksi (gövde rengi değişir)
   inspectionDay: number // muayenenin son günü; bu gün geçilince araç sigortasız sayılır
+  // Araç defteri (muhasebeci raporu): araca doğrudan bağlanabilen kalemler.
+  // Kontrat/büfe gibi işletme geneli gelirler buraya yazılmaz
+  earned: number // ömür boyu hasılat (hat + servis/VIP + reklam), hisse payına göre
+  spent: number // ömür boyu masraf (yakıt, bakım, yevmiye, muayene, modifiye)
+  trips: number // tamamlanan sefer sayısı
 }
 
 export type VehicleMod = 'engine' | 'lpg' | 'ac' | 'sound'
@@ -761,6 +766,9 @@ function loadSave(): Partial<GameState> | null {
         // açılışta hazırlıksız ceza yemesin
         inspectionDay:
           v.inspectionDay ?? clockOf(d.time ?? 0).day + CONFIG.inspectionPeriod,
+        earned: v.earned ?? 0,
+        spent: v.spent ?? 0,
+        trips: v.trips ?? 0,
         partners:
           v.partners ?? (v.share != null && v.share < 100 ? [{ name: genPartner(), pct: 100 - v.share }] : []),
       })),
@@ -900,6 +908,9 @@ function makeVehicle(
     wrap: 0,
     // Sıfır araç fabrika muayenesiyle gelir: ilk muayene bir dönem sonra
     inspectionDay: CONFIG.inspectionPeriod,
+    earned: 0,
+    spent: 0,
+    trips: 0,
   }
 }
 
@@ -1353,7 +1364,9 @@ export const useGame = create<GameState>((set, get) => ({
     set({
       money: s.money - cost,
       vehicles: s.vehicles.map((veh) =>
-        veh.id === vehicleId ? { ...veh, mods: [...veh.mods, mod] } : veh,
+        veh.id === vehicleId
+          ? { ...veh, mods: [...veh.mods, mod], spent: veh.spent + cost }
+          : veh,
       ),
     })
   },
@@ -1432,6 +1445,7 @@ export const useGame = create<GameState>((set, get) => ({
               state: 'toPump' as const,
               path: isEV ? toChargePath(vehicleSpotPos(veh.kind, veh.spotIdx)) : toPumpPath(vehicleSpotPos(veh.kind, veh.spotIdx)),
               dist: 0,
+              spent: veh.spent + cost,
             }
           : veh,
       ),
@@ -1462,7 +1476,9 @@ export const useGame = create<GameState>((set, get) => ({
     trackExpense(cost)
     set({
       money: s.money - cost,
-      vehicles: s.vehicles.map((veh) => (veh.id === vehicleId ? { ...veh, wear: 0 } : veh)),
+      vehicles: s.vehicles.map((veh) =>
+        veh.id === vehicleId ? { ...veh, wear: 0, spent: veh.spent + cost } : veh,
+      ),
     })
   },
 
@@ -1863,7 +1879,9 @@ export const useGame = create<GameState>((set, get) => ({
     set({
       money: s.money - fee,
       vehicles: s.vehicles.map((x) =>
-        x.id === vehicleId ? { ...x, inspectionDay: day + CONFIG.inspectionPeriod } : x,
+        x.id === vehicleId
+          ? { ...x, inspectionDay: day + CONFIG.inspectionPeriod, spent: x.spent + fee }
+          : x,
       ),
       toasts: toast(t.inspectionPassed(v.plate, day + CONFIG.inspectionPeriod)),
     })
@@ -2033,6 +2051,13 @@ export const useGame = create<GameState>((set, get) => ({
     let moralDecayNow = 0
     const { buildings, insurance, accountant } = s
     let { taxDay, taxIncomeAcc, taxExpenseAcc, taxNotice } = s
+    // Araç defteri: akşam blokunda oluşan araç bazlı kalemler (yevmiye, reklam)
+    // burada toplanır, araç dizisi kurulurken işlenir
+    const ledger = new Map<number, { earned: number; spent: number }>()
+    const book = (id: number, earned: number, spent: number) => {
+      const cur = ledger.get(id) ?? { earned: 0, spent: 0 }
+      ledger.set(id, { earned: cur.earned + earned, spent: cur.spent + spent })
+    }
 
     const clock = clockOf(time)
     const day = clock.day
@@ -2201,11 +2226,11 @@ export const useGame = create<GameState>((set, get) => ({
       wageDay = day
       // Yevmiyeler araç payına göre: ortaklı araçta masrafın yarısı ortağın
       const wages = Math.round(
-        s.vehicles.reduce(
-          (sum, v) =>
-            sum + ((v.hasDriver ? CONFIG.driverWage : 0) + kahyaWageOf(v)) * (v.share / 100),
-          0,
-        ),
+        s.vehicles.reduce((sum, v) => {
+          const own = ((v.hasDriver ? CONFIG.driverWage : 0) + kahyaWageOf(v)) * (v.share / 100)
+          book(v.id, 0, Math.round(own))
+          return sum + own
+        }, 0),
       )
       money -= wages
       trackExpense(wages)
@@ -2276,7 +2301,9 @@ export const useGame = create<GameState>((set, get) => ({
         }
         for (const v of s.vehicles) {
           if (v.wrap > 0) {
-            adIncome += (rand(CONFIG.wrapDailyMin, CONFIG.wrapDailyMax) * v.share) / 100
+            const own = (rand(CONFIG.wrapDailyMin, CONFIG.wrapDailyMax) * v.share) / 100
+            adIncome += own
+            book(v.id, Math.round(own), 0)
           }
         }
         adIncome = Math.round(adIncome)
@@ -2669,6 +2696,12 @@ export const useGame = create<GameState>((set, get) => ({
 
     const vehicles = s.vehicles.map((vehicle) => {
       const v = { ...vehicle }
+      // Akşam blokunda biriken araç kalemleri deftere işlenir
+      const booked = ledger.get(v.id)
+      if (booked) {
+        v.earned += booked.earned
+        v.spent += booked.spent
+      }
       if (moralDecayNow > 0 && v.hasDriver) {
         v.driverMoral = Math.max(0, v.driverMoral - moralDecayNow)
       }
@@ -2875,6 +2908,8 @@ export const useGame = create<GameState>((set, get) => ({
             const tripFare = Math.round((fareSum * fareMult * v.share) / 100)
             money += tripFare
             trackIncome('dolmus', tripFare)
+            v.earned += tripFare
+            v.trips += 1
             totalCarried += v.passengers
             advanceTask('carry', v.passengers)
             advanceTask('revenue', tripFare)
@@ -2932,6 +2967,8 @@ export const useGame = create<GameState>((set, get) => ({
             const pay = Math.round((v.charterPayout * v.share) / 100)
             money += pay
             trackIncome(v.kind === 'vito' ? 'vip' : 'servis', pay)
+            v.earned += pay
+            v.trips += 1
             rep = clampRep(rep + CONFIG.repPerTrip)
             advanceTask('trips', 1)
             advanceTask('revenue', pay)
@@ -2964,6 +3001,7 @@ export const useGame = create<GameState>((set, get) => ({
             )
             money += extra
             trackIncome('dolmus', extra)
+            v.earned += extra
             totalCarried += enRoute
             advanceTask('carry', enRoute)
             advanceTask('revenue', extra)

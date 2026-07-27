@@ -88,7 +88,7 @@ export const CONFIG = {
   // Ek peron durakları: aynı anda birden çok araç yolcu alır (kuyruk hızlı erir)
   peronMax: 3,
   peronCosts: [2500000, 7500000], // 2. ve 3. peronun bedeli
-  startMoney: 100000000, // TEST: normali 150000 — yayından önce geri al!
+  startMoney: 200000, // açılış kasası: ilk aracın peşinatı + birkaç günlük yevmiye
   startSpots: 2,
 
   // İtibar (0-5 ⭐): yüksek itibar durağa daha çok yolcu çeker

@@ -403,6 +403,13 @@ const dicts = {
     cashTaxBase: 'Matrah',
     cashTaxEstimate: 'Tahmini vergi',
     cashAfterTonight: 'Kesinti sonrası kasa',
+    // Araç bazlı kârlılık raporu (muhasebeci açar)
+    vehicleReportTitle: 'Araç Kârlılığı',
+    vehicleReportLocked: 'Bu rapor için muhasebeci gerekiyor — Personel & Park sekmesinden tut',
+    vehicleReportNote: 'Ömür boyu: hasılat − masraf (yakıt, bakım, yevmiye, muayene, modifiye). Kontrat ve büfe geliri işletme genelindedir, araca yazılmaz',
+    vehicleReportEmpty: 'Henüz sefer yapılmadı',
+    vehicleReportTrips: (n: number) => `${n} sefer`,
+    vehicleReportPerTrip: 'sefer başı',
     korsanStart: 'Korsan dolmuş türedi — yolcu akışı yavaşladı',
     milestone: (name: string, reward: number) => `${name}! Ödül: +₺${fmt(reward)}`,
     milestoneNames: {
@@ -875,6 +882,12 @@ const dicts = {
     cashTaxBase: 'Taxable base',
     cashTaxEstimate: 'Estimated tax',
     cashAfterTonight: 'Cash after deductions',
+    vehicleReportTitle: 'Vehicle Profitability',
+    vehicleReportLocked: 'This report needs an accountant — hire one from Staff & Parking',
+    vehicleReportNote: 'Lifetime: revenue − costs (fuel, servicing, wages, inspection, mods). Contract and kiosk income is business-wide and not attributed to vehicles',
+    vehicleReportEmpty: 'No runs completed yet',
+    vehicleReportTrips: (n: number) => `${n} runs`,
+    vehicleReportPerTrip: 'per run',
     korsanStart: 'Pirate dolmuş around — passenger flow slowed',
     milestone: (name: string, reward: number) => `${name}! Reward: +₺${fmt(reward)}`,
     milestoneNames: {
