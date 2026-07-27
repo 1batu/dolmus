@@ -42,6 +42,7 @@ import {
   Fuel,
   Handshake,
   KeyRound,
+  LogIn,
   HardHat,
   Hammer,
   Map as MapIcon,
@@ -64,6 +65,7 @@ import {
 } from 'lucide-react'
 import { isMuted, toggleMute } from '../game/sound'
 import { lang, setLang, t } from '../i18n'
+import { cloudEnabled, resolveConflict, signInWithGoogle, signOutCloud, useCloud } from '../game/cloud'
 
 const BUILDING_ICONS: Record<BuildingKind, ReactNode> = {
   bufe: <CupSoda className="h-7 w-7 text-amber-600" />,
@@ -1103,6 +1105,10 @@ export function HUD() {
   const [prestigeArmed, setPrestigeArmed] = useState(false)
   const [mutedUi, setMutedUi] = useState(isMuted())
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const cloudUser = useCloud((s) => s.user)
+  const cloudStatus = useCloud((s) => s.status)
+  const cloudLastSync = useCloud((s) => s.lastSyncAt)
+  const cloudConflict = useCloud((s) => s.conflict)
   const contractsKey = useGame((s) =>
     s.contracts
       .map(
@@ -1405,6 +1411,43 @@ export function HUD() {
         </div>
       )}
 
+      {/* Kayıt çakışması: hangisi sürdürülecek — sessizce üzerine yazmıyoruz */}
+      {cloudConflict && (
+        <div className="pointer-events-auto fixed inset-0 z-30 flex items-center justify-center">
+          <div className="absolute inset-0 bg-[#22313f]/70" />
+          <div className={`relative w-80 max-w-[92vw] p-4 ${PANEL}`}>
+            <div className="flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500">
+                <AlertTriangle className="h-5 w-5 text-white" />
+              </span>
+              <span className="text-sm font-black text-[#2c3e50]">{t.conflictTitle}</span>
+            </div>
+            <p className="mt-2 text-[11px] font-bold leading-snug text-[#5b7383]">{t.conflictBody}</p>
+            <div className="mt-3 flex flex-col gap-1.5">
+              <button
+                onClick={() => resolveConflict('cloud')}
+                className="cursor-pointer rounded-xl border-2 border-[#3498db] bg-white p-2.5 text-left transition hover:bg-[#eef6fc]"
+              >
+                <span className="block text-[11px] font-black text-[#3498db]">{t.conflictCloud}</span>
+                <span className="block text-[12px] font-extrabold tabular-nums text-[#2c3e50]">
+                  {t.conflictSummary(cloudConflict.cloud.day, cloudConflict.cloud.money)}
+                </span>
+              </button>
+              <button
+                onClick={() => resolveConflict('local')}
+                className="cursor-pointer rounded-xl border-2 border-[#d5dee4] bg-white p-2.5 text-left transition hover:bg-[#f3f7f9]"
+              >
+                <span className="block text-[11px] font-black text-[#5b7383]">{t.conflictLocal}</span>
+                <span className="block text-[12px] font-extrabold tabular-nums text-[#2c3e50]">
+                  {t.conflictSummary(cloudConflict.local.day, cloudConflict.local.money)}
+                </span>
+              </button>
+            </div>
+            <div className="mt-2 text-center text-[9px] font-bold text-amber-600">{t.conflictWarn}</div>
+          </div>
+        </div>
+      )}
+
       {/* Ayarlar: dil, ses, rehber ve sıfırlama tek yerde */}
       {settingsOpen && (
         <div className="pointer-events-auto fixed inset-0 z-20 flex items-center justify-center">
@@ -1422,8 +1465,48 @@ export function HUD() {
               </button>
             </div>
 
+            {/* Hesap: bulut yedeği ve cihazlar arası devam (yapılandırma varsa) */}
+            <div className={`mt-3 ${cloudEnabled ? '' : 'hidden'}`}>
+              <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-[#adbac2]">
+                {t.settingsAccount}
+              </div>
+              {cloudUser ? (
+                <>
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#3498db] text-[10px] font-black text-white">
+                      {(cloudUser.name || cloudUser.email || '?').charAt(0).toUpperCase()}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-[#2c3e50]">
+                      {cloudUser.email || cloudUser.name}
+                    </span>
+                  </div>
+                  <MiniButton label={t.signOut} enabled onClick={() => void signOutCloud()} />
+                  <div className="mt-1 text-[9px] font-bold text-[#adbac2]">
+                    {cloudStatus === 'syncing'
+                      ? t.cloudSyncing
+                      : cloudStatus === 'error'
+                        ? t.cloudError
+                        : cloudLastSync > 0
+                          ? t.cloudSynced(Math.floor((Date.now() - cloudLastSync) / 60000))
+                          : ''}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <PriceButton
+                    label={<><LogIn className="h-3.5 w-3.5" /> {t.signInGoogle}</>}
+                    enabled
+                    onClick={() => void signInWithGoogle()}
+                  />
+                  <div className="mt-1 text-[9px] font-bold leading-snug text-[#adbac2]">
+                    {t.cloudNote}
+                  </div>
+                </>
+              )}
+            </div>
+
             {/* Dil */}
-            <div className="mt-3">
+            <div className="mt-3 border-t border-[#d5dee4] pt-2.5">
               <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-[#adbac2]">
                 {t.settingsLang}
               </div>

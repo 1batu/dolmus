@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { CONFIG, VEHICLE_SPECS, clockOf, contractSlotsOf, queueCapOf, type VehicleSpec } from './config'
+import { SAVE_KEY } from './saveKey'
+import { pushCloudSave } from './cloud'
 import {
   type P2,
   LAYOUT,
@@ -567,7 +569,6 @@ function localDateStr(offsetDays = 0): string {
 }
 
 // --- Kalıcılık: localStorage'a periyodik yaz, açılışta geri yükle ---
-const SAVE_KEY = 'dolmus-save'
 // Rehber bitti/atlandı işareti: adım sayacı bu değere gelince panel bir daha açılmaz
 export const TUTORIAL_DONE = -1
 
@@ -623,55 +624,55 @@ type SavedFields = Pick<
 function persist(s: SavedFields) {
   try {
     const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, streak, lastPlayDate, rentalOffice, rentals, perons, specialDay, specialDayFor, tutorialStep, insurance, accountant, taxDay, taxIncomeAcc, taxExpenseAcc } = s
-    localStorage.setItem(
-      SAVE_KEY,
-      JSON.stringify({
-        v: SAVE_VERSION,
-        nextId,
-        savedAt: Date.now(),
-        milestonesDone,
-        prestige,
-        fuelPrice,
-        fare,
-        statsHistory,
-        deposits,
-        creditScore,
-        missedPayDays,
-        streak,
-        lastPlayDate,
-        time,
-        day,
-        wageDay,
-        money,
-        totalCarried,
-        queue,
-        spots,
-        drivers,
-        vehicles,
-        debts,
-        spawnTimer,
-        rep,
-        task,
-        taskDay,
-        buildings,
-        bufeToday,
-        rivals,
-        rivalRespawn,
-        contracts,
-        taxis,
-        rentalOffice,
-        rentals,
-        perons,
-        specialDay,
-        specialDayFor,
-        tutorialStep,
-        insurance,
-        accountant,
-        taxDay,
-        taxIncomeAcc,
-        taxExpenseAcc,
-      }),
-    )
+    const payload = {
+      v: SAVE_VERSION,
+      nextId,
+      savedAt: Date.now(),
+      milestonesDone,
+      prestige,
+      fuelPrice,
+      fare,
+      statsHistory,
+      deposits,
+      creditScore,
+      missedPayDays,
+      streak,
+      lastPlayDate,
+      time,
+      day,
+      wageDay,
+      money,
+      totalCarried,
+      queue,
+      spots,
+      drivers,
+      vehicles,
+      debts,
+      spawnTimer,
+      rep,
+      task,
+      taskDay,
+      buildings,
+      bufeToday,
+      rivals,
+      rivalRespawn,
+      contracts,
+      taxis,
+      rentalOffice,
+      rentals,
+      perons,
+      specialDay,
+      specialDayFor,
+      tutorialStep,
+      insurance,
+      accountant,
+      taxDay,
+      taxIncomeAcc,
+      taxExpenseAcc,
+    }
+    localStorage.setItem(SAVE_KEY, JSON.stringify(payload))
+    // Girişliyse aynı gövde buluta da gider (kısılmış — cloud.ts'te)
+    pushCloudSave(payload)
   } catch {
     // depolama dolu/kapalıysa oyun kayıtsız devam eder
   }
