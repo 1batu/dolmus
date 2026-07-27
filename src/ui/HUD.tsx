@@ -47,6 +47,7 @@ import {
   Map as MapIcon,
   Moon,
   ScrollText,
+  Settings,
   Star,
   Sun,
   Ticket,
@@ -62,7 +63,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { isMuted, toggleMute } from '../game/sound'
-import { t } from '../i18n'
+import { lang, setLang, t } from '../i18n'
 
 const BUILDING_ICONS: Record<BuildingKind, ReactNode> = {
   bufe: <CupSoda className="h-7 w-7 text-amber-600" />,
@@ -1101,6 +1102,7 @@ export function HUD() {
   const prestigeReset = useGame((s) => s.prestigeReset)
   const [prestigeArmed, setPrestigeArmed] = useState(false)
   const [mutedUi, setMutedUi] = useState(isMuted())
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const contractsKey = useGame((s) =>
     s.contracts
       .map(
@@ -1151,7 +1153,8 @@ export function HUD() {
         className={`pointer-events-auto absolute left-4 top-4 flex max-w-[calc(100vw-440px)] flex-wrap items-stretch divide-x divide-[#d5dee4] max-sm:left-2 max-sm:right-2 max-sm:top-2 max-sm:max-w-none ${PANEL}`}
       >
         <div className="flex items-center px-3 text-lg font-black tracking-tight text-[#2c3e50] max-sm:px-2">
-          <img src="/favicon.svg" alt={t.appTitle} title={t.appTitle} className="h-6 w-6 rounded-md" />
+          {/* BASE_URL: alt dizinde yayınlanınca da doğru çözülür */}
+          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt={t.appTitle} title={t.appTitle} className="h-6 w-6 rounded-md" />
         </div>
         <Stat icon={<CalendarDays className="h-4 w-4" />} label={t.day} value={`${day}`} />
         <Stat icon={isNightHour ? <Moon className="h-4 w-4 text-indigo-600" /> : <Sun className="h-4 w-4 text-amber-600" />} label={t.clock} value={clock} />
@@ -1402,6 +1405,97 @@ export function HUD() {
         </div>
       )}
 
+      {/* Ayarlar: dil, ses, rehber ve sıfırlama tek yerde */}
+      {settingsOpen && (
+        <div className="pointer-events-auto fixed inset-0 z-20 flex items-center justify-center">
+          <div className="absolute inset-0 bg-[#22313f]/55" onClick={() => setSettingsOpen(false)} />
+          <div className={`relative w-80 max-w-[92vw] p-4 ${PANEL}`}>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2 text-sm font-black text-[#2c3e50]">
+                <Settings className="h-4 w-4" /> {t.settingsTitle}
+              </span>
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="cursor-pointer rounded-lg bg-[#e2e9ed] px-2 py-1 text-[#4a6076] transition hover:bg-[#cfdae1]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Dil */}
+            <div className="mt-3">
+              <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-[#adbac2]">
+                {t.settingsLang}
+              </div>
+              <div className="flex gap-1.5">
+                <MiniButton
+                  label="Türkçe"
+                  enabled={lang !== 'tr'}
+                  active={lang === 'tr'}
+                  onClick={() => setLang('tr')}
+                />
+                <MiniButton
+                  label="English"
+                  enabled={lang !== 'en'}
+                  active={lang === 'en'}
+                  onClick={() => setLang('en')}
+                />
+              </div>
+              <div className="mt-1 text-[9px] font-bold leading-snug text-[#adbac2]">
+                {t.settingsLangNote}
+              </div>
+            </div>
+
+            {/* Ses */}
+            <div className="mt-3 border-t border-[#d5dee4] pt-2.5">
+              <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-[#adbac2]">
+                {t.settingsSound}
+              </div>
+              <div className="flex gap-1.5">
+                <MiniButton
+                  label={<><Volume2 className="h-3 w-3" /> {t.settingsSoundOn}</>}
+                  enabled={mutedUi}
+                  active={!mutedUi}
+                  onClick={() => setMutedUi(toggleMute())}
+                />
+                <MiniButton
+                  label={<><VolumeX className="h-3 w-3" /> {t.settingsSoundOff}</>}
+                  enabled={!mutedUi}
+                  active={mutedUi}
+                  onClick={() => setMutedUi(toggleMute())}
+                />
+              </div>
+            </div>
+
+            {/* Rehber */}
+            <div className="mt-3 border-t border-[#d5dee4] pt-2.5">
+              <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-[#adbac2]">
+                {t.settingsGuide}
+              </div>
+              <MiniButton
+                label={<><GraduationCap className="h-3 w-3" /> {t.settingsGuideBtn}</>}
+                enabled
+                onClick={() => {
+                  replayTutorial()
+                  setSettingsOpen(false)
+                }}
+              />
+            </div>
+
+            {/* Sıfırlama */}
+            <div className="mt-3 border-t border-[#d5dee4] pt-2.5">
+              <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-red-400">
+                {t.settingsDanger}
+              </div>
+              <div className="mb-1.5 text-[9px] font-bold leading-snug text-[#adbac2]">
+                {t.settingsResetNote}
+              </div>
+              <ResetButton onReset={reset} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Vergi beyanı: dönem kapanışında dökümlü modal */}
       {taxNotice && (
         <div className="pointer-events-auto fixed inset-0 z-20 flex items-center justify-center">
@@ -1478,10 +1572,11 @@ export function HUD() {
       <div className="absolute right-4 top-4 flex flex-col items-end gap-2 max-sm:bottom-4 max-sm:left-2 max-sm:right-2 max-sm:top-auto">
         <div className="flex items-center gap-2 max-sm:w-full">
           <button
-            onClick={() => setMutedUi(toggleMute())}
-            className={`pointer-events-auto cursor-pointer rounded-xl px-2.5 py-3 text-sm text-[#2c3e50] shadow-lg transition active:scale-95 ${PANEL} ${mutedUi ? 'opacity-50' : ''}`}
+            onClick={() => setSettingsOpen((o) => !o)}
+            title={t.settingsTitle}
+            className={`pointer-events-auto cursor-pointer rounded-xl px-2.5 py-3 text-sm text-[#2c3e50] transition active:translate-y-[2px] ${PANEL} ${settingsOpen ? '!bg-[#e2e9ed]' : ''}`}
           >
-            {mutedUi ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+            <Settings className="h-5 w-5" />
           </button>
           <button
             onClick={() => setFiloOpen((o) => !o)}
@@ -1666,17 +1761,6 @@ export function HUD() {
                 <span className="h-4 w-1 rounded-full bg-red-500" /> <Hammer className="h-4 w-4" /> {t.buildModalTitle}
               </span>
               <span className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    replayTutorial()
-                    setBuildOpen(false)
-                  }}
-                  title={t.tutorialReplay}
-                  className="flex cursor-pointer items-center gap-1 rounded-lg bg-[#e2e9ed] px-2 py-1 text-xs font-bold text-[#5b7383] transition hover:bg-[#cfdae1] hover:text-[#3d5568]"
-                >
-                  <GraduationCap className="h-3.5 w-3.5" />
-                </button>
-                <ResetButton onReset={reset} />
                 <button
                   onClick={() => setBuildOpen(false)}
                   className="cursor-pointer rounded-lg bg-[#e2e9ed] px-2 py-1 text-xs font-bold text-[#4a6076] transition hover:bg-[#cfdae1]"

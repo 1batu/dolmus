@@ -1,7 +1,23 @@
 // Tüm UI metinleri buradan gelir — hardcoded string yok. / All UI strings live here.
 export type Lang = 'tr' | 'en'
 
-const fmt = (n: number) => n.toLocaleString('tr-TR')
+const LANG_KEY = 'dolmus-lang'
+
+// Seçili dil: kayıtlı tercih, yoksa tarayıcı dili (Türkçe değilse İngilizce).
+// Modül yüklenirken bir kez çözülür — metinler render sırasında sabit kalır
+function resolveLang(): Lang {
+  try {
+    const saved = localStorage.getItem(LANG_KEY)
+    if (saved === 'tr' || saved === 'en') return saved
+  } catch {
+    /* depolama kapalıysa tarayıcı diline düş */
+  }
+  const nav = typeof navigator !== 'undefined' ? navigator.language : 'tr'
+  return nav.toLowerCase().startsWith('tr') ? 'tr' : 'en'
+}
+
+// Sayı biçimi dile uyar: TR 15.918.670 · EN 15,918,670
+const fmt = (n: number) => n.toLocaleString(resolveLang() === 'tr' ? 'tr-TR' : 'en-US')
 
 const dicts = {
   tr: {
@@ -410,6 +426,17 @@ const dicts = {
     vehicleReportEmpty: 'Henüz sefer yapılmadı',
     vehicleReportTrips: (n: number) => `${n} sefer`,
     vehicleReportPerTrip: 'sefer başı',
+    // Ayarlar
+    settingsTitle: 'Ayarlar',
+    settingsLang: 'Dil',
+    settingsLangNote: 'Dil değişince oyun yeniden yüklenir — ilerlemen kayıtlı kalır',
+    settingsSound: 'Ses',
+    settingsSoundOn: 'Açık',
+    settingsSoundOff: 'Kapalı',
+    settingsGuide: 'Oyun rehberi',
+    settingsGuideBtn: 'Rehberi baştan göster',
+    settingsDanger: 'Tehlikeli bölge',
+    settingsResetNote: 'Kaydı siler, oyunu baştan başlatır. Prestij de sıfırlanır.',
     korsanStart: 'Korsan dolmuş türedi — yolcu akışı yavaşladı',
     milestone: (name: string, reward: number) => `${name}! Ödül: +₺${fmt(reward)}`,
     milestoneNames: {
@@ -532,7 +559,7 @@ const dicts = {
     installmentsPaid: (total: number) => `Installments paid: -₺${fmt(total)}`,
     rep: 'Rating',
     debtsTitle: 'Promissory Notes',
-    debtItem: (no: number) => `Minibus ${no} note`,
+    debtItem: (label: string) => `${label} promissory note`,
     payInstallment: 'Pay Installment',
     payOff: 'Pay Off',
     payoffNote: '5% early payoff discount',
@@ -888,6 +915,16 @@ const dicts = {
     vehicleReportEmpty: 'No runs completed yet',
     vehicleReportTrips: (n: number) => `${n} runs`,
     vehicleReportPerTrip: 'per run',
+    settingsTitle: 'Settings',
+    settingsLang: 'Language',
+    settingsLangNote: 'Changing the language reloads the game — your progress is saved',
+    settingsSound: 'Sound',
+    settingsSoundOn: 'On',
+    settingsSoundOff: 'Off',
+    settingsGuide: 'Game guide',
+    settingsGuideBtn: 'Replay the guide',
+    settingsDanger: 'Danger zone',
+    settingsResetNote: 'Wipes your save and starts over. Prestige is reset too.',
     korsanStart: 'Pirate dolmuş around — passenger flow slowed',
     milestone: (name: string, reward: number) => `${name}! Reward: +₺${fmt(reward)}`,
     milestoneNames: {
@@ -965,5 +1002,21 @@ const dicts = {
   },
 } satisfies Record<Lang, unknown>
 
-export const lang: Lang = 'tr'
-export const t = dicts[lang]
+export const lang: Lang = resolveLang()
+
+// TR sözlüğü referans tiptir: bu atama EN sözlüğünün birebir aynı anahtar ve
+// imzalara sahip olmasını derleme anında zorunlu kılar
+export const t: typeof dicts.tr = dicts[lang]
+
+// Dil değişimi: tercih yazılır ve oyun yeniden yüklenir. Metinler modül
+// sabiti olduğu için doğru yol bu; kayıt 2,5 sn'de bir yazıldığından
+// yeniden yükleme ilerlemeyi kaybetmez
+export function setLang(next: Lang) {
+  if (next === lang) return
+  try {
+    localStorage.setItem(LANG_KEY, next)
+  } catch {
+    return // tercih yazılamıyorsa yeniden yükleme boşuna
+  }
+  location.reload()
+}

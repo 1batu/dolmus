@@ -33,6 +33,7 @@ Idle/tycoon game about running a Turkish dolmuş (shared minibus) terminal. Web-
 | 🅿️ Büyük terminal | 2 sıra × 10 = 20 park cebi (arka sıra yarım cep kaymalı — çıkışta çarpışma yok), tesisler güney şeridinde, binalarda Türkçe canvas tabelalar (BÜFE, TAMİRHANE, GİRİŞ/ÇIKIŞ...) |
 | ⏩ Gece hızlanma | 00:00-06:00 arası simülasyon 2× hızlı akar — sabah çabuk gelir |
 | 🚨 Araç üstü rozetler | Yakıt %25 altına düşünce pompa, yıpranma %75'i geçince anahtar rozeti aracın üstünde süzülür (kritikte kırmızı) — lucide glyph'leri canvas sprite olarak |
+| ⚙️ Ayarlar | Sağ üstteki dişli: **dil** (Türkçe/English — tercih kaydedilir, ilk açılışta tarayıcı dilinden seçilir, değişince oyun yeniden yüklenir), **ses** açık/kapalı, **rehberi baştan göster** ve tehlikeli bölgede iki aşamalı **Sıfırla**. Eskiden ses düğmesi tek başına duruyordu, Sıfırla ve rehber düğmesi İnşaat başlığındaydı — hepsi buraya toplandı |
 | 💾 Save/load | 2,5 sn'de bir localStorage; `SAVE_VERSION` + `SAVE_ACCEPTS` ile geriye uyumlu şema; iki aşamalı Sıfırla (İnşaat modalında) |
 | 📱 Tam responsive HUD | Mobilde (<640px) üst bar sadece kritik beşliyi gösterir (Gün · Saat · Kasa ₺15,9M kısa format · Borç · İtibar, uçtan uca eşit bölüşük), Filo/Banka/İnşaat altta tam genişlik buton barına iner; modallar tek sütun, Filo liste+detay dikey istiflenir (detay üstte); dokunmatik kamera (sürükle/pinch, `touch-action: none`), pull-to-refresh ve tap-highlight kapalı. Dar masaüstünde üst bar kırpılmak yerine ikinci satıra sarar |
 
@@ -49,6 +50,18 @@ Idle/tycoon game about running a Turkish dolmuş (shared minibus) terminal. Web-
 npm install
 npm run dev
 ```
+
+## Deploy — GitHub Pages
+
+Yayın otomatik: `main`'e push edilince `.github/workflows/deploy.yml` derleyip Pages'e atar.
+Tek seferlik kurulum: repo → **Settings → Pages → Source: GitHub Actions**.
+
+Adres: `https://1batu.github.io/dolmus/`
+
+Site alt dizinde sunulduğu için derlemede `base` `/dolmus/` olur (`vite.config.ts`);
+`npm run dev` kökte kalır. Repo adı değişirse Actions akışı base'i repo adından
+geçirdiği için ek iş yok. Koddan public dosyaya erişirken mutlak `/dosya.svg`
+yerine `import.meta.env.BASE_URL` kullan — yoksa alt dizinde 404 olur.
 
 ## Structure
 
@@ -108,6 +121,6 @@ npm run dev
 ### Kalan — Cila & meta
 30. **Başarım paneli** — milestone'lar var ama listesi görünmüyor: İnşaat'a "Başarımlar" sekmesi, kilitliler gri
 31. **Net varlık grafiği** — kasa + filo değeri + mevduat − borç; İstatistik sekmesine tek çizgi
-32. **Skor kartı paylaşımı + Yayın** — tek tuşla şık skor görseli + Vercel deploy → oynanabilir link (oyun paylaşılabilir olmadan twit tam vurmaz); sonrasında Capacitor ile mağaza
+32. **Skor kartı paylaşımı + Yayın** — tek tuşla şık skor görseli + **GitHub Pages** yayını → oynanabilir link (oyun paylaşılabilir olmadan twit tam vurmaz); sonrasında Capacitor ile mağaza. Altyapı hazır: `.github/workflows/deploy.yml` main'e her push'ta derleyip yayınlar, `vite.config.ts` alt dizin base'ini ayarlar
 33. ~~**Onboarding**~~ ✅ — 6 adımlı açılış rehberi (alt ortada kart): karşılama → ilk seferi izle → ikinci aracı al → şoför tut → filoyu aç → kapanış. Adımlar oyuncu işi fiilen yapınca kendiliğinden ilerler; "Rehberi geç" her an kapatır. Yalnız yeni oyunda açılır (süregelen kayıt rehberi bitmiş sayar), İnşaat başlığındaki 🎓 düğmesiyle kayıt silmeden tekrar izlenir. Modal açıkken ince şeride iner
 34. **Google ile giriş + bulut kayıt** — Google hesabıyla oturum aç, oyun kaydı Google altyapısında tutulsun (Firebase Auth + Firestore): localStorage tek gerçek kaynak olmaktan çıkar, mevcut kayıt ilk girişte buluta taşınır, cihazlar arası senkron (telefonda başla masaüstünde devam et), hesap silinirse anonim moda düş
