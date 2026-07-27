@@ -1107,6 +1107,7 @@ export function HUD() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const cloudUser = useCloud((s) => s.user)
   const cloudStatus = useCloud((s) => s.status)
+  const cloudError = useCloud((s) => s.errorCode)
   const cloudLastSync = useCloud((s) => s.lastSyncAt)
   const cloudConflict = useCloud((s) => s.conflict)
   const contractsKey = useGame((s) =>
@@ -1485,7 +1486,7 @@ export function HUD() {
                     {cloudStatus === 'syncing'
                       ? t.cloudSyncing
                       : cloudStatus === 'error'
-                        ? t.cloudError
+                        ? `${t.cloudError}${cloudError ? ` (${cloudError})` : ''}`
                         : cloudLastSync > 0
                           ? t.cloudSynced(Math.floor((Date.now() - cloudLastSync) / 60000))
                           : ''}

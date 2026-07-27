@@ -47,6 +47,7 @@ type CloudState = {
   user: { uid: string; email: string; name: string } | null
   ready: boolean // ilk oturum kontrolü tamamlandı mı
   status: 'idle' | 'syncing' | 'synced' | 'error'
+  errorCode: string // Firebase hata kodu — arayüzde gösterilir, teşhis için
   lastSyncAt: number
   // İki kayıt çakışırsa oyuncu seçer — sessizce üzerine yazmak ilerlemeyi yakar
   conflict: { cloud: SaveSummary; local: SaveSummary } | null
@@ -56,9 +57,17 @@ export const useCloud = create<CloudState>(() => ({
   user: null,
   ready: false,
   status: 'idle',
+  errorCode: '',
   lastSyncAt: 0,
   conflict: null,
 }))
+
+// Hata kodunu yakala: sessizce yutmak teşhisi imkânsız kılıyor
+function fail(where: string, e: unknown) {
+  const code = (e as { code?: string })?.code ?? (e as Error)?.message ?? 'unknown'
+  console.error(`[dolmus:cloud] ${where}:`, code, e)
+  useCloud.setState({ status: 'error', errorCode: code })
+}
 
 // Kayıt gövdesinden özet çıkar (çakışma ekranı için)
 function summarize(payload: unknown): SaveSummary {
@@ -99,10 +108,10 @@ async function flush() {
       day: payload.day ?? 0,
       money: payload.money ?? 0,
     })
-    useCloud.setState({ status: 'synced', lastSyncAt: Date.now() })
-  } catch {
+    useCloud.setState({ status: 'synced', errorCode: '', lastSyncAt: Date.now() })
+  } catch (e) {
     // Ağ yoksa oyun aksamaz: yerel kayıt zaten yazıldı, sonraki turda denenir
-    useCloud.setState({ status: 'error' })
+    fail('setDoc', e)
   }
 }
 
@@ -128,10 +137,10 @@ export async function signInWithGoogle() {
   if (!auth) return
   try {
     await signInWithPopup(auth, new GoogleAuthProvider(), browserPopupRedirectResolver)
-  } catch {
-    // Açılır pencere engellendiyse (uygulama içi tarayıcılar) sessiz kal:
-    // kullanıcı tekrar deneyebilir, oyun yerel kayıtla çalışmaya devam eder
-    useCloud.setState({ status: 'error' })
+  } catch (e) {
+    // Açılır pencere engellenmiş olabilir (uygulama içi tarayıcılar) ya da
+    // sağlayıcı kapalı olabilir — kod arayüzde görünür
+    fail('signIn', e)
   }
 }
 
@@ -171,8 +180,8 @@ async function reconcile(uid: string) {
   let cloudDoc
   try {
     cloudDoc = await getDoc(doc(db, 'saves', uid))
-  } catch {
-    useCloud.setState({ status: 'error' })
+  } catch (e) {
+    fail('getDoc', e)
     return
   }
   const cloudPayload = cloudDoc.data()?.payload
