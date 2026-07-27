@@ -2912,75 +2912,101 @@ export const useGame = create<GameState>((set, get) => ({
       eventTimer -= dt
       if (eventTimer <= 0) {
         eventTimer = rand(CONFIG.eventIntervalMin, CONFIG.eventIntervalMax)
-        // Büyük filoda (6+) ağır arıza da olasılık havuzuna girer.
-        // Maç günü zabıta sahada: denetim olasılığı belirgin artar
-        let roll = Math.floor(rand(0, vehicles.length >= 6 ? 5 : 4))
-        if (special === 'mac' && Math.random() < 0.4) roll = 0
-        if (roll === 4) {
-          // Ağır arıza: şanzıman/motor — araç servis parkına çekilir, 2-3 gün
-          // tamirde kalır, fatura peşin kesilir
+        // Hava olayı sürüyorsa zar önce kaygan zemine bakar: karda ciddi,
+        // yağmurda ölçülü kaza riski — yoldaki araç kayar, hasar alır
+        const slipChance =
+          time < snowUntil
+            ? CONFIG.snowSlipChance
+            : time < rainUntil
+              ? CONFIG.rainSlipChance
+              : 0
+        const slipped = slipChance > 0 && Math.random() < slipChance
+        if (slipped) {
           const idx = vehicles.findIndex(
-            (v) => v.state === 'parked' && v.hasDriver && v.brokenUntilDay === 0,
+            (v) => v.state === 'onTrip' || v.state === 'departing' || v.state === 'returning',
           )
           if (idx >= 0) {
-            const days = 2 + Math.floor(rand(0, 2))
-            const bill = Math.ceil(
-              CONFIG.repairCostPerUnit *
-                60 *
-                specOf(vehicles[idx].kind).repairMult *
-                (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
+            vehicles[idx] = {
+              ...vehicles[idx],
+              wear: Math.min(100, vehicles[idx].wear + CONFIG.slipWear),
+            }
+            rep = clampRep(rep - CONFIG.slipRepPenalty)
+            pushToast(
+              time < snowUntil ? t.snowSlip(vehicles[idx].plate) : t.rainSlip(vehicles[idx].plate),
             )
-            money -= bill
-            trackExpense(bill)
-            vehicles[idx] = {
-              ...vehicles[idx],
-              brokenUntilDay: day + days,
-              state: 'toRepair',
-              path: toRepairPath(vehicleSpotPos(vehicles[idx].kind, vehicles[idx].spotIdx)),
-              dist: 0,
+          }
+        }
+        if (!slipped) {
+          // Büyük filoda (6+) ağır arıza da olasılık havuzuna girer.
+          // Maç günü zabıta sahada: denetim olasılığı belirgin artar
+          let roll = Math.floor(rand(0, vehicles.length >= 6 ? 5 : 4))
+          if (special === 'mac' && Math.random() < 0.4) roll = 0
+          if (roll === 4) {
+            // Ağır arıza: şanzıman/motor — araç servis parkına çekilir, 2-3 gün
+            // tamirde kalır, fatura peşin kesilir
+            const idx = vehicles.findIndex(
+              (v) => v.state === 'parked' && v.hasDriver && v.brokenUntilDay === 0,
+            )
+            if (idx >= 0) {
+              const days = 2 + Math.floor(rand(0, 2))
+              const bill = Math.ceil(
+                CONFIG.repairCostPerUnit *
+                  60 *
+                  specOf(vehicles[idx].kind).repairMult *
+                  (buildings.tamirhane ? CONFIG.tamirhaneDiscount : 1),
+              )
+              money -= bill
+              trackExpense(bill)
+              vehicles[idx] = {
+                ...vehicles[idx],
+                brokenUntilDay: day + days,
+                state: 'toRepair',
+                path: toRepairPath(vehicleSpotPos(vehicles[idx].kind, vehicles[idx].spotIdx)),
+                dist: 0,
+              }
+              pushToast(t.bigBreakdown(vehicles[idx].plate, days, bill))
             }
-            pushToast(t.bigBreakdown(vehicles[idx].plate, days, bill))
-          }
-        } else if (roll === 0) {
-          // Zabıta: ayakta yolcu taşıyan araç yakalanırsa ceza
-          const overloaded = vehicles.find(
-            (v) =>
-              v.passengers > specOf(v.kind).seats &&
-              (v.state === 'departing' || v.state === 'onTrip'),
-          )
-          if (overloaded) {
-            const standing = overloaded.passengers - specOf(overloaded.kind).seats
-            const fine = standing * CONFIG.zabitaFinePerStanding
-            money -= fine
-            trackExpense(fine)
-            rep = clampRep(rep - 0.1)
-            pushToast(t.zabitaFine(overloaded.plate, fine))
-          } else {
-            rep = clampRep(rep + CONFIG.zabitaCleanRep)
-            pushToast(t.zabitaClean)
-          }
-        } else if (roll === 1) {
-          // Lastik patlaması: yoldaki rastgele araç yıpranır
-          const idx = vehicles.findIndex((v) => v.state === 'onTrip')
-          if (idx >= 0) {
-            vehicles[idx] = {
-              ...vehicles[idx],
-              wear: Math.min(100, vehicles[idx].wear + CONFIG.tireBlowWear),
+          } else if (roll === 0) {
+            // Zabıta: ayakta yolcu taşıyan araç yakalanırsa ceza
+            const overloaded = vehicles.find(
+              (v) =>
+                v.passengers > specOf(v.kind).seats &&
+                (v.state === 'departing' || v.state === 'onTrip'),
+            )
+            if (overloaded) {
+              const standing = overloaded.passengers - specOf(overloaded.kind).seats
+              const fine = standing * CONFIG.zabitaFinePerStanding
+              money -= fine
+              trackExpense(fine)
+              rep = clampRep(rep - 0.1)
+              pushToast(t.zabitaFine(overloaded.plate, fine))
+            } else {
+              rep = clampRep(rep + CONFIG.zabitaCleanRep)
+              pushToast(t.zabitaClean)
             }
-            pushToast(t.tireBlow(vehicles[idx].plate))
-          }
-        } else if (roll === 2) {
-          // Hava: çoğu kez yağmur, bazen kar bastırır (sis çöker, yol kayganlaşır)
-          if (Math.random() < 0.35) {
-            snowUntil = time + CONFIG.snowDuration
-            pushToast(t.snowStart)
+          } else if (roll === 1) {
+            // Lastik patlaması: yoldaki rastgele araç yıpranır
+            const idx = vehicles.findIndex((v) => v.state === 'onTrip')
+            if (idx >= 0) {
+              vehicles[idx] = {
+                ...vehicles[idx],
+                wear: Math.min(100, vehicles[idx].wear + CONFIG.tireBlowWear),
+              }
+              pushToast(t.tireBlow(vehicles[idx].plate))
+            }
+          } else if (roll === 2) {
+            // Hava: çoğu kez yağmur, bazen kar bastırır (sis çöker, yol kayganlaşır)
+            if (Math.random() < 0.35) {
+              snowUntil = time + CONFIG.snowDuration
+              pushToast(t.snowStart)
+            } else {
+              rainUntil = time + CONFIG.rainDuration
+              pushToast(t.rainStart)
+            }
           } else {
-            rainUntil = time + CONFIG.rainDuration
-            pushToast(t.rainStart)
+            korsanUntil = time + CONFIG.korsanDuration
+            pushToast(t.korsanStart)
           }
-        } else {
-          korsanUntil = time + CONFIG.korsanDuration
-          pushToast(t.korsanStart)
         }
       }
     }

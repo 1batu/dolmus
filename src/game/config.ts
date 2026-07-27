@@ -270,6 +270,11 @@ export const CONFIG = {
   snowDuration: 75, // sn — kar yağmurdan uzun sürer
   snowSpawnFactor: 0.8, // karda yolcu aralığı çarpanı (soğukta dolmuşa binen artar)
   snowWearFactor: 1.7, // karda sefer başına yıpranma çarpanı (kaygan yol)
+  // Kaygan zeminde kaza: olay zarı bu olasılıkla kaymaya döner
+  snowSlipChance: 0.45,
+  rainSlipChance: 0.18,
+  slipWear: 22, // kaymada yıpranma (%)
+  slipRepPenalty: 0.05, // kazanın itibar bedeli
   korsanDuration: 40, // sn
   korsanSpawnFactor: 1.6, // korsan varken yolcu aralığı çarpanı (seyrek)
 

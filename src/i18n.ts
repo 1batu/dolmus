@@ -331,6 +331,8 @@ const dicts = {
     tireBlow: (plate: string) => `${plate} lastik patlattı — yıpranma arttı`,
     rainStart: 'Yağmur başladı — durağa yolcu akıyor!',
     snowStart: 'Kar bastırdı — sis çöktü, yollar kaygan!',
+    snowSlip: (plate: string) => `${plate} karda kaydı — hasar aldı, itibar sarsıldı`,
+    rainSlip: (plate: string) => `${plate} ıslak zeminde kaydı — hasar aldı`,
     korsanStart: 'Korsan dolmuş türedi — yolcu akışı yavaşladı',
     milestone: (name: string, reward: number) => `${name}! Ödül: +₺${fmt(reward)}`,
     milestoneNames: {
@@ -732,6 +734,8 @@ const dicts = {
     tireBlow: (plate: string) => `${plate} blew a tire — wear increased`,
     rainStart: 'Rain started — passengers flooding in!',
     snowStart: 'Snow is falling — fog rolls in, roads are slick!',
+    snowSlip: (plate: string) => `${plate} skidded in the snow — damaged, reputation hit`,
+    rainSlip: (plate: string) => `${plate} skidded on wet asphalt — damaged`,
     korsanStart: 'Pirate dolmuş around — passenger flow slowed',
     milestone: (name: string, reward: number) => `${name}! Reward: +₺${fmt(reward)}`,
     milestoneNames: {
