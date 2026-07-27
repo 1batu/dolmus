@@ -11,7 +11,7 @@ Idle/tycoon game about running a Turkish dolmuş (shared minibus) terminal. Web-
 | 💰 Gerçekçi ekonomi | İndi-bindi ₺43, motorin ₺74/L (80L depo), yevmiye ₺1.750, araç ₺390k+. Asıl ciro hat boyu indi-bindiden gelir |
 | 🌙 Gece/gündüz | 1 gün = 24 saat = 5 dk gerçek zaman. 00-06 arası sadece 🌙 nöbetçi ve ortaklı araçlar çalışır, gece tarifesi ×1,5. Dinamik güneş/gökyüzü + terminal projektörleri |
 | 📝 Senetli satış | Araç alırken Nakit/Senetli seçilir: %25 peşinat + %15 vade farkı + 30 gün taksit. Taksitler her akşam 20:00'de yevmiyelerle düşer. Borç çipinden taksit öde / %5 indirimle erken kapat |
-| ⭐ İtibar + günlük görev | Sefer itibar kazandırır, kuyruk doluyken kaçan yolcu düşürür; itibar yolcu akışını belirler. Her sabah 06:00'da filo boyuna ölçekli görev (ödül: nakit + itibar) |
+| ⭐ İtibar + günlük görev | Sefer itibar kazandırır, kuyruk doluyken kaçan yolcu düşürür; itibar yolcu akışını belirler. Her sabah 06:00'da filo boyuna ölçekli görev (ödül: nakit + itibar); tamamlanınca panel 4 sn "✓ Tamam" gösterip kendini kapatır |
 | 🏗 İnşaat & Yatırım modalı | Sekmeli modal: Araçlar / Personel & Park / Tesisler / Devren. Büfe (bekleyen + yoldan geçen satışı), Çay Ocağı (biniş %25 hızlı), Tamirhane (bakım %40 indirim) |
 | 🧢 Kahya | Araç başına Sv.1-3: +4/+6/+8 ayakta yolcu, hat indi-bindisine +%15/sv, günlük yevmiye |
 | 🤝 Rakipler & Devren | Aynı hattın esnafı perona yanaşıp yolcu kapar (gündüz). Devren: yeni fiyatın %60'ı ama %55-80 yıpranmış eski kasa (×1,5 yıpranır). Oranlı ortaklık: %5-90 pay al/artır/sat, payın kadar günlük cirodan akşam ödemesi |
@@ -30,13 +30,14 @@ Idle/tycoon game about running a Turkish dolmuş (shared minibus) terminal. Web-
 | ⏩ Gece hızlanma | 00:00-06:00 arası simülasyon 2× hızlı akar — sabah çabuk gelir |
 | 🚨 Araç üstü rozetler | Yakıt %25 altına düşünce pompa, yıpranma %75'i geçince anahtar rozeti aracın üstünde süzülür (kritikte kırmızı) — lucide glyph'leri canvas sprite olarak |
 | 💾 Save/load | 2,5 sn'de bir localStorage; `SAVE_VERSION` + `SAVE_ACCEPTS` ile geriye uyumlu şema; iki aşamalı Sıfırla (İnşaat modalında) |
+| 📱 Tam responsive HUD | Mobilde (<640px) üst bar sadece kritik beşliyi gösterir (Gün · Saat · Kasa ₺15,9M kısa format · Borç · İtibar, uçtan uca eşit bölüşük), Filo/Banka/İnşaat altta tam genişlik buton barına iner; modallar tek sütun, Filo liste+detay dikey istiflenir (detay üstte); dokunmatik kamera (sürükle/pinch, `touch-action: none`), pull-to-refresh ve tap-highlight kapalı. Dar masaüstünde üst bar kırpılmak yerine ikinci satıra sarar |
 
 ## Stack
 
 - Vite + React 19 + TypeScript
 - three + @react-three/fiber — isometric procedural scene (RoundedBox tabanlı modeller, geometri/materyal cache)
 - zustand — game state + sim tick (`useFrame` driven)
-- Tailwind v4 — koyu cam (glassmorphism) HUD, DOM üzerinde
+- Tailwind v4 — Game Dev Tycoon tarzı açık flat HUD (mat paneller, lacivert mürekkep tipografi, sert alt gölgeli "basınca çöken" butonlar, Nunito), DOM üzerinde
 
 ## Run
 
@@ -82,7 +83,7 @@ npm run dev
 15. ~~**Yağmur görseli**~~ ✅ — partiküller + ıslak asfalt + gri gök
 16. ~~**Hat plakası (Kadıköy)**~~ ✅ — ₺25M: yolcu +%25, hat hasılatı +%35
 17. ~~**Şoför pazarı + moral**~~ ✅ — günlük 2 aday (★'ı belli), moral/çay molası
-18. ~~**Mobil/PWA**~~ ✅ — manifest + ikon + landscape, dokunmatik uyumlu HUD
+18. ~~**Mobil/PWA**~~ ✅ — manifest + ikon + landscape, dokunmatik uyumlu HUD; Tem 2026: tam responsive düzen (mobil alt buton barı, kompakt üst bar, tek sütun modallar, dokunmatik kamera)
 19. ~~**Lucide ikonları**~~ ✅ — emoji chrome'u modern ikon setine geçti
 
 20. ~~**Bankacılık**~~ ✅ — 3 banka, mevduat, kredi skoru, kurumsal kredi, haciz, isimli ortaklar (45 isim)
