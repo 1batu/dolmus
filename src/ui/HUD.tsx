@@ -60,16 +60,16 @@ import { isMuted, toggleMute } from '../game/sound'
 import { t } from '../i18n'
 
 const BUILDING_ICONS: Record<BuildingKind, ReactNode> = {
-  bufe: <CupSoda className="h-7 w-7 text-amber-300" />,
-  cayOcagi: <Coffee className="h-7 w-7 text-orange-300" />,
-  tamirhane: <Wrench className="h-7 w-7 text-sky-300" />,
-  otoPompa: <Fuel className="h-7 w-7 text-emerald-300" />,
-  otoBakim: <Cog className="h-7 w-7 text-violet-300" />,
-  sarj: <PlugZap className="h-7 w-7 text-cyan-300" />,
-  solar: <Sun className="h-7 w-7 text-yellow-300" />,
-  yakitTanki: <Droplets className="h-7 w-7 text-amber-300" />,
-  billboard: <Megaphone className="h-7 w-7 text-pink-300" />,
-  hat2: <MapIcon className="h-7 w-7 text-yellow-300" />,
+  bufe: <CupSoda className="h-7 w-7 text-amber-600" />,
+  cayOcagi: <Coffee className="h-7 w-7 text-orange-600" />,
+  tamirhane: <Wrench className="h-7 w-7 text-sky-600" />,
+  otoPompa: <Fuel className="h-7 w-7 text-emerald-600" />,
+  otoBakim: <Cog className="h-7 w-7 text-violet-600" />,
+  sarj: <PlugZap className="h-7 w-7 text-cyan-600" />,
+  solar: <Sun className="h-7 w-7 text-yellow-600" />,
+  yakitTanki: <Droplets className="h-7 w-7 text-amber-600" />,
+  billboard: <Megaphone className="h-7 w-7 text-pink-600" />,
+  hat2: <MapIcon className="h-7 w-7 text-yellow-600" />,
 }
 
 // Görev/milestone kutlaması: kısa konfeti yağmuru
@@ -106,16 +106,16 @@ const fmt = (n: number) => n.toLocaleString('tr-TR')
 // Özel servis türü ikonları (charterKinds sırasıyla)
 const CHARTER_ICONS = [PartyPopper, Plane, Trophy, School, TreePine]
 
-// Koyu cam panel: gündüz de gece de okunur
-const GLASS =
-  'rounded-2xl border border-white/10 bg-gradient-to-b from-neutral-900/85 to-neutral-950/70 shadow-xl shadow-black/40 backdrop-blur-xl ring-1 ring-inset ring-white/5'
+// Açık düz panel: Game Dev Tycoon tarzı — mat zemin, kalın kenar, sert alt gölge
+const PANEL =
+  'rounded-2xl border-2 border-[#c9d4da] bg-[#eef2f5] shadow-[0_5px_0_rgba(44,62,80,0.16)]'
 
-function Stat({ icon, label, value, accent = 'text-white' }: { icon: ReactNode; label: string; value: string; accent?: string }) {
+function Stat({ icon, label, value, accent = 'text-[#2c3e50]' }: { icon: ReactNode; label: string; value: string; accent?: string }) {
   return (
     <div className="flex items-center gap-2 px-3 py-1.5">
-      <span className="flex items-center leading-none text-white/70">{icon}</span>
+      <span className="flex items-center leading-none text-[#4a6076]">{icon}</span>
       <div>
-        <div className="text-[9px] font-bold uppercase tracking-widest text-white/40">{label}</div>
+        <div className="text-[9px] font-bold uppercase tracking-widest text-[#93a5af]">{label}</div>
         <div className={`text-sm font-extrabold tabular-nums leading-tight ${accent}`}>{value}</div>
       </div>
     </div>
@@ -139,17 +139,17 @@ function ModalCard({
   children: ReactNode
 }) {
   return (
-    <div className="flex flex-col rounded-xl border border-white/10 bg-white/5 p-3">
-      <div className="flex h-14 items-center justify-center rounded-lg bg-white/5 text-3xl">
+    <div className="flex flex-col rounded-xl border border-[#d5dee4] bg-white p-3 shadow-[0_3px_0_#dde5ea]">
+      <div className="flex h-14 items-center justify-center rounded-lg bg-[#edf2f5] text-3xl">
         {icon}
       </div>
-      <div className="mt-2 text-[12px] font-extrabold text-white">{title}</div>
+      <div className="mt-2 text-[12px] font-extrabold text-[#2c3e50]">{title}</div>
       {badge && (
-        <div className={`mt-1 self-start rounded-full px-1.5 py-0.5 text-[9px] font-extrabold ${badgeClass ?? 'bg-white/10 text-white/60'}`}>
+        <div className={`mt-1 self-start rounded-full px-1.5 py-0.5 text-[9px] font-extrabold ${badgeClass ?? 'bg-[#e2e9ed] text-[#5b7383]'}`}>
           {badge}
         </div>
       )}
-      <div className="mt-1 flex-1 text-[10px] font-bold leading-tight text-white/45">{desc}</div>
+      <div className="mt-1 flex-1 text-[10px] font-bold leading-tight text-[#7f929e]">{desc}</div>
       <div className="mt-2 flex flex-col gap-1.5">{children}</div>
     </div>
   )
@@ -161,11 +161,11 @@ function PriceButton({ label, enabled, onClick }: { label: ReactNode; enabled: b
     <button
       onClick={onClick}
       disabled={!enabled}
-      className={`flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-extrabold tabular-nums transition active:scale-[0.98]
+      className={`flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-extrabold tabular-nums transition
         ${
           enabled
-            ? 'cursor-pointer bg-gradient-to-b from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-950/50 ring-1 ring-inset ring-white/20 hover:from-emerald-400 hover:to-emerald-500'
-            : 'bg-white/5 text-white/30'
+            ? 'cursor-pointer bg-[#2ecc71] text-white shadow-[0_3px_0_#27ae60] hover:bg-[#40d47e] active:translate-y-[2px] active:shadow-[0_1px_0_#27ae60]'
+            : 'bg-[#e4eaee] text-[#adbac2]'
         }`}
     >
       {label}
@@ -222,7 +222,7 @@ function ShareSlider({
       step={5}
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
-      className="pointer-events-auto h-1.5 flex-1 cursor-pointer accent-indigo-400"
+      className="pointer-events-auto h-1.5 flex-1 cursor-pointer accent-[#3498db]"
     />
   )
 }
@@ -253,23 +253,23 @@ function OwnShareControls({
   return (
     <>
       {share < 100 && (
-        <div className="mt-1.5 rounded-lg bg-indigo-400/15 px-1.5 py-1 text-center text-[10px] font-bold text-indigo-300">
+        <div className="mt-1.5 rounded-lg bg-indigo-400/15 px-1.5 py-1 text-center text-[10px] font-bold text-indigo-600">
           {t.partneredBadge(100 - share)}
         </div>
       )}
       {partners.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-1">
           {partners.map((pt, i) => (
-            <span key={i} className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-white/60">
+            <span key={i} className="rounded-full bg-[#e2e9ed] px-1.5 py-0.5 text-[9px] font-bold text-[#5b7383]">
               {pt.name} · %{pt.pct}
             </span>
           ))}
         </div>
       )}
       <div className="mt-1.5 flex items-center gap-1.5">
-        <span className="flex w-4 items-center text-white/50"><Handshake className="h-3 w-3" /></span>
+        <span className="flex w-4 items-center text-[#6f8694]"><Handshake className="h-3 w-3" /></span>
         <ShareSlider value={pct} min={5} max={100} onChange={setPct} />
-        <span className="w-8 text-right text-[10px] font-bold tabular-nums text-white/50">%{pct}</span>
+        <span className="w-8 text-right text-[10px] font-bold tabular-nums text-[#6f8694]">%{pct}</span>
       </div>
       <div className="mt-1.5 flex gap-1.5">
         <MiniButton
@@ -311,9 +311,9 @@ function RivalPartnerRow({
   return (
     <>
       <div className="flex items-center gap-1.5">
-        <span className="flex w-4 items-center text-white/50"><Handshake className="h-3 w-3" /></span>
+        <span className="flex w-4 items-center text-[#6f8694]"><Handshake className="h-3 w-3" /></span>
         <ShareSlider value={pct} min={5} max={90} onChange={setPct} />
-        <span className="w-8 text-right text-[10px] font-bold tabular-nums text-white/50">%{pct}</span>
+        <span className="w-8 text-right text-[10px] font-bold tabular-nums text-[#6f8694]">%{pct}</span>
       </div>
       <div className="flex gap-1.5">
         <MiniButton
@@ -333,26 +333,26 @@ function RivalPartnerRow({
 
 // Durum → renk eşlemesi (pill)
 const STATE_STYLE: Record<string, string> = {
-  onTrip: 'bg-sky-400/15 text-sky-300',
-  departing: 'bg-sky-400/15 text-sky-300',
-  returning: 'bg-sky-400/15 text-sky-300',
-  loading: 'bg-amber-400/15 text-amber-300',
-  toPeron: 'bg-amber-400/15 text-amber-300',
-  toPump: 'bg-orange-400/15 text-orange-300',
-  fueling: 'bg-orange-400/15 text-orange-300',
-  fromPump: 'bg-orange-400/15 text-orange-300',
-  parked: 'bg-white/10 text-white/60',
-  charter: 'bg-purple-400/15 text-purple-300',
-  vipCall: 'bg-fuchsia-400/15 text-fuchsia-300',
-  noDriver: 'bg-red-400/15 text-red-300',
-  noFuel: 'bg-red-400/15 text-red-300',
-  wornOut: 'bg-red-400/15 text-red-300',
-  inRepair: 'bg-orange-400/15 text-orange-300',
+  onTrip: 'bg-sky-400/15 text-sky-600',
+  departing: 'bg-sky-400/15 text-sky-600',
+  returning: 'bg-sky-400/15 text-sky-600',
+  loading: 'bg-amber-400/15 text-amber-600',
+  toPeron: 'bg-amber-400/15 text-amber-600',
+  toPump: 'bg-orange-400/15 text-orange-600',
+  fueling: 'bg-orange-400/15 text-orange-600',
+  fromPump: 'bg-orange-400/15 text-orange-600',
+  parked: 'bg-[#e2e9ed] text-[#5b7383]',
+  charter: 'bg-purple-400/15 text-purple-600',
+  vipCall: 'bg-fuchsia-400/15 text-fuchsia-600',
+  noDriver: 'bg-red-400/15 text-red-600',
+  noFuel: 'bg-red-400/15 text-red-600',
+  wornOut: 'bg-red-400/15 text-red-600',
+  inRepair: 'bg-orange-400/15 text-orange-600',
 }
 
 // Dock çipindeki durum noktası renkleri
 const DOT_STYLE: Record<string, string> = {
-  parked: 'bg-white/40',
+  parked: 'bg-[#aebbc3]',
   toPeron: 'bg-amber-400',
   loading: 'bg-amber-400',
   departing: 'bg-sky-400',
@@ -373,8 +373,8 @@ function Bar({ icon, pct, from, to, low }: { icon: ReactNode; pct: number; from:
   const width = `${Math.max(0, Math.min(100, pct))}%`
   return (
     <div className="flex items-center gap-1.5">
-      <span className="flex w-4 items-center text-white/60">{icon}</span>
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+      <span className="flex w-4 items-center text-[#5b7383]">{icon}</span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e2e9ed]">
         <div
           className={`h-full rounded-full bg-gradient-to-r transition-all ${low ? 'from-red-500 to-red-400 animate-pulse' : `${from} ${to}`}`}
           style={{ width }}
@@ -389,8 +389,14 @@ function MiniButton({ label, enabled, onClick, active = false }: { label: ReactN
     <button
       onClick={onClick}
       disabled={!enabled}
-      className={`pointer-events-auto flex flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[10px] font-bold tabular-nums transition active:scale-95
-        ${active ? 'cursor-pointer bg-indigo-400/30 text-indigo-200 ring-1 ring-inset ring-indigo-300/40' : enabled ? 'cursor-pointer bg-white/15 text-white hover:bg-white/25' : 'bg-white/5 text-white/25'}`}
+      className={`pointer-events-auto flex flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[10px] font-bold tabular-nums transition
+        ${
+          active
+            ? 'cursor-pointer bg-[#3498db] text-white shadow-[0_2px_0_#2980b9] active:translate-y-[1px] active:shadow-none'
+            : enabled
+              ? 'cursor-pointer bg-[#dde6eb] text-[#2c3e50] shadow-[0_2px_0_#c3cfd6] hover:bg-[#d1dce2] active:translate-y-[1px] active:shadow-none'
+              : 'bg-[#e9eef1] text-[#b8c4cb]'
+        }`}
     >
       {label}
     </button>
@@ -453,26 +459,26 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
     <div
       className={
         floating
-          ? `pointer-events-auto absolute bottom-14 left-4 w-64 p-3 ${GLASS}`
-          : 'w-64 shrink-0 self-start rounded-xl bg-white/5 p-3 ring-1 ring-inset ring-white/10'
+          ? `pointer-events-auto absolute bottom-14 left-4 w-64 p-3 ${PANEL}`
+          : 'w-64 shrink-0 self-start rounded-xl bg-white p-3 ring-1 ring-inset ring-[#d5dee4]'
       }
     >
       <div className="relative flex items-center justify-center">
         <PlateBadge plate={plate} small />
         <span className="absolute left-0 flex items-center gap-0.5">
-          {isOld && <span title={t.oldBus}><History className="h-3 w-3 text-amber-400/80" /></span>}
-          {(pendF || pendR) && <span title={t.planned}><Hourglass className="h-3 w-3 text-white/60" /></span>}
+          {isOld && <span title={t.oldBus}><History className="h-3 w-3 text-amber-500" /></span>}
+          {(pendF || pendR) && <span title={t.planned}><Hourglass className="h-3 w-3 text-[#5b7383]" /></span>}
         </span>
         <button
           onClick={onClose}
-          className="absolute right-0 cursor-pointer rounded-md bg-white/10 px-1.5 text-[10px] font-bold text-white/60 transition hover:bg-white/20"
+          className="absolute right-0 cursor-pointer rounded-md bg-[#e2e9ed] px-1.5 text-[10px] font-bold text-[#5b7383] transition hover:bg-[#cfdae1]"
         >
           <X className="h-3 w-3" />
         </button>
       </div>
       <div className="mt-1.5 flex items-center gap-1.5">
         <span
-          className={`flex-1 rounded-full px-2 py-0.5 text-center text-[10px] font-extrabold tabular-nums ${STATE_STYLE[state] ?? 'bg-white/10 text-white/60'}`}
+          className={`flex-1 rounded-full px-2 py-0.5 text-center text-[10px] font-extrabold tabular-nums ${STATE_STYLE[state] ?? 'bg-[#e2e9ed] text-[#5b7383]'}`}
         >
           {warn && <AlertTriangle className="mr-0.5 inline h-2.5 w-2.5" />}
           {stateText}
@@ -483,7 +489,7 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
             onClick={() => toggleNightShift(id)}
             title={t.nightShift}
             className={`pointer-events-auto cursor-pointer rounded-lg px-1.5 py-0.5 text-[11px] transition active:scale-95
-              ${night ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]' : 'bg-white/10 opacity-40 hover:opacity-100'}`}
+              ${night ? 'bg-indigo-500 text-white shadow-[0_2px_0_#4338ca]' : 'bg-[#e2e9ed] text-[#5b7383] opacity-60 hover:opacity-100'}`}
           >
             <Moon className="h-3.5 w-3.5" />
           </button>
@@ -492,11 +498,11 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
       {driverName && (() => {
         const moral = Number(moralStr)
         return (
-          <div className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-white/5 px-1.5 py-1">
-            <span className="flex-1 text-[10px] font-bold text-white/60">
+          <div className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-[#edf2f5] px-1.5 py-1">
+            <span className="flex-1 text-[10px] font-bold text-[#5b7383]">
               {t.driverRow(driverName, Number(driverSkillStr))}
             </span>
-            <span className={`text-[9px] font-bold tabular-nums ${moral < CONFIG.moralLowThreshold ? 'text-red-300' : 'text-white/40'}`}>
+            <span className={`text-[9px] font-bold tabular-nums ${moral < CONFIG.moralLowThreshold ? 'text-red-600' : 'text-[#93a5af]'}`}>
               %{moral}
             </span>
             <button
@@ -504,7 +510,7 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
               disabled={moral >= 100 || money < CONFIG.cayMolasiCost}
               title={t.cayMolasi}
               className={`pointer-events-auto flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold transition active:scale-95
-                ${moral < 100 && money >= CONFIG.cayMolasiCost ? 'cursor-pointer bg-orange-400/20 text-orange-300 hover:bg-orange-400/30' : 'bg-white/5 text-white/25'}`}
+                ${moral < 100 && money >= CONFIG.cayMolasiCost ? 'cursor-pointer bg-orange-400/20 text-orange-600 hover:bg-orange-400/30' : 'bg-white text-[#b8c4cb]'}`}
             >
               <Coffee className="h-3 w-3" /> ₺{fmt(CONFIG.cayMolasiCost)}
             </button>
@@ -560,7 +566,7 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
           />
         ) : (
           <>
-            <span className="flex-1 rounded-lg bg-indigo-400/15 px-1.5 py-1.5 text-center text-[10px] font-bold text-indigo-300">
+            <span className="flex-1 rounded-lg bg-indigo-400/15 px-1.5 py-1.5 text-center text-[10px] font-bold text-indigo-600">
               {t.kahya} {t.kahyaLevel(kahya)} · {t.kahyaEffect(cap - spec.seats)}
             </span>
             {kahya < CONFIG.kahyaMaxLevel && (
@@ -578,14 +584,14 @@ function VehicleDetailBody({ entry, onClose, floating = false }: { entry: string
         const mods = (modsStr ?? '').split('+').filter(Boolean)
         const wrap = Number(wrapStr ?? 0)
         return (
-          <div className="mt-2 border-t border-white/10 pt-1.5">
-            <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-white/35">{t.modsTitle}</div>
+          <div className="mt-2 border-t border-[#d5dee4] pt-1.5">
+            <div className="mb-1 text-[9px] font-black uppercase tracking-widest text-[#9dadb6]">{t.modsTitle}</div>
             <div className="grid grid-cols-2 gap-1">
               {(['engine', 'lpg', 'ac', 'sound'] as const).map((m) => {
                 if (m === 'lpg' && kindStr === 'ebus') return null
                 const cost = Math.ceil(MOD_COSTS[m] * spec.repairMult)
                 return mods.includes(m) ? (
-                  <span key={m} className="rounded-lg bg-emerald-400/15 px-1.5 py-1 text-center text-[9px] font-bold text-emerald-300">
+                  <span key={m} className="rounded-lg bg-emerald-400/15 px-1.5 py-1 text-center text-[9px] font-bold text-emerald-600">
                     {t.modNames[m]}
                   </span>
                 ) : (
@@ -633,8 +639,8 @@ function ResetButton({ onReset }: { onReset: () => void }) {
           timer.current = setTimeout(() => setArmed(false), 3000)
         }
       }}
-      className={`pointer-events-auto cursor-pointer rounded-xl px-3 py-1.5 text-[11px] font-bold transition active:scale-95 ${GLASS}
-        ${armed ? 'border-red-400/40 bg-red-950/80 text-red-300' : 'text-white/40 hover:text-white/80'}`}
+      className={`pointer-events-auto cursor-pointer rounded-xl px-3 py-1.5 text-[11px] font-bold transition active:scale-95 ${PANEL}
+        ${armed ? '!border-red-300 !bg-red-50 text-red-600' : 'text-[#93a5af] hover:text-[#3d5568]'}`}
     >
       {armed ? <><AlertTriangle className="h-3 w-3" /> {t.resetConfirm}</> : <><Trash2 className="h-3 w-3" /> {t.reset}</>}
     </button>
@@ -882,66 +888,66 @@ export function HUD() {
     <div className="pointer-events-none absolute inset-0 select-none font-sans">
       {/* Üst bar */}
       <div
-        className={`pointer-events-auto absolute left-4 top-4 flex max-w-[calc(100vw-200px)] items-stretch divide-x divide-white/10 overflow-x-auto ${GLASS}`}
+        className={`pointer-events-auto absolute left-4 top-4 flex max-w-[calc(100vw-200px)] items-stretch divide-x divide-[#d5dee4] overflow-x-auto ${PANEL}`}
       >
-        <div className="flex items-center px-3 text-lg font-black tracking-tight text-white">
-          <Bus className="h-5 w-5 text-amber-300" /> <span className="ml-1.5 hidden sm:inline">{t.appTitle}</span>
+        <div className="flex items-center px-3 text-lg font-black tracking-tight text-[#2c3e50]">
+          <img src="/favicon.svg" alt={t.appTitle} title={t.appTitle} className="h-6 w-6 rounded-md" />
         </div>
         <Stat icon={<CalendarDays className="h-4 w-4" />} label={t.day} value={`${day}`} />
-        <Stat icon={isNightHour ? <Moon className="h-4 w-4 text-indigo-300" /> : <Sun className="h-4 w-4 text-amber-300" />} label={t.clock} value={clock} />
-        <Stat icon={<Wallet className="h-4 w-4 text-emerald-300" />} label={t.cash} value={`₺${fmt(money)}`} accent={money < 0 ? 'text-red-400' : 'text-emerald-300'} />
+        <Stat icon={isNightHour ? <Moon className="h-4 w-4 text-indigo-600" /> : <Sun className="h-4 w-4 text-amber-600" />} label={t.clock} value={clock} />
+        <Stat icon={<Wallet className="h-4 w-4 text-emerald-600" />} label={t.cash} value={`₺${fmt(money)}`} accent={money < 0 ? 'text-red-600' : 'text-emerald-600'} />
         {totalDebt > 0 && (
           <button
             onClick={() => setDebtsOpen((o) => !o)}
-            className={`pointer-events-auto cursor-pointer transition hover:bg-white/5 ${debtsOpen ? 'bg-white/10' : ''}`}
+            className={`pointer-events-auto cursor-pointer transition hover:bg-white ${debtsOpen ? 'bg-[#e2e9ed]' : ''}`}
           >
-            <Stat icon={<ScrollText className="h-4 w-4 text-red-300" />} label={t.debt} value={`₺${fmt(totalDebt)}`} accent="text-red-300" />
+            <Stat icon={<ScrollText className="h-4 w-4 text-red-600" />} label={t.debt} value={`₺${fmt(totalDebt)}`} accent="text-red-600" />
           </button>
         )}
-        <Stat icon={<Users className="h-4 w-4" />} label={t.waiting} value={`${queue}`} accent={queue >= queueCap ? 'text-amber-300' : 'text-white'} />
+        <Stat icon={<Users className="h-4 w-4" />} label={t.waiting} value={`${queue}`} accent={queue >= queueCap ? 'text-amber-600' : 'text-[#2c3e50]'} />
         <Stat icon={<UserRound className="h-4 w-4" />} label={t.drivers} value={`${drivers}`} />
-        <Stat icon={<Fuel className="h-4 w-4 text-amber-300" />} label={t.fuelLabel} value={`₺${fuelPrice.toFixed(0)}/L`} />
-        <Stat icon={<Ticket className="h-4 w-4 text-sky-300" />} label={t.fareLabel} value={`₺${fareNow}`} />
-        {streak >= 2 && <Stat icon={<Flame className="h-4 w-4 text-orange-400" />} label={t.streakLabel} value={`${streak}`} accent="text-orange-300" />}
+        <Stat icon={<Fuel className="h-4 w-4 text-amber-600" />} label={t.fuelLabel} value={`₺${fuelPrice.toFixed(0)}/L`} />
+        <Stat icon={<Ticket className="h-4 w-4 text-sky-600" />} label={t.fareLabel} value={`₺${fareNow}`} />
+        {streak >= 2 && <Stat icon={<Flame className="h-4 w-4 text-orange-400" />} label={t.streakLabel} value={`${streak}`} accent="text-orange-600" />}
         {specialToday && (
           <Stat
             icon={
               specialToday === 'mac' ? (
-                <Trophy className="h-4 w-4 text-pink-300" />
+                <Trophy className="h-4 w-4 text-pink-600" />
               ) : specialToday === 'bayram' ? (
-                <PartyPopper className="h-4 w-4 text-pink-300" />
+                <PartyPopper className="h-4 w-4 text-pink-600" />
               ) : (
-                <School className="h-4 w-4 text-pink-300" />
+                <School className="h-4 w-4 text-pink-600" />
               )
             }
             label={t.specialLabel}
             value={t.specialNames[specialToday]}
-            accent="text-pink-300"
+            accent="text-pink-600"
           />
         )}
         <Stat
-          icon={<Star className="h-4 w-4 text-yellow-300" />}
+          icon={<Star className="h-4 w-4 text-yellow-600" />}
           label={t.rep}
           value={rep.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-          accent={rep >= 4 ? 'text-emerald-300' : rep < 2 ? 'text-red-400' : 'text-white'}
+          accent={rep >= 4 ? 'text-emerald-600' : rep < 2 ? 'text-red-600' : 'text-[#2c3e50]'}
         />
       </div>
 
       {/* Senet paneli: taksit öde / erken kapat */}
       {debtsOpen && debtsKey && (
-        <div className={`pointer-events-auto absolute left-[320px] top-[72px] flex max-h-[72dvh] w-80 flex-col p-3 ${GLASS}`}>
+        <div className={`pointer-events-auto absolute left-[320px] top-[72px] flex max-h-[72dvh] w-80 flex-col p-3 ${PANEL}`}>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
               <ScrollText className="mr-1 inline h-3 w-3" /> {t.debtsTitle}
             </span>
-            <span className="text-[9px] font-bold text-emerald-300/70">{t.payoffNote}</span>
+            <span className="text-[9px] font-bold text-emerald-600/70">{t.payoffNote}</span>
           </div>
           {/* Toplam + adet: liste uzayınca genel resim kaybolmasın */}
           <div className="mt-1.5 flex items-baseline justify-between rounded-lg bg-red-400/10 px-2 py-1">
-            <span className="text-[10px] font-bold text-red-200/80">
+            <span className="text-[10px] font-bold text-red-500">
               {t.debtsCount(debtsKey.split(',').length)}
             </span>
-            <span className="text-[11px] font-extrabold tabular-nums text-red-300">₺{fmt(totalDebt)}</span>
+            <span className="text-[11px] font-extrabold tabular-nums text-red-600">₺{fmt(totalDebt)}</span>
           </div>
           <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
             {debtsKey.split(',').map((entry) => {
@@ -954,18 +960,18 @@ export function HUD() {
               const installment = Math.min(daily, remaining)
               const payoff = Math.ceil(remaining * CONFIG.payoffDiscount)
               return (
-                <div key={id} className="rounded-xl bg-white/5 p-2">
+                <div key={id} className="rounded-xl bg-white p-2">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-[12px] font-extrabold text-white">
+                    <span className="text-[12px] font-extrabold text-[#2c3e50]">
                       {bankFlag === '1' ? t.bankLoanItem(label) : t.debtItem(label)}
                     </span>
-                    <span className="text-[11px] font-bold tabular-nums text-red-300">
+                    <span className="text-[11px] font-bold tabular-nums text-red-600">
                       ₺{fmt(remaining)} ·{' '}
                       {every === 1 ? t.perDay(daily) : every === 7 ? t.perWeek(daily) : t.perMonth(daily)}
                     </span>
                   </div>
                   {/* Tahsilat geri sayımı: günü gelen kesinti kırmızı yanar */}
-                  <div className={`mt-0.5 text-[9px] font-bold tabular-nums ${dueIn === 0 ? 'animate-pulse text-red-300' : 'text-white/40'}`}>
+                  <div className={`mt-0.5 text-[9px] font-bold tabular-nums ${dueIn === 0 ? 'animate-pulse text-red-600' : 'text-[#93a5af]'}`}>
                     {dueIn === 0 ? t.dueTonight : t.dueIn(dueIn)}
                   </div>
                   <div className="mt-1.5 flex gap-1.5">
@@ -1010,24 +1016,24 @@ export function HUD() {
         const done = doneStr === '1'
         const desc = t.taskDesc[kind as keyof typeof t.taskDesc](target)
         return (
-          <div className={`absolute left-4 top-[72px] w-72 p-3 ${GLASS} ${done ? 'border-emerald-400/30' : ''}`}>
+          <div className={`absolute left-4 top-[72px] w-72 p-3 ${PANEL} ${done ? '!border-[#2ecc71]' : ''}`}>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
+              <span className="text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
                 <Target className="mr-1 inline h-3 w-3" /> {t.dailyTask}
               </span>
-              <span className={`text-[10px] font-extrabold tabular-nums ${done ? 'text-emerald-300' : 'text-white/50'}`}>
+              <span className={`text-[10px] font-extrabold tabular-nums ${done ? 'text-emerald-600' : 'text-[#6f8694]'}`}>
                 {done ? `✓ ${t.taskDoneLabel}` : `${t.taskReward} ₺${fmt(Number(rewardStr))}`}
               </span>
             </div>
-            <div className="mt-1 text-[13px] font-extrabold text-white">{desc}</div>
+            <div className="mt-1 text-[13px] font-extrabold text-[#2c3e50]">{desc}</div>
             <div className="mt-1.5 flex items-center gap-2">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e2e9ed]">
                 <div
                   className={`h-full rounded-full bg-gradient-to-r transition-all ${done ? 'from-emerald-500 to-green-400' : 'from-sky-500 to-cyan-400'}`}
                   style={{ width: `${Math.min(100, (progress / target) * 100)}%` }}
                 />
               </div>
-              <span className="text-[10px] font-bold tabular-nums text-white/50">
+              <span className="text-[10px] font-bold tabular-nums text-[#6f8694]">
                 {fmt(Math.min(progress, target))}/{fmt(target)}
               </span>
             </div>
@@ -1040,14 +1046,14 @@ export function HUD() {
       {/* Offline kazanç karşılaması */}
       {offlineEarned > 0 && (
         <div className="pointer-events-auto fixed inset-0 z-20 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60" />
-          <div className={`relative w-80 p-5 text-center ${GLASS}`}>
-            <div className="flex items-center justify-center gap-2 text-white/70"><BedDouble className="h-7 w-7" /><span className="text-white/40">→</span><Banknote className="h-7 w-7 text-emerald-300" /></div>
-            <div className="mt-2 text-sm font-black text-white">{t.offlineTitle}</div>
-            <div className="mt-1 text-[11px] font-bold text-white/50">
+          <div className="absolute inset-0 bg-[#22313f]/65" />
+          <div className={`relative w-80 p-5 text-center ${PANEL}`}>
+            <div className="flex items-center justify-center gap-2 text-[#4a6076]"><BedDouble className="h-7 w-7" /><span className="text-[#93a5af]">→</span><Banknote className="h-7 w-7 text-emerald-600" /></div>
+            <div className="mt-2 text-sm font-black text-[#2c3e50]">{t.offlineTitle}</div>
+            <div className="mt-1 text-[11px] font-bold text-[#6f8694]">
               {t.offlineMsg(Math.round(offlineSecs / 60))}
             </div>
-            <div className="mt-2 text-xl font-black tabular-nums text-emerald-300">
+            <div className="mt-2 text-xl font-black tabular-nums text-emerald-600">
               +₺{fmt(offlineEarned)}
             </div>
             <div className="mt-3">
@@ -1062,14 +1068,14 @@ export function HUD() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setMutedUi(toggleMute())}
-            className={`pointer-events-auto cursor-pointer rounded-xl px-2.5 py-3 text-sm text-white shadow-lg transition active:scale-95 ${GLASS} ${mutedUi ? 'opacity-50' : ''}`}
+            className={`pointer-events-auto cursor-pointer rounded-xl px-2.5 py-3 text-sm text-[#2c3e50] shadow-lg transition active:scale-95 ${PANEL} ${mutedUi ? 'opacity-50' : ''}`}
           >
             {mutedUi ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
           </button>
           <button
             onClick={() => setFiloOpen((o) => !o)}
-            className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-sky-950/50 ring-1 ring-inset ring-white/20 transition active:scale-95
-              ${filoOpen ? 'bg-gradient-to-b from-sky-400 to-sky-500' : 'bg-gradient-to-b from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500'}`}
+            className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold text-white shadow-[0_4px_0_#2980b9] transition active:translate-y-[2px] active:shadow-[0_2px_0_#2980b9]
+              ${filoOpen ? 'bg-[#5dade2]' : 'bg-[#3498db] hover:bg-[#4aa3df]'}`}
           >
             <Bus className="h-4 w-4" /> {t.fleetBtn}
             {fleetWarn && !filoOpen && (
@@ -1078,15 +1084,15 @@ export function HUD() {
           </button>
           <button
             onClick={() => setBankOpen((o) => !o)}
-            className={`pointer-events-auto flex cursor-pointer items-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-emerald-950/50 ring-1 ring-inset ring-white/20 transition active:scale-95
-              ${bankOpen ? 'bg-gradient-to-b from-emerald-400 to-emerald-500' : 'bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500'}`}
+            className={`pointer-events-auto flex cursor-pointer items-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold text-white shadow-[0_4px_0_#27ae60] transition active:translate-y-[2px] active:shadow-[0_2px_0_#27ae60]
+              ${bankOpen ? 'bg-[#58d68d]' : 'bg-[#2ecc71] hover:bg-[#40d47e]'}`}
           >
             <Landmark className="h-4 w-4" /> {t.tabBank}
           </button>
         <button
           onClick={() => setBuildOpen((o) => !o)}
-          className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-red-950/50 ring-1 ring-inset ring-white/20 transition active:scale-95
-            ${buildOpen ? 'bg-gradient-to-b from-red-400 to-red-500' : 'bg-gradient-to-b from-red-500 to-red-600 hover:from-red-400 hover:to-red-500'}`}
+          className={`pointer-events-auto relative flex cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white shadow-[0_4px_0_#c0392b] transition active:translate-y-[2px] active:shadow-[0_2px_0_#c0392b]
+            ${buildOpen ? 'bg-[#ec7063]' : 'bg-[#e74c3c] hover:bg-[#eb6152]'}`}
         >
           <Hammer className="h-4 w-4" /> {t.construction}
           {canBuySomething && !buildOpen && (
@@ -1100,15 +1106,15 @@ export function HUD() {
       {/* Banka modalı: İnşaat'tan bağımsız */}
       {bankOpen && (
         <div className="pointer-events-auto fixed inset-0 z-10 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setBankOpen(false)} />
-          <div className={`relative flex max-h-[82dvh] w-[700px] max-w-[94vw] flex-col overflow-hidden ${GLASS}`}>
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-              <span className="flex items-center gap-2 text-sm font-black text-white">
+          <div className="absolute inset-0 bg-[#22313f]/55" onClick={() => setBankOpen(false)} />
+          <div className={`relative flex max-h-[82dvh] w-[700px] max-w-[94vw] flex-col overflow-hidden ${PANEL}`}>
+            <div className="flex items-center justify-between border-b border-[#d5dee4] px-4 py-3">
+              <span className="flex items-center gap-2 text-sm font-black text-[#2c3e50]">
                 <span className="h-4 w-1 rounded-full bg-emerald-500" /> <Landmark className="h-4 w-4" /> {t.tabBank}
               </span>
               <button
                 onClick={() => setBankOpen(false)}
-                className="cursor-pointer rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-white/70 transition hover:bg-white/20"
+                className="cursor-pointer rounded-lg bg-[#e2e9ed] px-2 py-1 text-xs font-bold text-[#4a6076] transition hover:bg-[#cfdae1]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1130,16 +1136,16 @@ export function HUD() {
                 return (
                   <div className="col-span-2 flex flex-col gap-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
                         {t.creditScoreLabel}
                       </span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e2e9ed]">
                         <div
                           className={`h-full rounded-full ${creditScore >= 60 ? 'bg-emerald-500' : creditScore >= CONFIG.creditScoreMin ? 'bg-amber-500' : 'bg-red-500'}`}
                           style={{ width: `${creditScore}%` }}
                         />
                       </div>
-                      <span className="text-[11px] font-black tabular-nums text-white">{creditScore}</span>
+                      <span className="text-[11px] font-black tabular-nums text-[#2c3e50]">{creditScore}</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {BANKS.map((b, i) => (
@@ -1147,24 +1153,24 @@ export function HUD() {
                           key={b.id}
                           onClick={() => setBankIdx(i)}
                           className={`flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-extrabold transition
-                            ${bankIdx === i ? 'bg-white text-neutral-900' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}
+                            ${bankIdx === i ? 'bg-[#2c3e50] text-white' : 'bg-[#e2e9ed] text-[#5b7383] hover:bg-[#cfdae1]'}`}
                         >
                           <Landmark className="h-3 w-3" /> {t.bankNames[b.id]}
                         </button>
                       ))}
                     </div>
-                    <div className="text-[10px] font-bold text-white/45">{t.bankDescs[bank.id]}</div>
+                    <div className="text-[10px] font-bold text-[#7f929e]">{t.bankDescs[bank.id]}</div>
                     <div className="grid grid-cols-2 gap-2">
                       <ModalCard
-                        icon={<PiggyBank className="h-7 w-7 text-emerald-300" />}
+                        icon={<PiggyBank className="h-7 w-7 text-emerald-600" />}
                         title={t.depositTitle}
                         badge={`₺${fmt(depositAmt)}`}
-                        badgeClass="bg-emerald-400/15 text-emerald-300"
+                        badgeClass="bg-emerald-400/15 text-emerald-600"
                         desc={t.depositDesc}
                       >
                         <div className="flex items-center gap-1.5">
                           <ShareSlider value={depositPct} min={10} max={100} onChange={setDepositPct} />
-                          <span className="w-8 text-right text-[10px] font-bold tabular-nums text-white/50">%{depositPct}</span>
+                          <span className="w-8 text-right text-[10px] font-bold tabular-nums text-[#6f8694]">%{depositPct}</span>
                         </div>
                         {CONFIG.depositTerms.map((term, ti) => {
                           const rate = CONFIG.depositDailyRates[ti] * bank.depositMult
@@ -1180,25 +1186,25 @@ export function HUD() {
                         })}
                       </ModalCard>
                       <ModalCard
-                        icon={<Landmark className="h-7 w-7 text-sky-300" />}
+                        icon={<Landmark className="h-7 w-7 text-sky-600" />}
                         title={t.loanTitle}
                         badge={t.loanLimit(fmt(used), fmt(limit))}
-                        badgeClass="bg-sky-400/15 text-sky-300"
+                        badgeClass="bg-sky-400/15 text-sky-600"
                         desc={t.loanDesc(CONFIG.bankLoanTermDays)}
                       >
                         {!repOk && (
-                          <div className="rounded-lg bg-red-400/10 px-1.5 py-1 text-center text-[10px] font-bold text-red-300">
+                          <div className="rounded-lg bg-red-400/10 px-1.5 py-1 text-center text-[10px] font-bold text-red-600">
                             {t.loanNeedRep(bank.minRep)}
                           </div>
                         )}
                         {!scoreOk && (
-                          <div className="rounded-lg bg-red-400/10 px-1.5 py-1 text-center text-[10px] font-bold text-red-300">
+                          <div className="rounded-lg bg-red-400/10 px-1.5 py-1 text-center text-[10px] font-bold text-red-600">
                             {t.loanNeedScore(bank.minScore)}
                           </div>
                         )}
                         <div className="flex items-center gap-1.5">
                           <ShareSlider value={loanPct} min={10} max={100} onChange={setLoanPct} />
-                          <span className="w-8 text-right text-[10px] font-bold tabular-nums text-white/50">%{loanPct}</span>
+                          <span className="w-8 text-right text-[10px] font-bold tabular-nums text-[#6f8694]">%{loanPct}</span>
                         </div>
                         <PriceButton
                           label={`${t.loanTake} ₺${fmt(loanAmt)}`}
@@ -1213,12 +1219,12 @@ export function HUD() {
                           const [idStr, bankId, amountStr, daysStr, rateStr, termStr] = entry.split('|')
                           const payout = Math.round(Number(amountStr) * (1 + Number(rateStr) * Number(termStr)))
                           return (
-                            <div key={idStr} className="flex items-center gap-2 rounded-xl bg-white/5 px-2 py-1.5">
-                              <PiggyBank className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
-                              <span className="flex-1 text-[11px] font-bold text-white/70">
+                            <div key={idStr} className="flex items-center gap-2 rounded-xl bg-white px-2 py-1.5">
+                              <PiggyBank className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                              <span className="flex-1 text-[11px] font-bold text-[#4a6076]">
                                 {t.depositActive(t.bankNames[bankId] ?? bankId, Number(daysStr))}
                               </span>
-                              <span className="text-[11px] font-extrabold tabular-nums text-emerald-300">
+                              <span className="text-[11px] font-extrabold tabular-nums text-emerald-600">
                                 ₺{fmt(Number(amountStr))} → ₺{fmt(payout)}
                               </span>
                               <MiniButton
@@ -1242,17 +1248,17 @@ export function HUD() {
       {/* İnşaat & Yatırım modalı: sekmeli, kart grid'li */}
       {buildOpen && (
         <div className="pointer-events-auto fixed inset-0 z-10 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setBuildOpen(false)} />
-          <div className={`relative flex max-h-[82dvh] w-[700px] max-w-[94vw] flex-col overflow-hidden ${GLASS}`}>
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-              <span className="flex items-center gap-2 text-sm font-black text-white">
+          <div className="absolute inset-0 bg-[#22313f]/55" onClick={() => setBuildOpen(false)} />
+          <div className={`relative flex max-h-[82dvh] w-[700px] max-w-[94vw] flex-col overflow-hidden ${PANEL}`}>
+            <div className="flex items-center justify-between border-b border-[#d5dee4] px-4 py-3">
+              <span className="flex items-center gap-2 text-sm font-black text-[#2c3e50]">
                 <span className="h-4 w-1 rounded-full bg-red-500" /> <Hammer className="h-4 w-4" /> {t.buildModalTitle}
               </span>
               <span className="flex items-center gap-2">
                 <ResetButton onReset={reset} />
                 <button
                   onClick={() => setBuildOpen(false)}
-                  className="cursor-pointer rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-white/70 transition hover:bg-white/20"
+                  className="cursor-pointer rounded-lg bg-[#e2e9ed] px-2 py-1 text-xs font-bold text-[#4a6076] transition hover:bg-[#cfdae1]"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1276,7 +1282,7 @@ export function HUD() {
                   key={key}
                   onClick={() => setBuildTab(key)}
                   className={`flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-extrabold transition
-                    ${buildTab === key ? 'bg-white text-neutral-900' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}
+                    ${buildTab === key ? 'bg-[#2c3e50] text-white' : 'bg-[#e2e9ed] text-[#5b7383] hover:bg-[#cfdae1]'}`}
                 >
                   {label}
                 </button>
@@ -1288,10 +1294,10 @@ export function HUD() {
                 const vitoDown = Math.ceil(vitoPrice * CONFIG.loanDownRate)
                 return (
                   <ModalCard
-                    icon={<CarTaxiFront className="h-7 w-7 text-fuchsia-300" />}
+                    icon={<CarTaxiFront className="h-7 w-7 text-fuchsia-600" />}
                     title={t.buyVito}
                     badge="+1 VIP"
-                    badgeClass="bg-fuchsia-400/15 text-fuchsia-300"
+                    badgeClass="bg-fuchsia-400/15 text-fuchsia-600"
                     desc={t.vitoDesc}
                   >
                     <PriceButton
@@ -1312,10 +1318,10 @@ export function HUD() {
                 const sprDown = Math.ceil(sprPrice * CONFIG.loanDownRate)
                 return (
                   <ModalCard
-                    icon={<School className="h-7 w-7 text-amber-300" />}
+                    icon={<School className="h-7 w-7 text-amber-600" />}
                     title={t.buySprinter}
                     badge={t.sprinterBadge}
-                    badgeClass="bg-amber-400/15 text-amber-300"
+                    badgeClass="bg-amber-400/15 text-amber-600"
                     desc={t.sprinterDesc}
                   >
                     <PriceButton
@@ -1333,10 +1339,10 @@ export function HUD() {
               })()}
               {buildTab === 'arac' && (
                 <ModalCard
-                  icon={<Bus className="h-7 w-7 text-sky-300" />}
+                  icon={<Bus className="h-7 w-7 text-sky-600" />}
                   title={t.buyVehicle}
                   badge="+1 araç"
-                  badgeClass="bg-sky-400/15 text-sky-300"
+                  badgeClass="bg-sky-400/15 text-sky-600"
                   desc={t.loanNote(
                     Math.ceil(
                       (Math.round(vehicleCost * (1 + CONFIG.loanMarkupRate)) -
@@ -1363,7 +1369,7 @@ export function HUD() {
                   [
                     {
                       kind: 'bus' as BusKind,
-                      icon: <BusFront className="h-7 w-7 text-orange-300" />,
+                      icon: <BusFront className="h-7 w-7 text-orange-600" />,
                       title: t.buyBus,
                       desc: t.busDesc,
                       price: CONFIG.busCost + CONFIG.busCostStep * busCount,
@@ -1371,7 +1377,7 @@ export function HUD() {
                     },
                     {
                       kind: 'artic' as BusKind,
-                      icon: <Bus className="h-7 w-7 text-rose-300" />,
+                      icon: <Bus className="h-7 w-7 text-rose-600" />,
                       title: t.buyArtic,
                       desc: t.articDesc,
                       price: CONFIG.articCost + CONFIG.articCostStep * articCount,
@@ -1379,7 +1385,7 @@ export function HUD() {
                     },
                     {
                       kind: 'ebus' as BusKind,
-                      icon: <Zap className="h-7 w-7 text-lime-300" />,
+                      icon: <Zap className="h-7 w-7 text-lime-600" />,
                       title: t.buyEbus,
                       desc: buildings.sarj ? t.ebusDesc : `${t.ebusDesc} — ${t.needSarj}`,
                       price: CONFIG.ebusCost + CONFIG.ebusCostStep * ebusCount,
@@ -1392,7 +1398,7 @@ export function HUD() {
                     icon={b.icon}
                     title={b.title}
                     badge={t.seatsBadge(VEHICLE_SPECS[b.kind].seats)}
-                    badgeClass="bg-orange-400/15 text-orange-300"
+                    badgeClass="bg-orange-400/15 text-orange-600"
                     desc={b.desc}
                   >
                     <PriceButton
@@ -1410,10 +1416,10 @@ export function HUD() {
               {buildTab === 'personel' && (
                 <>
                   <ModalCard
-                    icon={<UserRound className="h-7 w-7 text-emerald-300" />}
+                    icon={<UserRound className="h-7 w-7 text-emerald-600" />}
                     title={t.hireDriver}
                     badge="+1 şoför"
-                    badgeClass="bg-emerald-400/15 text-emerald-300"
+                    badgeClass="bg-emerald-400/15 text-emerald-600"
                     desc={t.driverDesc}
                   >
                     <PriceButton
@@ -1423,10 +1429,10 @@ export function HUD() {
                     />
                   </ModalCard>
                   <ModalCard
-                    icon={<MapIcon className="h-7 w-7 text-amber-300" />}
+                    icon={<MapIcon className="h-7 w-7 text-amber-600" />}
                     title={t.buySpot}
                     badge="+1 cep"
-                    badgeClass="bg-amber-400/15 text-amber-300"
+                    badgeClass="bg-amber-400/15 text-amber-600"
                     desc={t.spotDesc}
                   >
                     <PriceButton
@@ -1436,10 +1442,10 @@ export function HUD() {
                     />
                   </ModalCard>
                   <ModalCard
-                    icon={<Users className="h-7 w-7 text-sky-300" />}
+                    icon={<Users className="h-7 w-7 text-sky-600" />}
                     title={t.buyPeron}
                     badge={`${perons}/${CONFIG.peronMax}`}
-                    badgeClass="bg-sky-400/15 text-sky-300"
+                    badgeClass="bg-sky-400/15 text-sky-600"
                     desc={t.peronDesc}
                   >
                     <PriceButton
@@ -1455,10 +1461,10 @@ export function HUD() {
                   {driverMarket.map((cand, i) => (
                     <ModalCard
                       key={`${cand.name}-${i}`}
-                      icon={<UserRound className="h-7 w-7 text-orange-300" />}
+                      icon={<UserRound className="h-7 w-7 text-orange-600" />}
                       title={cand.name}
                       badge={'★'.repeat(cand.skill)}
-                      badgeClass="bg-yellow-400/15 text-yellow-300"
+                      badgeClass="bg-yellow-400/15 text-yellow-600"
                       desc={t.marketDesc}
                     >
                       <PriceButton
@@ -1477,7 +1483,7 @@ export function HUD() {
                     icon={BUILDING_ICONS[kind]}
                     title={t.buildingNames[kind]}
                     badge={buildings[kind] ? `✓ ${t.built}` : undefined}
-                    badgeClass="bg-emerald-400/15 text-emerald-300"
+                    badgeClass="bg-emerald-400/15 text-emerald-600"
                     desc={t.buildingEffects[kind]}
                   >
                     <PriceButton
@@ -1493,10 +1499,10 @@ export function HUD() {
                     const [, kindStr, payStr] = contractOfferKey.split('|')
                     return (
                       <ModalCard
-                        icon={<FileSignature className="h-7 w-7 text-sky-300" />}
+                        icon={<FileSignature className="h-7 w-7 text-sky-600" />}
                         title={t.contractKinds[Number(kindStr)]}
                         badge={t.contractOfferTitle}
-                        badgeClass="bg-sky-400/15 text-sky-300"
+                        badgeClass="bg-sky-400/15 text-sky-600"
                         desc={t.contractDesc}
                       >
                         <PriceButton
@@ -1517,7 +1523,7 @@ export function HUD() {
                       const pill = (done: boolean, missed: boolean, label: string) => (
                         <span
                           className={`flex-1 rounded-lg px-1.5 py-1 text-center text-[10px] font-bold
-                            ${done ? 'bg-emerald-400/15 text-emerald-300' : missed ? 'bg-red-400/15 text-red-300' : 'bg-white/10 text-white/50'}`}
+                            ${done ? 'bg-emerald-400/15 text-emerald-600' : missed ? 'bg-red-400/15 text-red-600' : 'bg-[#e2e9ed] text-[#6f8694]'}`}
                         >
                           {label} {done ? '✓' : missed ? '✗' : <Hourglass className="inline h-2.5 w-2.5" />}
                         </span>
@@ -1525,10 +1531,10 @@ export function HUD() {
                       return (
                         <ModalCard
                           key={idStr}
-                          icon={<Bus className="h-7 w-7 text-amber-300" />}
+                          icon={<Bus className="h-7 w-7 text-amber-600" />}
                           title={t.contractKinds[Number(kindStr)]}
                           badge={t.contractDaysLeft(Number(daysStr))}
-                          badgeClass="bg-amber-400/15 text-amber-300"
+                          badgeClass="bg-amber-400/15 text-amber-600"
                           desc={t.contractPerDay(Number(payStr))}
                         >
                           <div className="flex gap-1.5">
@@ -1539,7 +1545,7 @@ export function HUD() {
                       )
                     })}
                   {!contractOfferKey && !contractsKey && (
-                    <div className="col-span-2 py-6 text-center text-[11px] font-bold text-white/40">
+                    <div className="col-span-2 py-6 text-center text-[11px] font-bold text-[#93a5af]">
                       {t.noContracts}
                     </div>
                   )}
@@ -1548,10 +1554,10 @@ export function HUD() {
               {buildTab === 'taksi' && (
                 <>
                   <ModalCard
-                    icon={<CarTaxiFront className="h-7 w-7 text-yellow-300" />}
+                    icon={<CarTaxiFront className="h-7 w-7 text-yellow-600" />}
                     title={t.buyTaxiPlate}
                     badge={`${taxisKey ? taxisKey.split(',').length : 0}/${CONFIG.taxiPlateMax}`}
-                    badgeClass="bg-yellow-400/15 text-yellow-300"
+                    badgeClass="bg-yellow-400/15 text-yellow-600"
                     desc={t.taxiPlateDesc}
                   >
                     <PriceButton
@@ -1577,7 +1583,7 @@ export function HUD() {
                       return (
                         <ModalCard
                           key={id}
-                          icon={<CarTaxiFront className="h-7 w-7 text-yellow-300" />}
+                          icon={<CarTaxiFront className="h-7 w-7 text-yellow-600" />}
                           title={taxiPlate}
                           badge={
                             operating
@@ -1589,9 +1595,9 @@ export function HUD() {
                           badgeClass={
                             operating
                               ? taxiNight
-                                ? 'bg-indigo-400/15 text-indigo-300'
-                                : 'bg-yellow-400/15 text-yellow-300'
-                              : 'bg-emerald-400/15 text-emerald-300'
+                                ? 'bg-indigo-400/15 text-indigo-600'
+                                : 'bg-yellow-400/15 text-yellow-600'
+                              : 'bg-emerald-400/15 text-emerald-600'
                           }
                           desc={
                             operating
@@ -1637,10 +1643,10 @@ export function HUD() {
               {buildTab === 'kiralama' && (
                 <>
                   <ModalCard
-                    icon={<KeyRound className="h-7 w-7 text-teal-300" />}
+                    icon={<KeyRound className="h-7 w-7 text-teal-600" />}
                     title={t.rentalOfficeTitle}
                     badge={rentalOffice ? `✓ ${t.built}` : undefined}
-                    badgeClass="bg-emerald-400/15 text-emerald-300"
+                    badgeClass="bg-emerald-400/15 text-emerald-600"
                     desc={t.rentalOfficeDesc}
                   >
                     <PriceButton
@@ -1650,10 +1656,10 @@ export function HUD() {
                     />
                   </ModalCard>
                   <ModalCard
-                    icon={<CarFront className="h-7 w-7 text-teal-300" />}
+                    icon={<CarFront className="h-7 w-7 text-teal-600" />}
                     title={t.rentalCarTitle}
                     badge={t.rentalCount(rentalCars, CONFIG.rentalCarMax)}
-                    badgeClass="bg-teal-400/15 text-teal-300"
+                    badgeClass="bg-teal-400/15 text-teal-600"
                     desc={rentalOffice ? t.rentalCarDesc : `${t.rentalCarDesc} — ${t.rentalNeedOffice}`}
                   >
                     <PriceButton
@@ -1692,7 +1698,7 @@ export function HUD() {
                       return (
                         <ModalCard
                           key={id}
-                          icon={<CarFront className="h-7 w-7 text-teal-300" />}
+                          icon={<CarFront className="h-7 w-7 text-teal-600" />}
                           title={rPlate}
                           badge={
                             days > 0
@@ -1706,11 +1712,11 @@ export function HUD() {
                           badgeClass={
                             days > 0
                               ? corp
-                                ? 'bg-violet-400/15 text-violet-300'
-                                : 'bg-teal-400/15 text-teal-300'
+                                ? 'bg-violet-400/15 text-violet-600'
+                                : 'bg-teal-400/15 text-teal-600'
                               : out
-                                ? 'bg-red-400/15 text-red-300'
-                                : 'bg-white/10 text-white/60'
+                                ? 'bg-red-400/15 text-red-600'
+                                : 'bg-[#e2e9ed] text-[#5b7383]'
                           }
                           desc={
                             days > 0
@@ -1755,14 +1761,14 @@ export function HUD() {
                 return (
                   <div className="col-span-2 flex flex-col gap-3">
                     <div>
-                      <div className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-white/40">
+                      <div className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
                         {t.statsToday}
                       </div>
                       {totalIn === 0 ? (
-                        <div className="py-3 text-center text-[11px] font-bold text-white/40">{t.statsEmpty}</div>
+                        <div className="py-3 text-center text-[11px] font-bold text-[#93a5af]">{t.statsEmpty}</div>
                       ) : (
                         <>
-                          <div className="flex h-3 overflow-hidden rounded-full bg-white/10">
+                          <div className="flex h-3 overflow-hidden rounded-full bg-[#e2e9ed]">
                             {entries.map(([src, val], i) => (
                               <div key={src} className={colors[i % colors.length]} style={{ width: `${(val / totalIn) * 100}%` }} />
                             ))}
@@ -1770,23 +1776,23 @@ export function HUD() {
                           <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
                             {entries.map(([src, val], i) => (
                               <div key={src} className="flex items-center justify-between text-[11px] font-bold">
-                                <span className="flex items-center gap-1.5 text-white/60">
+                                <span className="flex items-center gap-1.5 text-[#5b7383]">
                                   <span className={`h-2 w-2 rounded-full ${colors[i % colors.length]}`} />
                                   {t.statsSources[src] ?? src}
                                 </span>
-                                <span className="tabular-nums text-white">₺{fmt(Math.round(val))}</span>
+                                <span className="tabular-nums text-[#2c3e50]">₺{fmt(Math.round(val))}</span>
                               </div>
                             ))}
                             <div className="flex items-center justify-between text-[11px] font-bold">
-                              <span className="flex items-center gap-1.5 text-white/60">
+                              <span className="flex items-center gap-1.5 text-[#5b7383]">
                                 <span className="h-2 w-2 rounded-full bg-red-500" />
                                 {t.statsExpense}
                               </span>
-                              <span className="tabular-nums text-red-300">-₺{fmt(Math.round(today.expense))}</span>
+                              <span className="tabular-nums text-red-600">-₺{fmt(Math.round(today.expense))}</span>
                             </div>
                             <div className="flex items-center justify-between text-[11px] font-black">
-                              <span className="text-white/60">{t.statsProfit}</span>
-                              <span className="tabular-nums text-emerald-300">
+                              <span className="text-[#5b7383]">{t.statsProfit}</span>
+                              <span className="tabular-nums text-emerald-600">
                                 ₺{fmt(Math.round(totalIn - today.expense))}
                               </span>
                             </div>
@@ -1795,11 +1801,11 @@ export function HUD() {
                       )}
                     </div>
                     <div>
-                      <div className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-white/40">
+                      <div className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
                         {t.statsWeek}
                       </div>
                       {week.length === 0 ? (
-                        <div className="py-3 text-center text-[11px] font-bold text-white/40">{t.statsEmpty}</div>
+                        <div className="py-3 text-center text-[11px] font-bold text-[#93a5af]">{t.statsEmpty}</div>
                       ) : (
                         <div className="flex h-24 items-end gap-2">
                           {week.map((d) => {
@@ -1807,14 +1813,14 @@ export function HUD() {
                             const h = Math.max(6, (Math.abs(profit) / maxAbs) * 80)
                             return (
                               <div key={d.day} className="flex flex-1 flex-col items-center gap-1">
-                                <span className="text-[9px] font-bold tabular-nums text-white/50">
+                                <span className="text-[9px] font-bold tabular-nums text-[#6f8694]">
                                   {profit >= 0 ? '+' : '-'}₺{fmt(Math.round(Math.abs(profit) / 1000))}k
                                 </span>
                                 <div
-                                  className={`w-full rounded-t ${profit >= 0 ? 'bg-gradient-to-t from-emerald-600 to-emerald-400' : 'bg-gradient-to-t from-red-600 to-red-400'}`}
+                                  className={`w-full rounded-t ${profit >= 0 ? 'bg-[#2ecc71]' : 'bg-[#e74c3c]'}`}
                                   style={{ height: `${h}px` }}
                                 />
-                                <span className="text-[9px] font-bold text-white/40">G{d.day}</span>
+                                <span className="text-[9px] font-bold text-[#93a5af]">G{d.day}</span>
                               </div>
                             )
                           })}
@@ -1827,16 +1833,16 @@ export function HUD() {
               {buildTab === 'prestij' && (
                 <div className="col-span-2">
                   <ModalCard
-                    icon={<Star className="h-7 w-7 text-yellow-300" />}
+                    icon={<Star className="h-7 w-7 text-yellow-600" />}
                     title={t.prestigeTitle}
                     badge={t.prestigeLevel(prestige)}
-                    badgeClass="bg-yellow-400/15 text-yellow-300"
+                    badgeClass="bg-yellow-400/15 text-yellow-600"
                     desc={t.prestigeDesc}
                   >
-                    <div className="text-center text-[11px] font-bold text-white/60">
+                    <div className="text-center text-[11px] font-bold text-[#5b7383]">
                       {t.prestigeGain(prestigeGain)}
                     </div>
-                    <div className="text-center text-[10px] font-bold text-white/40">
+                    <div className="text-center text-[10px] font-bold text-[#93a5af]">
                       {t.prestigeBonuses(
                         Math.round(CONFIG.prestigeMoneyBonus * (prestige + prestigeGain) * 100),
                         (CONFIG.prestigeRepBonus * (prestige + prestigeGain)).toFixed(1),
@@ -1878,7 +1884,7 @@ export function HUD() {
                       return (
                         <ModalCard
                           key={id}
-                          icon={<Bus className="h-7 w-7 text-emerald-300" />}
+                          icon={<Bus className="h-7 w-7 text-emerald-600" />}
                           title={rivalPlate}
                           badge={
                             playerShare > 0
@@ -1887,8 +1893,8 @@ export function HUD() {
                           }
                           badgeClass={
                             playerShare > 0
-                              ? 'bg-indigo-400/15 text-indigo-300'
-                              : 'bg-amber-400/15 text-amber-300'
+                              ? 'bg-indigo-400/15 text-indigo-600'
+                              : 'bg-amber-400/15 text-amber-600'
                           }
                           desc={t.rivalDesc}
                         >
@@ -1925,7 +1931,7 @@ export function HUD() {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`toast-in px-3 py-1.5 text-xs font-bold tabular-nums text-emerald-300 ${GLASS}`}
+            className={`toast-in px-3 py-1.5 text-xs font-bold tabular-nums text-emerald-600 ${PANEL}`}
           >
             {toast.text}
           </div>
@@ -1939,24 +1945,24 @@ export function HUD() {
         const kind = t.charterKinds[Number(kindStr)]
         const left = Math.max(0, Number(leftStr))
         return (
-          <div className={`pointer-events-auto absolute left-1/2 top-1/2 w-72 -translate-x-1/2 -translate-y-1/2 p-3 ${GLASS} border-purple-400/30 shadow-2xl`}>
+          <div className={`pointer-events-auto absolute left-1/2 top-1/2 w-72 -translate-x-1/2 -translate-y-1/2 p-3 ${PANEL} !border-[#9b59b6]`}>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-purple-300/80">
+              <span className="text-[10px] font-black uppercase tracking-widest text-purple-600/80">
                 <Megaphone className="mr-1 inline h-3 w-3" /> {t.charterTitle}
               </span>
-              <span className="text-[10px] font-bold tabular-nums text-white/50">{left} sn</span>
+              <span className="text-[10px] font-bold tabular-nums text-[#6f8694]">{left} sn</span>
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-[13px] font-extrabold text-white">
+            <div className="mt-1 flex items-center gap-1.5 text-[13px] font-extrabold text-[#2c3e50]">
               {(() => {
                 const KindIcon = CHARTER_ICONS[Number(kindStr)] ?? PartyPopper
-                return <KindIcon className="h-4 w-4 text-purple-300" />
+                return <KindIcon className="h-4 w-4 text-purple-600" />
               })()}
               {kind} · {t.charterKm(Number(kmStr))}
             </div>
-            <div className="mt-0.5 text-[12px] font-extrabold tabular-nums text-emerald-300">
+            <div className="mt-0.5 text-[12px] font-extrabold tabular-nums text-emerald-600">
               +₺{fmt(Number(payoutStr))}
             </div>
-            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10">
+            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[#e2e9ed]">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-purple-500 to-fuchsia-400 transition-all"
                 style={{ width: `${(left / CONFIG.charterLifetime) * 100}%` }}
@@ -1978,15 +1984,15 @@ export function HUD() {
       {filoOpen && (
         <div className="pointer-events-auto fixed inset-0 z-10 flex items-center justify-center">
           <div
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-[#22313f]/55"
             onClick={() => {
               setFiloOpen(false)
               selectVehicle(null)
             }}
           />
-          <div className={`relative flex max-h-[82dvh] w-[780px] max-w-[94vw] flex-col overflow-hidden ${GLASS}`}>
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-              <span className="flex items-center gap-2 text-sm font-black text-white">
+          <div className={`relative flex max-h-[82dvh] w-[780px] max-w-[94vw] flex-col overflow-hidden ${PANEL}`}>
+            <div className="flex items-center justify-between border-b border-[#d5dee4] px-4 py-3">
+              <span className="flex items-center gap-2 text-sm font-black text-[#2c3e50]">
                 <span className="h-4 w-1 rounded-full bg-sky-500" /> <Bus className="h-4 w-4" /> {t.fleetTitle}
               </span>
               <button
@@ -1994,7 +2000,7 @@ export function HUD() {
                   setFiloOpen(false)
                   selectVehicle(null)
                 }}
-                className="cursor-pointer rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-white/70 transition hover:bg-white/20"
+                className="cursor-pointer rounded-lg bg-[#e2e9ed] px-2 py-1 text-xs font-bold text-[#4a6076] transition hover:bg-[#cfdae1]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2012,7 +2018,7 @@ export function HUD() {
                   key={key}
                   onClick={() => setFiloTab(key)}
                   className={`flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-extrabold transition
-                    ${filoTab === key ? 'bg-white text-neutral-900' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}
+                    ${filoTab === key ? 'bg-[#2c3e50] text-white' : 'bg-[#e2e9ed] text-[#5b7383] hover:bg-[#cfdae1]'}`}
                 >
                   {label}
                 </button>
@@ -2023,7 +2029,7 @@ export function HUD() {
                 <>
                   {/* Araç listesi: tıklayınca detay sağda aynı panelde açılır */}
                   <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto">
-                    {!fleetKey && <div className="text-xs text-white/40">{t.fleetEmpty}</div>}
+                    {!fleetKey && <div className="text-xs text-[#93a5af]">{t.fleetEmpty}</div>}
                     {fleetKey &&
                       fleetKey.split(',').map((entry) => {
                         const [idStr, vPlate, vState, , vFuelStr, vWearStr, , , , , , , , , vKindStr, vDriver] = entry.split('|')
@@ -2035,21 +2041,21 @@ export function HUD() {
                             key={id}
                             onClick={() => selectVehicle(selected ? null : id)}
                             className={`flex cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left transition
-                              ${selected ? 'bg-white/15 ring-1 ring-inset ring-white/25' : 'bg-white/5 hover:bg-white/10'}`}
+                              ${selected ? 'bg-[#d8e1e7] ring-1 ring-inset ring-[#9fb2bd]' : 'bg-white hover:bg-[#e2e9ed]'}`}
                           >
                             <PlateBadge plate={vPlate} small />
-                            <span className={`h-2 w-2 shrink-0 rounded-full ${DOT_STYLE[vState] ?? 'bg-white/40'}`} />
-                            <span className="w-14 shrink-0 text-[10px] font-bold text-white/60">{t.kindNames[vKindStr] ?? ''}</span>
-                            <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-white/80">
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${DOT_STYLE[vState] ?? 'bg-[#aebbc3]'}`} />
+                            <span className="w-14 shrink-0 text-[10px] font-bold text-[#5b7383]">{t.kindNames[vKindStr] ?? ''}</span>
+                            <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-[#3d5568]">
                               {vDriver || t.state.noDriver}
                             </span>
-                            <span className="shrink-0 text-[10px] font-bold tabular-nums text-amber-300/90">
+                            <span className="shrink-0 text-[10px] font-bold tabular-nums text-amber-600/90">
                               <Fuel className="mr-0.5 inline h-3 w-3" />%{Math.round((Number(vFuelStr) / vSpec.tank) * 100)}
                             </span>
-                            <span className="shrink-0 text-[10px] font-bold tabular-nums text-sky-300/90">
+                            <span className="shrink-0 text-[10px] font-bold tabular-nums text-sky-600/90">
                               <Wrench className="mr-0.5 inline h-3 w-3" />%{vWearStr}
                             </span>
-                            <span className="shrink-0 text-[10px] font-bold text-white/50">{t.state[vState as keyof typeof t.state]}</span>
+                            <span className="shrink-0 text-[10px] font-bold text-[#6f8694]">{t.state[vState as keyof typeof t.state]}</span>
                           </button>
                         )
                       })}
@@ -2061,7 +2067,7 @@ export function HUD() {
                     </div>
                   ) : (
                     fleetKey && (
-                      <div className="flex w-64 shrink-0 items-center justify-center rounded-xl bg-white/[0.03] p-3 text-center text-[11px] font-bold text-white/30 ring-1 ring-inset ring-white/5">
+                      <div className="flex w-64 shrink-0 items-center justify-center rounded-xl bg-white/60 p-3 text-center text-[11px] font-bold text-[#adbac2] ring-1 ring-inset ring-[#dee6ea]">
                         {t.fleetPickHint}
                       </div>
                     )
@@ -2070,16 +2076,16 @@ export function HUD() {
               )}
               {filoTab === 'taksi' && (
                 <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto">
-                  {!taxisKey && <div className="text-xs text-white/40">{t.fleetEmpty}</div>}
+                  {!taxisKey && <div className="text-xs text-[#93a5af]">{t.fleetEmpty}</div>}
                   {taxisKey &&
                     taxisKey.split(',').map((entry) => {
                       const [idStr, txPlate, txMode, txHasCar, txNight] = entry.split('|')
                       const operating = txMode === 'operate'
                       return (
-                        <div key={idStr} className="flex items-center gap-2.5 rounded-xl bg-white/5 px-2.5 py-1.5">
+                        <div key={idStr} className="flex items-center gap-2.5 rounded-xl bg-white px-2.5 py-1.5">
                           <PlateBadge plate={txPlate} small />
-                          <span className="w-14 shrink-0 text-[10px] font-bold text-white/60">{t.kindNames.taxi}</span>
-                          <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-white/80">
+                          <span className="w-14 shrink-0 text-[10px] font-bold text-[#5b7383]">{t.kindNames.taxi}</span>
+                          <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-[#3d5568]">
                             {txHasCar === '1'
                               ? operating
                                 ? txNight === '1'
@@ -2088,7 +2094,7 @@ export function HUD() {
                                 : t.taxiRentMode
                               : t.taxiRentMode}
                           </span>
-                          <span className="shrink-0 text-[10px] font-bold text-white/50">
+                          <span className="shrink-0 text-[10px] font-bold text-[#6f8694]">
                             {operating && txHasCar === '1'
                               ? t.taxiOperateNote(CONFIG.taxiOperateMin, CONFIG.taxiOperateMax)
                               : t.taxiRentNote(CONFIG.taxiRentDaily)}
@@ -2100,7 +2106,7 @@ export function HUD() {
               )}
               {filoTab === 'kiralama' && (
                 <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto">
-                  {!rentalsKey && <div className="text-xs text-white/40">{t.fleetEmpty}</div>}
+                  {!rentalsKey && <div className="text-xs text-[#93a5af]">{t.fleetEmpty}</div>}
                   {rentalsKey &&
                     rentalsKey.split(',').map((entry) => {
                       const [idStr, rPlate, rFuelStr, rWearStr, rDaysStr, rCorpStr, , rRefundStr] = entry.split('|')
@@ -2108,12 +2114,12 @@ export function HUD() {
                       const rRefund = Number(rRefundStr)
                       const rOut = Number(rFuelStr) < CONFIG.rentalMinFuel || Number(rWearStr) >= 100
                       return (
-                        <div key={idStr} className="flex items-center gap-2.5 rounded-xl bg-white/5 px-2.5 py-1.5">
+                        <div key={idStr} className="flex items-center gap-2.5 rounded-xl bg-white px-2.5 py-1.5">
                           <PlateBadge plate={rPlate} small />
-                          <span className="w-14 shrink-0 text-[10px] font-bold text-white/60">{t.kindNames.rental}</span>
+                          <span className="w-14 shrink-0 text-[10px] font-bold text-[#5b7383]">{t.kindNames.rental}</span>
                           <span
                             className={`min-w-0 flex-1 truncate text-[11px] font-bold ${
-                              rDays > 0 ? 'text-teal-300' : rOut ? 'text-red-300' : 'text-white/60'
+                              rDays > 0 ? 'text-teal-600' : rOut ? 'text-red-600' : 'text-[#5b7383]'
                             }`}
                           >
                             {rDays > 0
@@ -2125,7 +2131,7 @@ export function HUD() {
                                 : t.rentalStatusIdle}
                             {rDays <= 0 && rRefund > 0 && ` · ${t.rentalRefundNote(rRefund)}`}
                           </span>
-                          <span className="shrink-0 text-[10px] font-bold tabular-nums text-white/50">
+                          <span className="shrink-0 text-[10px] font-bold tabular-nums text-[#6f8694]">
                             {t.rentalCondition(Math.round((Number(rFuelStr) / CONFIG.rentalTank) * 100), Number(rWearStr))}
                           </span>
                         </div>
