@@ -639,8 +639,8 @@ function ResetButton({ onReset }: { onReset: () => void }) {
           timer.current = setTimeout(() => setArmed(false), 3000)
         }
       }}
-      className={`pointer-events-auto cursor-pointer rounded-xl px-3 py-1.5 text-[11px] font-bold transition active:scale-95 ${PANEL}
-        ${armed ? '!border-red-300 !bg-red-50 text-red-600' : 'text-[#93a5af] hover:text-[#3d5568]'}`}
+      className={`pointer-events-auto flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold transition
+        ${armed ? 'bg-red-100 text-red-600' : 'bg-[#e2e9ed] text-[#5b7383] hover:bg-[#cfdae1] hover:text-[#3d5568]'}`}
     >
       {armed ? <><AlertTriangle className="h-3 w-3" /> {t.resetConfirm}</> : <><Trash2 className="h-3 w-3" /> {t.reset}</>}
     </button>
