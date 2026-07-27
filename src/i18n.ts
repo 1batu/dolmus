@@ -251,6 +251,38 @@ const dicts = {
     tabStats: 'İstatistik',
     statsToday: 'Bugünkü Gelir Dağılımı',
     statsWeek: 'Son 7 Gün Kâr/Zarar',
+    tutorialSkip: 'Rehberi geç',
+    tutorialStart: 'Başla',
+    tutorialNext: 'Devam',
+    tutorialReplay: 'Rehberi baştan göster',
+    tutorialFinish: 'Hadi başlayalım',
+    tutorialWaiting: 'Sıradaki adım için bunu yap',
+    tutorialSteps: [
+      {
+        title: 'Terminale hoş geldin',
+        body: 'Burası senin dolmuş terminalin. Peronda yolcu birikir, minibüs yanaşır, dolunca kalkar. Sahneyi sürükleyerek gezebilir, tekerlekle yakınlaşabilirsin.',
+      },
+      {
+        title: 'İlk seferini izle',
+        body: 'Şoförlü minibüsün perona yanaşacak. Koltuklar dolunca kendiliğinden sefere çıkar ve hasılatla döner.',
+      },
+      {
+        title: 'İkinci aracını al',
+        body: 'Büyümenin yolu araç sayısı: sağ üstteki İnşaat > Araçlar’dan bir minibüs al. Nakit ödeyebilir ya da %25 peşinatla senetli alabilirsin.',
+      },
+      {
+        title: 'Şoför tut',
+        body: 'Araç şoförsüz sefere çıkmaz. İnşaat > Personel & Park’tan şoför tut — pazardaki yıldızlı ustalar daha hızlı yolcu bindirir.',
+      },
+      {
+        title: 'Filoyu takip et',
+        body: 'Filo düğmesinden araçlarını aç: yakıt biten araç sefere çıkmaz, yıpranan araç bakım ister. Aracın üstündeki rozetler de seni uyarır.',
+      },
+      {
+        title: 'Hazırsın, usta!',
+        body: 'Sol üstte günlük görev, üst barda kasan ve borcun. Kontrat, taksi, kiralama ve banka İnşaat modalında seni bekliyor. Dolunca kalkar!',
+      },
+    ],
     statsNetWorth: 'Net Varlık',
     statsNetWorthNow: 'Şu an',
     statsNetWorthDesc: 'Kasa + filo + mevduat + taksi/kiralık − borçlar',
@@ -618,6 +650,38 @@ const dicts = {
     tabStats: 'Stats',
     statsToday: "Today's Income Breakdown",
     statsWeek: 'Last 7 Days P&L',
+    tutorialSkip: 'Skip guide',
+    tutorialStart: 'Start',
+    tutorialNext: 'Next',
+    tutorialReplay: 'Replay the guide',
+    tutorialFinish: 'Let’s go',
+    tutorialWaiting: 'Do this to continue',
+    tutorialSteps: [
+      {
+        title: 'Welcome to the terminal',
+        body: 'This is your dolmuş terminal. Passengers gather at the platform, a minibus pulls in and departs once it fills up. Drag to pan the scene, scroll to zoom.',
+      },
+      {
+        title: 'Watch your first run',
+        body: 'Your staffed minibus will pull up to the platform. Once the seats fill, it departs on its own and comes back with the fares.',
+      },
+      {
+        title: 'Buy a second vehicle',
+        body: 'Growth means more vehicles: open Construction > Vehicles in the top right and buy a minibus. Pay cash, or put 25% down and finance it.',
+      },
+      {
+        title: 'Hire a driver',
+        body: 'A vehicle without a driver never leaves the lot. Hire one from Construction > Staff & Parking — star-rated drivers board passengers faster.',
+      },
+      {
+        title: 'Keep an eye on the fleet',
+        body: 'Open your vehicles from the Fleet button: an empty tank means no runs, and worn vehicles need servicing. Badges above each vehicle warn you too.',
+      },
+      {
+        title: 'You’re all set!',
+        body: 'Daily task sits top left, cash and debt in the top bar. Contracts, taxis, rentals and the bank are waiting in the Construction modal. Off you go!',
+      },
+    ],
     statsNetWorth: 'Net Worth',
     statsNetWorthNow: 'Now',
     statsNetWorthDesc: 'Cash + fleet + deposits + taxi/rental − debts',

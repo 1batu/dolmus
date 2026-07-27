@@ -16,7 +16,7 @@ Idle/tycoon game about running a Turkish dolmuş (shared minibus) terminal. Web-
 | 🧢 Kahya | Araç başına Sv.1-3: +4/+6/+8 ayakta yolcu, hat indi-bindisine +%15/sv, günlük yevmiye |
 | 🤝 Rakipler & Devren | Aynı hattın esnafı perona yanaşıp yolcu kapar (gündüz). Devren: yeni fiyatın %60'ı ama %55-80 yıpranmış eski kasa (×1,5 yıpranır). Oranlı ortaklık: %5-90 pay al/artır/sat, payın kadar günlük cirodan akşam ödemesi |
 | 📊 Hisse ticareti | Kendi aracının hissesini kaydırıcıyla dilim dilim sat/geri al (değerleme: taban × yıpranma × itibar; geri alım %10 primli, elde asgari %25 kalır). Ortaklı araç gece de çalışır, gelir-gider hisse oranında bölüşülür; rakip ortaklık payı akşamları günlük cirodan ödenir |
-| 📢 Özel servisler | Gündüz ekran ortasına mesafeli teklif düşer (düğün/havalimanı/maç/okul/piknik, 5-60 km): fiyat-süre-masraf mesafeyle ölçekli, 40 sn içinde kabul edilmezse uçar. Parktaki veya dönüşteki araç atanır |
+| 📢 Özel servisler | **Sprinteri olana** gündüz ekran ortasına mesafeli teklif düşer (düğün/havalimanı/maç/okul/piknik, 5-60 km): fiyat-süre-masraf mesafeyle ölçekli, 40 sn içinde kabul edilmezse uçar. Parktaki veya dönüşteki araç atanır |
 | 🚐 Servis Sprinteri | Kontrat işine adanmış panelvan (₺1,25M, "34 S" plaka): hat/peron işine girmez, okul-fabrika kontrat seferlerine öncelikli çıkar (%40 düşük masraf + ödemeye %20 konfor primi), boşken özel servis tekliflerini kapar. Şoförlü her sprinter +1 kontrat slotu açar (azami +4) |
 | 🪪 Plakalar | Her araç kalıcı "34 M XXXX" plakası taşır — kartlarda gerçek plaka görünümü (TR bandı), 3D modelde ön/arka tampon dokusu, devren alınan araç rakibin plakasını getirir |
 | ⛽ Pompa & planlı bakım | "Doldur" basınca araç fiilen terminaldeki pompaya sürer. Araç seferdeyken basılırsa ⏳ planlanır, parka dönünce uygulanır |
@@ -105,5 +105,5 @@ npm run dev
 30. **Başarım paneli** — milestone'lar var ama listesi görünmüyor: İnşaat'a "Başarımlar" sekmesi, kilitliler gri
 31. **Net varlık grafiği** — kasa + filo değeri + mevduat − borç; İstatistik sekmesine tek çizgi
 32. **Skor kartı paylaşımı + Yayın** — tek tuşla şık skor görseli + Vercel deploy → oynanabilir link (oyun paylaşılabilir olmadan twit tam vurmaz); sonrasında Capacitor ile mağaza
-33. **Onboarding** — ilk oyuncu rehberi
+33. ~~**Onboarding**~~ ✅ — 6 adımlı açılış rehberi (alt ortada kart): karşılama → ilk seferi izle → ikinci aracı al → şoför tut → filoyu aç → kapanış. Adımlar oyuncu işi fiilen yapınca kendiliğinden ilerler; "Rehberi geç" her an kapatır. Yalnız yeni oyunda açılır (süregelen kayıt rehberi bitmiş sayar), İnşaat başlığındaki 🎓 düğmesiyle kayıt silmeden tekrar izlenir. Modal açıkken ince şeride iner
 34. **Google ile giriş + bulut kayıt** — Google hesabıyla oturum aç, oyun kaydı Google altyapısında tutulsun (Firebase Auth + Firestore): localStorage tek gerçek kaynak olmaktan çıkar, mevcut kayıt ilk girişte buluta taşınır, cihazlar arası senkron (telefonda başla masaüstünde devam et), hesap silinirse anonim moda düş

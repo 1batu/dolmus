@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useGame, BANKS, BUILDING_COSTS, MILESTONES, MOD_COSTS, bankLimitOf, capacityOf, fleetAssetValue, netWorthOf, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
+import { useGame, BANKS, BUILDING_COSTS, MILESTONES, MOD_COSTS, TUTORIAL_DONE, bankLimitOf, capacityOf, fleetAssetValue, netWorthOf, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
 import { CONFIG, VEHICLE_SPECS, clockOf, contractSlotsOf, queueCapOf } from '../game/config'
 import { SPRINTER_LOT } from '../game/paths'
 import {
@@ -34,6 +34,7 @@ import {
   Droplets,
   FileSignature,
   FileText,
+  GraduationCap,
   Flame,
   Fuel,
   Handshake,
@@ -680,6 +681,93 @@ function ResetButton({ onReset }: { onReset: () => void }) {
   )
 }
 
+// Açılış rehberi: her adımda tek iş ister, iş fiilen yapılınca kendi ilerler.
+// Sadece yeni oyunda görünür (süregelen kayıt TUTORIAL_DONE ile yüklenir).
+function Tutorial({ modalOpen }: { modalOpen: boolean }) {
+  const step = useGame((s) => s.tutorialStep)
+  const advance = useGame((s) => s.tutorialAdvance)
+  const skip = useGame((s) => s.tutorialSkip)
+  // Tamamlanma sinyalleri: oyuncunun gerçekten yaptığı işi ölçer
+  const departed = useGame((s) =>
+    s.vehicles.some(
+      (v) => v.state === 'departing' || v.state === 'onTrip' || v.state === 'returning',
+    ),
+  )
+  const fleetGrew = useGame((s) => s.vehicles.length >= 2)
+  const allStaffed = useGame((s) => s.vehicles.every((v) => v.hasDriver))
+  // Bu adımın işi yapılmış mı? (4. adımın sinyali dışarıdan — Filo modalı)
+  const stepDone = step === 1 ? departed : step === 2 ? fleetGrew : step === 3 ? allStaffed : false
+  // Oto-ilerleme yalnız adım başında koşul sağlanmamışsa kurulur: rehber
+  // ilerlemiş bir kayıtta tekrar izlenirken adımlar peş peşe atlanmasın
+  const [autoArmed, setAutoArmed] = useState<number | null>(null)
+  useEffect(() => {
+    setAutoArmed(stepDone ? null : step)
+    // stepDone yalnız adım başındaki değeriyle okunur
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step])
+  useEffect(() => {
+    if (autoArmed === step && stepDone) advance(step + 1)
+  }, [autoArmed, stepDone, step, advance])
+
+  const steps = t.tutorialSteps
+  if (step === TUTORIAL_DONE || step < 0 || step >= steps.length) return null
+  const cur = steps[step]
+  const isLast = step === steps.length - 1
+  // İlk/son ekran ve oto-ilerlemesi kurulmayan adımlar düğmeyle geçilir
+  const manual = step === 0 || isLast || autoArmed !== step
+
+  // Modal açıkken kart içeriği kapatmasın: masaüstünde ince bir şeride iner,
+  // telefonda tamamen çekilir (yer yok — modal neredeyse tam ekran)
+  if (modalOpen) {
+    return (
+      <div
+        className={`pointer-events-auto absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 px-3 py-1.5 max-sm:hidden ${PANEL}`}
+      >
+        <span className="flex h-4 items-center rounded-full bg-[#3498db] px-1.5 text-[9px] font-black tabular-nums text-white">
+          {step + 1}/{steps.length}
+        </span>
+        <span className="text-[11px] font-extrabold text-[#2c3e50]">{cur.title}</span>
+        {!manual && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#3498db]" />}
+      </div>
+    )
+  }
+  return (
+    <div
+      className={`pointer-events-auto absolute bottom-6 left-1/2 z-20 w-80 -translate-x-1/2 p-3.5 max-sm:bottom-24 max-sm:w-[calc(100vw-1rem)] ${PANEL}`}
+    >
+      <div className="flex items-center gap-2">
+        <span className="flex h-5 items-center rounded-full bg-[#3498db] px-2 text-[10px] font-black tabular-nums text-white">
+          {step + 1}/{steps.length}
+        </span>
+        <span className="flex-1 text-[13px] font-extrabold text-[#2c3e50]">{cur.title}</span>
+      </div>
+      <p className="mt-1.5 text-[11px] font-bold leading-snug text-[#5b7383]">{cur.body}</p>
+      <div className="mt-2.5 flex items-center gap-2">
+        <button
+          onClick={skip}
+          className="cursor-pointer rounded-lg px-1.5 py-1 text-[10px] font-bold text-[#93a5af] transition hover:text-[#3d5568]"
+        >
+          {t.tutorialSkip}
+        </button>
+        <span className="flex-1" />
+        {manual ? (
+          <button
+            onClick={() => (isLast ? skip() : advance(step + 1))}
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#2ecc71] px-3 py-1.5 text-[11px] font-extrabold text-white shadow-[0_3px_0_#27ae60] transition hover:bg-[#40d47e] active:translate-y-[2px] active:shadow-[0_1px_0_#27ae60]"
+          >
+            {isLast ? t.tutorialFinish : step === 0 ? t.tutorialStart : t.tutorialNext}
+          </button>
+        ) : (
+          <span className="flex items-center gap-1.5 text-[10px] font-bold text-[#3498db]">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#3498db]" />
+            {t.tutorialWaiting}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // Günlük görev paneli: tamamlanınca kısa bir "✓ Tamam" gösterir, sonra
 // kendini kapatır — yeni görev gelince tekrar açılır
 function DailyTask({ taskKey }: { taskKey: string }) {
@@ -869,6 +957,12 @@ export function HUD() {
   const takeBankLoan = useGame((s) => s.takeBankLoan)
   const [bankOpen, setBankOpen] = useState(false)
   const [filoOpen, setFiloOpen] = useState(false)
+  // Rehberin "Filoyu takip et" adımı: modal açılınca tamamlanır
+  const tutorialAdvance = useGame((s) => s.tutorialAdvance)
+  const replayTutorial = useGame((s) => s.replayTutorial)
+  useEffect(() => {
+    if (filoOpen) tutorialAdvance(5)
+  }, [filoOpen, tutorialAdvance])
   const [filoTab, setFiloTab] = useState<'hat' | 'taksi' | 'kiralama'>('hat')
   // 3D sahnede araca tıklanınca detay Filo modalında açılır (ayrı panel yok)
   const selectedVehicleId = useGame((s) => s.selectedVehicle)
@@ -1094,6 +1188,8 @@ export function HUD() {
       {/* Günlük görev */}
       {taskKey && <DailyTask taskKey={taskKey} />}
 
+      <Tutorial modalOpen={buildOpen || bankOpen || filoOpen || offlineEarned > 0} />
+
       <Confetti token={celebrateAt} />
 
       {/* Offline kazanç karşılaması */}
@@ -1308,6 +1404,16 @@ export function HUD() {
                 <span className="h-4 w-1 rounded-full bg-red-500" /> <Hammer className="h-4 w-4" /> {t.buildModalTitle}
               </span>
               <span className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    replayTutorial()
+                    setBuildOpen(false)
+                  }}
+                  title={t.tutorialReplay}
+                  className="flex cursor-pointer items-center gap-1 rounded-lg bg-[#e2e9ed] px-2 py-1 text-xs font-bold text-[#5b7383] transition hover:bg-[#cfdae1] hover:text-[#3d5568]"
+                >
+                  <GraduationCap className="h-3.5 w-3.5" />
+                </button>
                 <ResetButton onReset={reset} />
                 <button
                   onClick={() => setBuildOpen(false)}

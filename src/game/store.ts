@@ -550,6 +550,9 @@ function localDateStr(offsetDays = 0): string {
 
 // --- Kalıcılık: localStorage'a periyodik yaz, açılışta geri yükle ---
 const SAVE_KEY = 'dolmus-save'
+// Rehber bitti/atlandı işareti: adım sayacı bu değere gelince panel bir daha açılmaz
+export const TUTORIAL_DONE = -1
+
 const SAVE_VERSION = 8 // araç/ekonomi şeması değişince artır — eski kayıt sessizce atılır
 const SAVE_ACCEPTS = [3, 4, 5, 6, 7, 8] // eski kayıtlar yeni alanlar varsayılanla açılır
 let saveAcc = 0
@@ -591,11 +594,12 @@ type SavedFields = Pick<
   | 'perons'
   | 'specialDay'
   | 'specialDayFor'
+  | 'tutorialStep'
 >
 
 function persist(s: SavedFields) {
   try {
-    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, streak, lastPlayDate, rentalOffice, rentals, perons, specialDay, specialDayFor } = s
+    const { time, day, wageDay, money, totalCarried, queue, spots, drivers, vehicles, debts, spawnTimer, rep, task, taskDay, buildings, bufeToday, rivals, rivalRespawn, contracts, taxis, milestonesDone, prestige, fuelPrice, fare, statsHistory, deposits, creditScore, missedPayDays, streak, lastPlayDate, rentalOffice, rentals, perons, specialDay, specialDayFor, tutorialStep } = s
     localStorage.setItem(
       SAVE_KEY,
       JSON.stringify({
@@ -637,6 +641,7 @@ function persist(s: SavedFields) {
         perons,
         specialDay,
         specialDayFor,
+        tutorialStep,
       }),
     )
   } catch {
@@ -780,6 +785,8 @@ function loadSave(): Partial<GameState> | null {
       perons: Number.isFinite(d.perons) ? d.perons : 1,
       specialDay: d.specialDay ?? null,
       specialDayFor: Number.isFinite(d.specialDayFor) ? d.specialDayFor : 0,
+      // Süregelen kayıtta rehber gösterilmez: oyuncu oyunu zaten biliyor
+      tutorialStep: Number.isFinite(d.tutorialStep) ? d.tutorialStep : TUTORIAL_DONE,
       // Eski kayıt: sayı olarak tutulan filo, plakalı gerçek araçlara çevrilir
       rentals: Array.isArray(d.rentals)
         ? d.rentals.map((r: Partial<Rental>) => ({
@@ -914,6 +921,10 @@ type GameState = {
   takeBankLoan: (bankIdx: number, amount: number) => void
   streak: number // art arda oynanan gerçek gün sayısı
   lastPlayDate: string
+  tutorialStep: number // açılış rehberi adımı; TUTORIAL_DONE = bitti/atlandı
+  tutorialAdvance: (step: number) => void // adımı tamamla (yalnız ileri gider)
+  tutorialSkip: () => void
+  replayTutorial: () => void // rehberi baştan aç (kayıt silinmez)
   rainUntil: number // yağmur bitiş zamanı (oyun sn)
   snowUntil: number // kar/sis bitiş zamanı (oyun sn)
   korsanUntil: number // korsan dolmuş bitiş zamanı
@@ -1018,6 +1029,7 @@ function initialState() {
     specialDayFor: 0,
     streak: 1,
     lastPlayDate: localDateStr(),
+    tutorialStep: 0,
     rainUntil: 0,
     snowUntil: 0,
     korsanUntil: 0,
@@ -1737,6 +1749,15 @@ export const useGame = create<GameState>((set, get) => ({
 
   dismissOffline: () => set({ offlineEarned: 0, offlineSecs: 0 }),
 
+  // Rehber yalnız ileri akar: geç gelen bir tamamlanma sinyali adımı geri almasın
+  tutorialAdvance: (step: number) => {
+    const cur = get().tutorialStep
+    if (cur === TUTORIAL_DONE || step <= cur) return
+    set({ tutorialStep: step })
+  },
+  tutorialSkip: () => set({ tutorialStep: TUTORIAL_DONE }),
+  replayTutorial: () => set({ tutorialStep: 0 }),
+
   openDeposit: (bankIdx: number, amount: number, termIdx: number) => {
     const s = get()
     const bank = BANKS[bankIdx]
@@ -2319,9 +2340,11 @@ export const useGame = create<GameState>((set, get) => ({
       }
     }
 
-    // Özel servis teklifleri: gündüz arada bir düşer, süresi geçerse uçar
-    if (charter && charter.expiresAt <= time) charter = null
-    if (!charter && !isNight) {
+    // Özel servis teklifleri: gündüz arada bir düşer, süresi geçerse uçar.
+    // Bu işe yalnız sprinter çıkar — sprinteri olmayana teklif gelmez
+    const hasSprinter = s.vehicles.some((v) => v.kind === 'sprinter')
+    if (charter && (charter.expiresAt <= time || !hasSprinter)) charter = null
+    if (!charter && !isNight && hasSprinter) {
       charterTimer -= dt
       if (charterTimer <= 0) {
         // Maç günü servis teklifleri hem sık hem dolgun gelir
