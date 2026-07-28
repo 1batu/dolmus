@@ -1008,7 +1008,6 @@ export function HUD() {
   const bankTotalLimit = useGame((s) =>
     totalBankLimitOf(s.statsHistory, fleetAssetValue(s.vehicles, s.rep)),
   )
-  const loanMax = useGame((s) => checkLoan(s, bankIdx, 0).max)
   // Aynı kuralı arayüzde de çalıştır: düğme, store'un reddedeceği tutarı önermesin
   const loanCheckFor = (idx: number, amount: number) => checkLoan(useGame.getState(), idx, amount)
   const openDeposit = useGame((s) => s.openDeposit)
@@ -1032,6 +1031,8 @@ export function HUD() {
     }
   }, [selectedVehicleId])
   const [bankIdx, setBankIdx] = useState(0)
+  // Seçili bankada çekilebilecek tavan — bankIdx tanımlandıktan sonra okunmalı
+  const loanMax = useGame((s) => checkLoan(s, bankIdx, 0).max)
   const [depositPct, setDepositPct] = useState(50)
   const [loanPct, setLoanPct] = useState(50)
   const driverMarket = useGame((s) => s.driverMarket)
