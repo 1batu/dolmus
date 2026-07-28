@@ -510,6 +510,83 @@ export function bankLimitOf(history: DayStats[], factor: number, assetValue = 0)
   return Math.round((avg * factor + assetValue * CONFIG.bankAssetFactor) / 1000) * 1000
 }
 
+// Son 7 günün ortalama günlük net kârı (ciro − gider). Gider kalemleri
+// ödenmiş taksitleri de içerir, bu yüzden aşağıda geri eklenir
+export function avgDailyProfit(history: DayStats[]): number {
+  const week = history.slice(-7)
+  if (week.length === 0) return 0
+  const total = week.reduce(
+    (sum, d) => sum + Object.values(d.income).reduce((a, b) => a + b, 0) - d.expense,
+    0,
+  )
+  return total / week.length
+}
+
+// Ödeme gücü: borç taksitleri ödenmeden önceki günlük nakit üretimi.
+// Bankanın asıl baktığı sayı bu — brüt ciro yanıltır, çünkü yevmiye ve yakıt
+// cironun büyük kısmını yiyor. Taban değer ilk günlerde kredi yolunu açık tutar
+export function serviceCapacity(history: DayStats[], debts: Debt[]): number {
+  return Math.max(CONFIG.dsrMinIncome, avgDailyProfit(history) + debtServiceDaily(debts))
+}
+
+// Günlük taksit yükü: senet günlük, banka kredisi haftalık işler — hepsi
+// günlüğe indirgenip toplanır (borç servisi)
+export function debtServiceDaily(debts: Debt[]): number {
+  return debts.reduce((sum, d) => sum + Math.min(d.daily, d.remaining) / (d.every ?? 1), 0)
+}
+
+// Tüm bankalardaki açık borç toplamı
+export function totalBankDebt(debts: Debt[]): number {
+  return debts.reduce((sum, d) => sum + (d.bank ? d.remaining : 0), 0)
+}
+
+// Bankalar arası ortak tavan: tek bankanın limitinden yüksek, üçünün
+// toplamından belirgin düşük — birden çok banka kullanmak işe yarar ama
+// sınırsız kredi zinciri kurulamaz
+export function totalBankLimitOf(history: DayStats[], assetValue: number): number {
+  return bankLimitOf(history, CONFIG.totalBankFactor, assetValue)
+}
+
+// Kredi başvurusunun sonucu. Aynı fonksiyon hem aksiyonu hem arayüzü besler:
+// oyuncu reddi görmeden önce sebebini okur
+export type LoanCheck =
+  | { ok: true; max: number }
+  | { ok: false; reason: 'rep' | 'score' | 'bankLimit' | 'totalLimit' | 'dsr' | 'count'; max: number }
+
+export function checkLoan(
+  s: Pick<GameState, 'debts' | 'statsHistory' | 'vehicles' | 'rep' | 'creditScore'>,
+  bankIdx: number,
+  amount: number,
+): LoanCheck {
+  const bank = BANKS[bankIdx]
+  const assetValue = fleetAssetValue(s.vehicles, s.rep)
+  const capacity = serviceCapacity(s.statsHistory, s.debts)
+  // Bu bankada ve toplamda kalan kapasite
+  const bankUsed = s.debts.reduce(
+    (sum, d) => sum + (d.bank && d.bankId === bank.id ? d.remaining : 0),
+    0,
+  )
+  const bankRoom = Math.max(0, bankLimitOf(s.statsHistory, bank.limitFactor, assetValue) - bankUsed)
+  const totalRoom = Math.max(0, totalBankLimitOf(s.statsHistory, assetValue) - totalBankDebt(s.debts))
+  // Taksit kapasitesi: kalan borç servisi payının haftalık krediye çevrilmiş hali.
+  // Kredi haftalık taksitli, vade farkı da eklenerek geri ödenir
+  const serviceRoom = Math.max(0, CONFIG.dsrMax * capacity - debtServiceDaily(s.debts))
+  const markup = bank.markup + ((100 - s.creditScore) / 100) * CONFIG.bankLoanScorePenalty
+  const weeks = Math.ceil(CONFIG.bankLoanTermDays / 7)
+  // günlük yük = anapara × (1+markup) / hafta sayısı / 7  →  anapara tavanı:
+  const dsrRoom = Math.floor((serviceRoom * 7 * weeks) / (1 + markup))
+  const max = Math.min(bankRoom, totalRoom, dsrRoom)
+
+  if (s.rep < bank.minRep) return { ok: false, reason: 'rep', max }
+  if (s.creditScore < bank.minScore) return { ok: false, reason: 'score', max }
+  if (s.debts.filter((d) => d.bank).length >= CONFIG.maxBankLoans)
+    return { ok: false, reason: 'count', max }
+  if (amount > dsrRoom) return { ok: false, reason: 'dsr', max }
+  if (amount > totalRoom) return { ok: false, reason: 'totalLimit', max }
+  if (amount > bankRoom) return { ok: false, reason: 'bankLimit', max }
+  return { ok: true, max }
+}
+
 // Hipoteğe konu filo değeri: her aracın değerlemesi × oyuncunun hissesi
 export function fleetAssetValue(vehicles: Vehicle[], rep: number): number {
   return Math.round(
@@ -1918,14 +1995,11 @@ export const useGame = create<GameState>((set, get) => ({
   takeBankLoan: (bankIdx: number, amount: number) => {
     const s = get()
     const bank = BANKS[bankIdx]
-    if (!bank || s.rep < bank.minRep || s.creditScore < bank.minScore) return
-    const limit = bankLimitOf(s.statsHistory, bank.limitFactor, fleetAssetValue(s.vehicles, s.rep))
-    const used = s.debts.reduce(
-      (sum, d) => sum + (d.bank && d.bankId === bank.id ? d.remaining : 0),
-      0,
-    )
+    if (!bank) return
     const amt = Math.floor(amount)
-    if (amt <= 0 || amt > limit - used) return
+    // Tek kapı: itibar, skor, banka limiti, bankalar arası tavan, taksit
+    // kapasitesi ve açık kredi sayısı burada birlikte denetlenir
+    if (amt <= 0 || !checkLoan(s, bankIdx, amt).ok) return
     // Kredi skoru vade farkını belirler: skor düştükçe faiz artar.
     // Banka taksitleri HAFTALIK işler (gerçekte kimse günlük kredi ödemez)
     const markup = bank.markup + ((100 - s.creditScore) / 100) * CONFIG.bankLoanScorePenalty

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useGame, BANKS, BUILDING_COSTS, MILESTONES, MOD_COSTS, TUTORIAL_DONE, bankLimitOf, capacityOf, fleetAssetValue, insuranceDailyOf, kahyaWageOf, netWorthOf, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
+import { useGame, BANKS, BUILDING_COSTS, MILESTONES, MOD_COSTS, TUTORIAL_DONE, bankLimitOf, capacityOf, checkLoan, debtServiceDaily, fleetAssetValue, insuranceDailyOf, kahyaWageOf, netWorthOf, serviceCapacity, totalBankDebt, totalBankLimitOf, valuationOf, getTodayStats, specOf, fuelUnitPrice, type BuildingKind, type BusKind, type VehicleKind } from '../game/store'
 import { CONFIG, VEHICLE_SPECS, clockOf, contractSlotsOf, queueCapOf } from '../game/config'
 import { SPRINTER_LOT } from '../game/paths'
 import {
@@ -1001,6 +1001,16 @@ export function HUD() {
       s.debts.reduce((sum, d) => sum + (d.bank && d.bankId === b.id ? d.remaining : 0), 0),
     ).join(','),
   )
+  // Bankacılık disiplini: taksit yükü, bankalar arası toplam ve çekilebilir tavan
+  const dsrDaily = useGame((s) => Math.round(debtServiceDaily(s.debts)))
+  const dsrCapacity = useGame((s) => Math.round(serviceCapacity(s.statsHistory, s.debts)))
+  const bankTotalDebt = useGame((s) => totalBankDebt(s.debts))
+  const bankTotalLimit = useGame((s) =>
+    totalBankLimitOf(s.statsHistory, fleetAssetValue(s.vehicles, s.rep)),
+  )
+  const loanMax = useGame((s) => checkLoan(s, bankIdx, 0).max)
+  // Aynı kuralı arayüzde de çalıştır: düğme, store'un reddedeceği tutarı önermesin
+  const loanCheckFor = (idx: number, amount: number) => checkLoan(useGame.getState(), idx, amount)
   const openDeposit = useGame((s) => s.openDeposit)
   const breakDeposit = useGame((s) => s.breakDeposit)
   const takeBankLoan = useGame((s) => s.takeBankLoan)
@@ -1714,7 +1724,6 @@ export function HUD() {
                 const bank = BANKS[bankIdx]
                 const limit = bankLimitOf(statsHistory, bank.limitFactor, assetValue)
                 const used = Number(bankUsedKey.split(',')[bankIdx] ?? 0)
-                const avail = Math.max(0, limit - used)
                 const repOk = rep >= bank.minRep
                 const scoreOk = creditScore >= bank.minScore
                 const depositAmt = Math.max(
@@ -1722,7 +1731,11 @@ export function HUD() {
                   Math.floor((money * depositPct) / 100 / 1000) * 1000,
                 )
                 const canDeposit = money >= CONFIG.depositMin && depositAmt <= money
-                const loanAmt = Math.floor((avail * loanPct) / 100 / 1000) * 1000
+                // Kaydırıcı artık gerçek çekilebilir tavana göre çalışır:
+                // banka limiti, bankalar arası tavan ve taksit kapasitesinin en küçüğü
+                const loanRoom = Math.max(0, loanMax)
+                const loanAmt = Math.floor((loanRoom * loanPct) / 100 / 1000) * 1000
+                const loanVerdict = loanAmt > 0 ? loanCheckFor(bankIdx, loanAmt) : null
                 return (
                   <div className="col-span-2 flex flex-col gap-3">
                     <div className="flex items-center gap-2">
@@ -1736,6 +1749,34 @@ export function HUD() {
                         />
                       </div>
                       <span className="text-[11px] font-black tabular-nums text-[#2c3e50]">{creditScore}</span>
+                    </div>
+                    {/* Borç servisi oranı: bankaların asıl baktığı sayı */}
+                    {(() => {
+                      const pct = Math.round((dsrDaily / Math.max(1, dsrCapacity)) * 100)
+                      const cap = Math.round(CONFIG.dsrMax * 100)
+                      const tight = pct >= cap
+                      return (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-[#93a5af]">
+                            {t.dsrLabel}
+                          </span>
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e2e9ed]">
+                            <div
+                              className={`h-full rounded-full ${tight ? 'bg-[#e74c3c]' : pct >= cap * 0.7 ? 'bg-amber-500' : 'bg-[#2ecc71]'}`}
+                              style={{ width: `${Math.min(100, pct)}%` }}
+                            />
+                          </div>
+                          <span
+                            className={`text-[11px] font-black tabular-nums ${tight ? 'text-red-600' : 'text-[#2c3e50]'}`}
+                            title={t.dsrDaily(dsrDaily, dsrCapacity)}
+                          >
+                            %{pct}
+                          </span>
+                        </div>
+                      )
+                    })()}
+                    <div className="-mt-2 text-[9px] font-bold text-[#adbac2]">
+                      {t.dsrDaily(dsrDaily, dsrCapacity)}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {BANKS.map((b, i) => (
@@ -1792,13 +1833,36 @@ export function HUD() {
                             {t.loanNeedScore(bank.minScore)}
                           </div>
                         )}
+                        {/* Bankalar arası toplam borç ve çekilebilir tavan */}
+                        <div className="rounded-lg bg-[#edf2f5] px-1.5 py-1 text-center text-[9px] font-bold text-[#5b7383]">
+                          {t.totalDebtLabel(bankTotalDebt, bankTotalLimit)}
+                        </div>
+                        {loanMax > 0 && repOk && scoreOk && (
+                          <div className="text-center text-[9px] font-bold text-[#7f929e]">
+                            {t.loanMaxNote(loanMax)}
+                          </div>
+                        )}
+                        {/* Ret sebebi: oyuncu düğmeye basmadan önce okur */}
+                        {loanVerdict && !loanVerdict.ok && (
+                          <div className="rounded-lg bg-amber-400/15 px-1.5 py-1 text-center text-[10px] font-bold leading-snug text-amber-700">
+                            {loanVerdict.reason === 'dsr'
+                              ? t.loanReasonDsr
+                              : loanVerdict.reason === 'totalLimit'
+                                ? t.loanReasonTotalLimit
+                                : loanVerdict.reason === 'count'
+                                  ? t.loanReasonCount(CONFIG.maxBankLoans)
+                                  : loanVerdict.reason === 'bankLimit'
+                                    ? t.loanReasonBankLimit
+                                    : ''}
+                          </div>
+                        )}
                         <div className="flex items-center gap-1.5">
                           <ShareSlider value={loanPct} min={10} max={100} onChange={setLoanPct} />
                           <span className="w-8 text-right text-[10px] font-bold tabular-nums text-[#6f8694]">%{loanPct}</span>
                         </div>
                         <PriceButton
                           label={`${t.loanTake} ₺${fmt(loanAmt)}`}
-                          enabled={repOk && scoreOk && loanAmt > 0}
+                          enabled={loanAmt > 0 && loanVerdict?.ok === true}
                           onClick={() => takeBankLoan(bankIdx, loanAmt)}
                         />
                       </ModalCard>

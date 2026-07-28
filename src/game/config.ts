@@ -365,6 +365,12 @@ export const CONFIG = {
   bankMinRep: 3.5, // kredi için asgari itibar
   bankLimitFactor: 10, // limit = son 7 gün ort. günlük gelir × bu
   bankAssetFactor: 0.5, // hipotek: filo değerinin bu kadarı limite eklenir
+  // Bankacılık disiplini: üç banka birbirinden habersiz kredi vermesin ve
+  // ödeyemeyeceğin borç yazılmasın
+  dsrMax: 0.55, // taksit/gelir: günlüğe indirgenmiş tüm taksitler, 7 gün ort. günlük cironun en fazla bu kadarı
+  totalBankFactor: 20, // tüm bankaların ortak tavanı (tek banka en fazla 14 — birleştirmek işe yarar ama sınırsız değil)
+  maxBankLoans: 4, // aynı anda açık banka kredisi sayısı
+  dsrMinIncome: 5000, // gelir tabanı: ilk günlerde ciro sıfırken kredi yolu tamamen kapanmasın
   creditScoreStart: 70, // 0-100
   creditScoreMissPenalty: 8, // ödeme günü kasa eksideyse
   creditScoreGoodDay: 1, // temiz ödeme günü başına

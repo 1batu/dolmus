@@ -436,6 +436,18 @@ const dicts = {
     settingsGuide: 'Oyun rehberi',
     settingsGuideBtn: 'Rehberi baştan göster',
     // Hesap / bulut kayıt
+    // Bankacılık disiplini
+    dsrLabel: 'Taksit yükü',
+    dsrValue: (pct: number, max: number) => `Ödeme gücünün %${pct}'i · sınır %${max}`,
+    dsrDaily: (daily: number, capacity: number) =>
+      `Günlük taksit ₺${fmt(daily)} · ödeme gücü ₺${fmt(capacity)}/gün`,
+    totalDebtLabel: (used: number, limit: number) =>
+      `Tüm bankalar: ₺${fmt(used)} / ₺${fmt(limit)}`,
+    loanMaxNote: (amount: number) => `Bu koşullarda en çok ₺${fmt(amount)} çekebilirsin`,
+    loanReasonDsr: 'Taksit yükün sınırda — mevcut borçları azalt ya da ciroyu büyüt',
+    loanReasonTotalLimit: 'Bankalar arası toplam borç tavanına ulaştın',
+    loanReasonBankLimit: 'Bu bankanın limiti doldu — başka bankayı dene',
+    loanReasonCount: (max: number) => `Aynı anda en fazla ${max} banka kredisi taşıyabilirsin`,
     settingsAccount: 'Hesap',
     signInGoogle: 'Google ile giriş yap',
     signOut: 'Çıkış yap',
@@ -938,6 +950,16 @@ const dicts = {
     settingsSoundOff: 'Off',
     settingsGuide: 'Game guide',
     settingsGuideBtn: 'Replay the guide',
+    dsrLabel: 'Debt service',
+    dsrValue: (pct: number, max: number) => `${pct}% of income · cap ${max}%`,
+    dsrDaily: (daily: number, capacity: number) =>
+      `₺${fmt(daily)} daily installments · ₺${fmt(capacity)}/day capacity`,
+    totalDebtLabel: (used: number, limit: number) => `All banks: ₺${fmt(used)} / ₺${fmt(limit)}`,
+    loanMaxNote: (amount: number) => `You can borrow up to ₺${fmt(amount)} right now`,
+    loanReasonDsr: 'Your installment load is at the cap — pay down debt or grow revenue',
+    loanReasonTotalLimit: 'You have hit the combined bank debt ceiling',
+    loanReasonBankLimit: 'This bank’s limit is used up — try another bank',
+    loanReasonCount: (max: number) => `You can carry at most ${max} bank loans at once`,
     settingsAccount: 'Account',
     signInGoogle: 'Sign in with Google',
     signOut: 'Sign out',
